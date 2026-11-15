@@ -159,6 +159,11 @@ export default function CardPanel(props: Props) {
 
   // The language showing now (the printing's own, or the one chosen)
   const effectiveLang = shown?.lang ?? print?.lang ?? 'en';
+  // The language the other versions are matched to. Phyrexian isn't a real
+  // language, so it counts as all of them: a Phyrexian card can be picked
+  // whatever language is chosen, and looking at one doesn't change what the
+  // other versions are matched to (English).
+  const chosenLang = effectiveLang === 'ph' ? 'en' : effectiveLang;
 
   // The other versions in this set: which languages each is made in. Only
   // looked up when a language other than English is chosen (an English
@@ -169,7 +174,7 @@ export default function CardPanel(props: Props) {
     queries: versions.map((v) => ({
       queryKey: ['languages', v.set, v.collector_number],
       queryFn: () => loadLanguages(v, languageName),
-      enabled: effectiveLang !== 'en' && v.id !== print?.id,
+      enabled: chosenLang !== 'en' && v.id !== print?.id,
     })),
   });
 
@@ -177,10 +182,10 @@ export default function CardPanel(props: Props) {
   // then in that language), or null if it isn't made in that language. While
   // its languages are still loading it's counted as available.
   function variantFor(version: ScryfallCard): ScryfallCard | null {
-    if (version.lang === effectiveLang) return version;
+    if (version.lang === 'ph' || version.lang === chosenLang) return version;
     const index = versions.indexOf(version);
     const query = version.id === print?.id ? languages : otherLanguages[index];
-    const found = query?.data?.find((v) => v.lang === effectiveLang);
+    const found = query?.data?.find((v) => v.lang === chosenLang);
     if (found) return found;
     return query?.isLoading ? version : null;
   }
@@ -213,7 +218,7 @@ export default function CardPanel(props: Props) {
   function selectVersion(next: ScryfallCard) {
     setPrintId(next.id);
     setFace(0);
-    setLang(effectiveLang === next.lang ? null : effectiveLang);
+    setLang(next.lang === 'ph' || chosenLang === next.lang ? null : chosenLang);
   }
 
   // A grayed-out version was tapped: say why it can't be picked
@@ -221,7 +226,7 @@ export default function CardPanel(props: Props) {
     const own = languageName(version.lang);
     showToast(version.lang !== 'en'
       ? `#${version.collector_number} is only in ${own}. Choose ${own} under Language to pick it.`
-      : `#${version.collector_number} isn't printed in ${languageName(effectiveLang)}. Choose another language to pick it.`);
+      : `#${version.collector_number} isn't printed in ${languageName(chosenLang)}. Choose another language to pick it.`);
   }
 
   // Switch to another set, on its first printing.
@@ -376,8 +381,10 @@ export default function CardPanel(props: Props) {
   // (like the Phyrexian Sheoldred, the Apocalypse #369 in Dominaria United), so
   // they aren't in this printing's own list. Those versions of this set are
   // added to the list too; picking one switches to that version.
-  const ownLanguages = languages.data ?? (print ? [print] : []);
-  const languageVersions = versions.filter((v) => v.lang !== 'en' && !ownLanguages.some((own) => own.lang === v.lang));
+  // (Phyrexian isn't a real language, so it's never in the list: its versions
+  // can be picked whatever language is chosen.)
+  const ownLanguages = (languages.data ?? (print ? [print] : [])).filter((v) => v.lang !== 'ph');
+  const languageVersions = versions.filter((v) => v.lang !== 'en' && v.lang !== 'ph' && !ownLanguages.some((own) => own.lang === v.lang));
   const languageOptions = [...ownLanguages, ...languageVersions];
   const currentLanguage = languageOptions.find((v) => v.lang === shown?.lang) ?? null;
 
