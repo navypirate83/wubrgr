@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
 import { accountVersion, onAccountChange } from '@/lib/accountEvents';
 import { isSignedIn, isUsingBinders } from '@/lib/googleDrive';
 import { isLocalMode } from '@/lib/binderStorage';
-import { getServerUser, isServerSignedIn } from '@/lib/session';
+import { getServerUser, hasPrismAccess, isServerSignedIn } from '@/lib/session';
 
 export function useAccount() {
   // "useSyncExternalStore" is React's way to follow something kept
@@ -24,6 +24,8 @@ export function useAccount() {
     // Signed in to the WUBRG'r server, and who
     serverSignedIn: isServerSignedIn(),
     serverUser: getServerUser(),
+    // May see the PRISM section (accounts with the PRISM role, and admins)
+    hasPrism: hasPrismAccess(),
     localMode: isLocalMode(),
     usingBinders: isUsingBinders() || isServerSignedIn(),
   };

@@ -79,6 +79,21 @@ describe('roles', () => {
   });
 });
 
+describe('the prism role', () => {
+  test('a PRISM account is a normal account that is not an admin, and its role is in its login', async () => {
+    const prism = await makeUser({ role: 'prism' });
+    expect(prism.role).toBe('prism');
+    // It is not an admin
+    expect((await request(app).get('/admin/users').set('Authorization', bearer(prism))).status).toBe(403);
+    // It can use the rest of the app like anyone else
+    expect((await request(app).get('/binders').set('Authorization', bearer(prism))).status).toBe(200);
+  });
+
+  test('only the known roles can be saved', async () => {
+    await expect(makeUser({ role: 'owner' })).rejects.toThrow();
+  });
+});
+
 describe('ownership', () => {
   async function twoPeople() {
     const a = await makeUser();

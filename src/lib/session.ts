@@ -61,6 +61,12 @@ async function readRefreshToken(): Promise<string | null> {
 export function getServerUser(): ServerUser | null {
   return user;
 }
+
+// May this person see the PRISM section? Accounts with the "prism" role may,
+// and so may admins (an admin has every role). Nobody else sees any sign of it.
+export function hasPrismAccess(who: ServerUser | null = user): boolean {
+  return who?.role === 'prism' || who?.role === 'admin';
+}
 export function isServerSignedIn(): boolean {
   return user !== null;
 }

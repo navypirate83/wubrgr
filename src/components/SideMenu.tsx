@@ -45,6 +45,8 @@ import { RADIUS, SPACE } from '@/theme/colors';
 const BINDER_PICTURE = require('../../assets/images/binder-outline.svg') as number;
 const NOTEBOOK_PICTURE = require('../../assets/images/notebook-outline.svg') as number;
 const DECK_BOX_PICTURE = require('../../assets/images/deckbox-outline.svg') as number;
+// The PRISM prism (in full color; only accounts with the PRISM role see its line)
+const PRISM_PICTURE = require('../../assets/images/prism-icon.png') as number;
 
 // An Ionicons icon's name, written the way the icon set spells it
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -53,9 +55,12 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // Everything else under /binders is the Binders page (the shelf, or one binder).
 const LISTS_ADDRESS = /^\/binders\/lists?(\/|$)/;
 const DECKS_ADDRESS = /^\/binders\/decks?(\/|$)/;
+const PRISM_ADDRESS = /^\/binders\/prism(\/|$)/;
 
 export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
   const colors = useColors();
+  // Does this account have the PRISM role? Without it the menu has no PRISM line
+  const { hasPrism } = useAccount();
   const insets = useSafeAreaInsets();
   const slim = style === 'slim';
   // Room for the full menu? Then there's a Collapse / Expand button
@@ -91,7 +96,8 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
   const onHome = path === '/';
   const onLists = LISTS_ADDRESS.test(path);
   const onDecks = DECKS_ADDRESS.test(path);
-  const onBinders = path.startsWith('/binders') && !onLists && !onDecks;
+  const onPrism = PRISM_ADDRESS.test(path);
+  const onBinders = path.startsWith('/binders') && !onLists && !onDecks && !onPrism;
   const onSearch = path === '/search';
   const onSettings = path === '/settings';
   // The main page of the part of the shelf you're in (the shelf of binders,
@@ -157,13 +163,15 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
         onPress={() => router.navigate((mainHere ?? shelfHref()) as never)}
         style={({ pressed }) => [styles.groupHeading, slim && styles.centered, pressed && { opacity: 0.6 }]}
       >
-        <Ionicons name={onBinders || onLists || onDecks ? 'library' : 'library-outline'} size={22} color={colors.text} />
+        <Ionicons name={onBinders || onLists || onDecks || onPrism ? 'library' : 'library-outline'} size={22} color={colors.text} />
         {!slim && <Text style={[styles.groupText, { color: colors.text }]}>The Shelf</Text>}
       </Pressable>
       <View style={[styles.subItems, !slim && { borderLeftColor: colors.border }, slim && styles.subItemsSlim]}>
         <MenuItem slim={slim} sub label="Binders" picture={BINDER_PICTURE} active={onBinders} onPress={() => goTo('binders', onBinders)} />
         <MenuItem slim={slim} sub label="Lists" picture={NOTEBOOK_PICTURE} active={onLists} onPress={() => goTo('lists', onLists)} />
         <MenuItem slim={slim} sub label="Decks" picture={DECK_BOX_PICTURE} active={onDecks} onPress={() => goTo('decks', onDecks)} />
+        {/* PRISM: only for accounts with the PRISM role (and admins) */}
+        {hasPrism && <MenuItem slim={slim} sub label="PRISM" picture={PRISM_PICTURE} plain active={onPrism} onPress={() => goTo('prism', onPrism)} />}
       </View>
 
       <MenuItem slim={slim} label="Card Finder" icon="search-outline" activeIcon="search" active={onSearch} onPress={() => router.navigate('/search')} />
@@ -190,12 +198,13 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
    you're on gets a lighter background and an orange mark down its left
    edge. "sub" lines (Binders, Lists) are a little smaller.
    --------------------------------------------------------------------- */
-function MenuItem({ slim, label, icon, activeIcon, picture, active, sub, onPress }: {
+function MenuItem({ slim, label, icon, activeIcon, picture, plain, active, sub, onPress }: {
   slim: boolean;
   label: string;
   icon?: IconName;            // an Ionicons icon (outline), or...
   activeIcon?: IconName;      // ...its filled version, for the page you're on
   picture?: number;           // ...one of the app's drawings
+  plain?: boolean;            // a picture drawn in its own colors (not tinted like the text)
   active: boolean;
   sub?: boolean;
   onPress: () => void;
@@ -217,7 +226,7 @@ function MenuItem({ slim, label, icon, activeIcon, picture, active, sub, onPress
       ]}
     >
       {picture !== undefined
-        ? <Image source={picture} style={styles.picture} contentFit="contain" tintColor={tint} />
+        ? <Image source={picture} style={styles.picture} contentFit="contain" tintColor={plain ? undefined : tint} />
         : <Ionicons name={active && activeIcon ? activeIcon : icon!} size={22} color={tint} />}
       {!slim && <Text style={[styles.itemText, sub && styles.itemTextSub, { color: tint }]} numberOfLines={1}>{label}</Text>}
     </Pressable>

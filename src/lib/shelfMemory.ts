@@ -1,6 +1,7 @@
 /* =====================================================================
    WHERE YOU WERE IN THE SHELF
-   The shelf has three sections: Binders, Lists and Decks. Each page you
+   The shelf has three sections: Binders, Lists and Decks (and a fourth, PRISM,
+   for accounts that have the PRISM role). Each page you
    open inside it is remembered, so coming back puts you where you left
    off instead of at the top:
    - the Binders / Lists / Decks buttons (in the header on a phone, in the
@@ -25,13 +26,14 @@ import { findBinder } from './binderStorage';
 import { findList } from './listStorage';
 import { findDeck } from './deckStorage';
 
-export type ShelfSection = 'binders' | 'lists' | 'decks';
+export type ShelfSection = 'binders' | 'lists' | 'decks' | 'prism';
 
 // Each section's first page
 const FIRST_PAGE: Record<ShelfSection, string> = {
   binders: '/binders',
   lists: '/binders/lists',
   decks: '/binders/decks',
+  prism: '/binders/prism',
 };
 
 // The last place in each section, and which section was the last one in
@@ -47,6 +49,7 @@ function sectionOf(pathname: string): ShelfSection | null {
   if (path === '/binders') return 'binders';
   if (path === '/binders/lists' || /^\/binders\/list\/[^/]+$/.test(path)) return 'lists';
   if (path === '/binders/decks' || /^\/binders\/deck\/[^/]+$/.test(path)) return 'decks';
+  if (path === '/binders/prism') return 'prism';
   if (/^\/binders\/[^/]+$/.test(path)) return 'binders';   // one binder
   return null;
 }
@@ -63,7 +66,7 @@ export function rememberShelfPlace(pathname: string): void {
 // Is the remembered place still there? (A deleted binder or list isn't.)
 function stillThere(href: string): boolean {
   const binder = /^\/binders\/([^/]+)$/.exec(href)?.[1];
-  if (binder && !['lists', 'decks'].includes(binder)) return findBinder(binder) !== undefined;
+  if (binder && !['lists', 'decks', 'prism'].includes(binder)) return findBinder(binder) !== undefined;
   const list = /^\/binders\/list\/([^/]+)$/.exec(href)?.[1];
   if (list) return findList(list) !== undefined;
   const deck = /^\/binders\/deck\/([^/]+)$/.exec(href)?.[1];

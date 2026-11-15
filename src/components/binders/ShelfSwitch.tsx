@@ -12,6 +12,8 @@
      list you had open, say), or its main page if there isn't one: see
      lib/shelfMemory.ts. Switching swaps the page in place instead of
      sliding, so there's no back arrow between them.
+   Accounts with the PRISM role (and admins) get a fourth button, with the
+   PRISM prism picture (it keeps its own colors). Everyone else never sees it.
    When the side menu is showing it already has Binders, Lists and Decks,
    so this switch hides itself.
    ===================================================================== */
@@ -21,6 +23,7 @@ import { router, usePathname } from 'expo-router';
 import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useTheme';
 import { useMenuStyle } from '@/hooks/useMenuStyle';
+import { useAccount } from '@/hooks/useAccount';
 import { sectionHref } from '@/lib/shelfMemory';
 import { RADIUS } from '@/theme/colors';
 
@@ -30,12 +33,16 @@ const PAGES = {
   binders: { name: 'Binders', picture: require('../../../assets/images/binder-outline.svg') as number, to: '/binders' },
   lists: { name: 'Lists', picture: require('../../../assets/images/notebook-outline.svg') as number, to: '/binders/lists' },
   decks: { name: 'Decks', picture: require('../../../assets/images/deckbox-outline.svg') as number, to: '/binders/decks' },
+  // Only for accounts with the PRISM role: its picture is in full color, so it isn't tinted
+  prism: { name: 'PRISM', picture: require('../../../assets/images/prism-icon.png') as number, to: '/binders/prism' },
 } as const;
 
 type Page = keyof typeof PAGES;
 
 export default function ShelfSwitch({ current }: { current: Page }) {
   const colors = useColors();
+  // Does this account have the PRISM role? Without it there's no PRISM button
+  const { hasPrism } = useAccount();
   // With the side menu showing there's nothing to switch with here
   const hasSideMenu = useMenuStyle() !== 'none';
   // Are we on the main page of the current part (not inside a binder or list)?
@@ -45,7 +52,7 @@ export default function ShelfSwitch({ current }: { current: Page }) {
 
   return (
     <View style={styles.row}>
-      {(Object.keys(PAGES) as Page[]).map((page) => {
+      {(Object.keys(PAGES) as Page[]).filter((page) => page !== 'prism' || hasPrism).map((page) => {
         const here = page === current;
         // Your own part: up to its main page (nothing to do if you're there)
         const stuck = here && atMain;
@@ -70,7 +77,8 @@ export default function ShelfSwitch({ current }: { current: Page }) {
             ]}
           >
             {/* The line drawing, in the theme's text color */}
-            <Image source={PAGES[page].picture} style={styles.picture} contentFit="contain" tintColor={colors.text} />
+            <Image source={PAGES[page].picture} style={page === 'prism' ? styles.prismPicture : styles.picture} contentFit="contain"
+                   tintColor={page === 'prism' ? undefined : colors.text} />
           </Pressable>
         );
       })}
@@ -86,4 +94,5 @@ const styles = StyleSheet.create({
   here: { borderWidth: 2 },
   pressed: { opacity: 0.6 },
   picture: { width: 22, height: 18 },
+  prismPicture: { width: 22, height: 22, borderRadius: 5 },
 });

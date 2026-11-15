@@ -36,7 +36,7 @@ export const unstable_settings = { initialRouteName: 'index' };
 // The right end of the header on the shelf's three pages: the small
 // Binders / Lists / Decks switch, then the Help button (each hides itself
 // when the side menu is showing)
-function shelfHeaderRight(page: 'binders' | 'lists' | 'decks') {
+function shelfHeaderRight(page: 'binders' | 'lists' | 'decks' | 'prism') {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       <ShelfSwitch current={page} />
@@ -73,6 +73,8 @@ export default function BindersLayout() {
       <Stack.Screen name="lists" options={{ title: 'Lists', animation: 'none', headerRight: () => shelfHeaderRight('lists') }} />
       {/* Your decks: the same as the lists page */}
       <Stack.Screen name="decks" options={{ title: 'Decks', animation: 'none', headerRight: () => shelfHeaderRight('decks') }} />
+      {/* PRISM: only for accounts with the PRISM role (the page sends everyone else back to the shelf) */}
+      <Stack.Screen name="prism" options={{ title: 'PRISM', animation: 'none', headerRight: () => shelfHeaderRight('prism') }} />
       {/* One deck: it slides in over the decks. Its title is set by the deck
           screen itself (the deck's name). */}
       <Stack.Screen name="deck/[id]" options={{ title: 'Deck' }} />
