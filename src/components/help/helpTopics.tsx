@@ -625,7 +625,7 @@ export const helpTopics: HelpTopic[] = [
         down a menu: <Strong>Name</Strong> (A to Z), <Strong>Newest added</Strong>, <Strong>Price</Strong> (the
         most valuable first), <Strong>Color</Strong> (White, Blue, Black, Red, Green, then each
         two-color pair, then three colors and more, each exact set of colors in its own group, then colorless,
-        then Lands), <Strong>Set</Strong> (the oldest set first), <Strong>Type</Strong> (Creatures, Enchantments,
+        then Lands in color order: Plains, Islands, Swamps, Mountains, Forests, then other lands), <Strong>Set</Strong> (the oldest set first), <Strong>Type</Strong> (Creatures, Enchantments,
         Artifacts, Sorceries, Instants, Battles, Planeswalkers, Lands, then anything else; anything that is a
         Land counts as a Land, even an Artifact Land), <Strong>Rarity</Strong> (Mythic,
         Rare, Uncommon, Common, Special) and <Strong>Mana value</Strong> (the cheapest first). Tap the sort already

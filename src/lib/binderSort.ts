@@ -89,9 +89,11 @@ export type SortContext = {
 // colors, then three, and so on. Every exact set of colors is its own group
 // (the number is 100 for each color in it, plus a small number that tells
 // the groups of that size apart). Colorless comes after all of those, then
-// Lands.
-function colorGroup(colors: string[], isLand: boolean): number {
-  if (isLand) return 60000;
+// Lands. The Lands go in the order of the colors too: Plains (white), Island
+// (blue), Swamp (black), Mountain (red), Forest (green), then lands with none
+// of those types (a land with two, like "Plains Island", goes by its first).
+function colorGroup(colors: string[], typeLine: string | undefined): number {
+  if (isLandType(typeLine)) return 60000 + landColorRank(typeLine ?? '');
   if (colors.length === 0) return 50000;
   const small = colors.reduce((sum, letter) => sum + 2 ** 'WUBRG'.indexOf(letter), 0);
   return colors.length * 100 + small;
@@ -107,6 +109,15 @@ const TYPE_ORDER = ['creature', 'enchantment', 'artifact', 'sorcery', 'instant',
 // a card with no type saved yet isn't counted as one.)
 function isLandType(typeLine: string | undefined): boolean {
   return typeLine !== undefined && /\bland\b/.test(typeLine.toLowerCase().split('//')[0].split('—')[0]);
+}
+// Where a land goes among the lands: 0 Plains, 1 Island, 2 Swamp, 3 Mountain,
+// 4 Forest (the basic land types after the dash in its type line), 5 for
+// any other land
+const BASIC_LAND_TYPES = ['plains', 'island', 'swamp', 'mountain', 'forest'];
+function landColorRank(typeLine: string): number {
+  const after = typeLine.toLowerCase().split('//')[0].split('—')[1] ?? '';
+  const found = BASIC_LAND_TYPES.findIndex((type) => new RegExp(`\\b${type}\\b`).test(after));
+  return found === -1 ? BASIC_LAND_TYPES.length : found;
 }
 function typeRank(typeLine: string): number {
   const types = typeLine.toLowerCase().split('//')[0].split('—')[0];
@@ -177,7 +188,7 @@ export function sortEntries(entries: SortEntry[], sort: BinderSort, reversed = f
       by((item) => context.prices?.get(item.entry.key) ?? undefined, -1);
       break;
     case 'color':
-      by((item) => (item.details.colors ? colorGroup(item.details.colors, isLandType(item.details.type)) : undefined));
+      by((item) => (item.details.colors ? colorGroup(item.details.colors, item.details.type) : undefined));
       break;
     case 'set':
       // Oldest set first; sets from the same day by set code, then collector number
