@@ -525,7 +525,7 @@ export function cardCount(card: BinderCard | undefined): number {
 // printing, set, art, foil or etched), and however many copies there are,
 // the same name counts once: 3 copies of Sol Ring, or a Sol Ring from each
 // of two sets, are one name. Capital letters and spaces at the ends don't
-// matter. For the "same name" figure in the line above a binder's or a
+// matter. For the "distinct" figure in the line above a binder's or a
 // list's cards.
 export function sameNameCount(cards: { name: string }[]): number {
   return new Set(cards.map((card) => card.name.trim().toLowerCase())).size;

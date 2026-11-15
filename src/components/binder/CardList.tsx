@@ -329,12 +329,12 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
 }
 
 /* ---------------------------------------------------------------------
-   THE SUMMARY LINE above the cards: "42 cards · 31 different · 9 same
-   name · $118.40"
+   THE SUMMARY LINE above the cards: "42 cards · 31 different · 9
+   distinct · $118.40"
    - cards: every card, counting each copy
    - different: how many separate cards are in the list (a stack of
      copies is one; each printing is its own)
-   - same name: how many different card NAMES there are, however the
+   - distinct: how many different card NAMES there are, however the
      cards look (another printing, set, foil or art counts as the same
      name) and however many copies there are
    (also shown above the pockets in the Binder view: the binder screen uses it,
@@ -351,7 +351,7 @@ export function Summary({ entries, prices, searchOf, hint, note }: { entries: Ca
     : prices.failed ? 'prices unavailable' : prices.loading ? 'loading prices…' : '';
   const parts = searchOf !== undefined
     ? [`${entries.length} of ${searchOf} ${searchOf === 1 ? 'card' : 'cards'} match`, worth, hint, note].filter(Boolean)
-    : [`${cards} ${cards === 1 ? 'card' : 'cards'}`, `${entries.length} different`, `${sameNameCount(entries.map((entry) => entry.card)).toLocaleString()} same name`, worth, note].filter(Boolean);
+    : [`${cards} ${cards === 1 ? 'card' : 'cards'}`, `${entries.length} different`, `${sameNameCount(entries.map((entry) => entry.card)).toLocaleString()} distinct`, worth, note].filter(Boolean);
   return <Text style={[styles.summary, { color: colors.muted }]} accessibilityLiveRegion="polite">{parts.join(' · ')}</Text>;
 }
 
