@@ -177,6 +177,32 @@ export function setDeckCards(id: string, cards: DeckCard[]): boolean {
   return changeDeck(id, (d) => ({ ...d, cards }));
 }
 
+// Add a pile of cards (each with its own count and zone) to a deck: a card
+// that's already there as the same printing in the same place gets more
+// copies; the rest go on the end, in order. Command zone cards are put in
+// their spot only if it's empty (otherwise they join the main deck); a
+// command zone card always counts as one.
+export function addCardsToDeck(id: string, cards: DeckCard[]): boolean {
+  return changeDeck(id, (d) => {
+    const next = [...d.cards];
+    for (const card of cards) {
+      let wanted = card;
+      if (card.zone === 'command') {
+        const taken = next.some((c) => c.zone === 'command' && c.slot === (card.slot ?? 0));
+        wanted = taken ? stripZone(card) : oneCopyIsNoCount(card);
+      }
+      const at = wanted.zone === 'command' ? -1 : next.findIndex((c) => samePrinting(c, wanted) && zoneOf(c) === zoneOf(wanted));
+      if (at < 0) {
+        next.push(wanted);
+      } else {
+        const total = Math.min(MAX_COPIES, (next[at].count ?? 1) + (wanted.count ?? 1));
+        next[at] = total > 1 ? { ...next[at], count: total } : oneCopyIsNoCount(next[at]);
+      }
+    }
+    return { ...d, cards: next };
+  });
+}
+
 // Change how many copies of the card at this spot (0 is the first) the
 // deck has; 0 takes it out
 export function setDeckCardCount(id: string, index: number, count: number): boolean {

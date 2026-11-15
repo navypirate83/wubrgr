@@ -276,8 +276,19 @@ export const helpTopics: HelpTopic[] = [
               A card that is <Strong>banned in the deck's format</Strong> gets a thick black slash across its picture
               (top left to bottom right) with <Strong>BANNED</Strong> written on it, and adding one (with the + in the
               deck, a dropped picture, or the Card Finder) first asks whether you're sure.
-              The <Strong>down arrow</Strong> button downloads the deck as a <Strong>.CSV</Strong> file
-              (it has the deck's name, format and where each card is kept: main, sideboard or command).
+              The <Strong>down arrow</Strong> button offers three ways to take the deck with you: a <Strong>.CSV</Strong> file
+              (it has the deck's name, format and where each card is kept: main, sideboard or command), a
+              <Strong> .TXT</Strong> file (a plain list like <Strong>1 Sol Ring (CMM) 400</Strong>, with Commander,
+              Deck and Sideboard headings, which Archidekt, Moxfield and other sites can read), or
+              <Strong> Copy the list</Strong>, which puts that same list on your clipboard to paste anywhere.
+              The <Strong>up arrow</Strong> button next to it <Strong>imports a decklist into the deck</Strong>: paste a list,
+              paste a link to a deck on Archidekt or Moxfield (you need to be signed in; Moxfield sometimes blocks the
+              link, and then the app says so: on Moxfield choose Export, copy the text and paste that instead), or choose a
+              file (a .csv or .json from this app, Archidekt or Moxfield, or a .txt list). Cards go where the list puts them
+              (main deck, sideboard, or the command zone if it's empty); a card that's already there gets more copies; a card
+              that can't be found is skipped and listed afterwards. The same import is in the <Strong>Add deck</Strong> window
+              (<Strong>Import a decklist</Strong>): the deck takes the list's name (if you kept the suggested one) and
+              format.
             </P>
             <P>
               <Strong>Command zone.</Strong> A deck in a Commander-style format has a <Strong>Command zone</Strong> above its

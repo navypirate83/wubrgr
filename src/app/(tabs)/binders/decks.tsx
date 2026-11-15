@@ -29,10 +29,12 @@ import PopupWindow from '@/components/PopupWindow';
 import TextField from '@/components/TextField';
 import Button from '@/components/Button';
 import NewDeckDialog from '@/components/decks/NewDeckDialog';
-import { addDeck, forgetDeck, loadDecks, renameDeck, type Deck } from '@/lib/deckStorage';
+import { addDeck, forgetDeck, loadDecks, nextDeckName, renameDeck, type Deck } from '@/lib/deckStorage';
+import { readImportSource, importIntoDeck, summaryText } from '@/lib/deckImportRun';
+import type { ImportedDeck } from '@/lib/deckImport';
 import { deckFormat } from '@/lib/deckFormats';
 import { cardCountText } from '@/lib/binderStorage';
-import { askYesNo } from '@/lib/dialogs';
+import { askYesNo, showMessage } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import { RADIUS } from '@/theme/colors';
 import SymbolText from '@/components/SymbolText';
@@ -67,11 +69,35 @@ export default function DecksScreen() {
   useFocusEffect(useCallback(() => { setDecks(loadDecks()); }, []));
 
   // "Create" in the new deck window: make it and open it
-  function create(name: string, format: string) {
-    const id = addDeck(name, format);
+  // With a decklist (pasted, a link or a file) the deck is filled from it: the
+  // list is read first (a list that can't be read leaves the window open, with
+  // nothing made); a name left as it was suggested takes the list's own name,
+  // and the list's format wins over the one picked
+  async function create(name: string, format: string, source?: string) {
+    let imported: ImportedDeck | undefined;
+    if (source) {
+      try {
+        imported = await readImportSource(source);
+      } catch (err) {
+        showMessage("Couldn't import that", (err as Error).message);
+        return;
+      }
+    }
+    const keptSuggestion = name.trim() === nextDeckName();
+    const id = addDeck(keptSuggestion && imported?.name ? imported.name.slice(0, 40) : name, imported?.format ?? format);
+    let skipped: string | null = null;
+    if (imported) {
+      try {
+        const summary = await importIntoDeck(id, imported);
+        if (summary.notFound.length > 0) skipped = summaryText(summary);
+      } catch (err) {
+        skipped = `The deck was made, but its cards couldn't be added. ${(err as Error).message}`;
+      }
+    }
     setMaking(false);
     setDecks(loadDecks());
     openDeck(id);
+    if (skipped) showMessage('Import finished', skipped);
   }
 
   // "Save" in the Rename window
@@ -145,7 +171,7 @@ export default function DecksScreen() {
       />
 
       {/* Add deck: a name, and the format to build it for */}
-      {making && <NewDeckDialog onCreate={create} onCancel={() => setMaking(false)} />}
+      {making && <NewDeckDialog allowImport onCreate={create} onCancel={() => setMaking(false)} />}
 
       {/* A held deck's options: Rename and Delete */}
       {menuDeck && (

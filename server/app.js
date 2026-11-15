@@ -22,6 +22,7 @@ import decksRouter from './routes/decks.js';
 import settingsRouter from './routes/settings.js';
 import adminRouter from './routes/admin.js';
 import makeScryfallRouter from './routes/scryfall.js';
+import { createImportRouter } from './routes/importDeck.js';
 
 // Read the settings (also loads the .env file)
 export const config = loadConfig();
@@ -112,6 +113,8 @@ app.use('/settings', requireAuth, settingsRouter);
 // Card information from Scryfall, for logged-in people only (each person
 // has their own limit per minute, so nobody can use up the shared allowance)
 app.use('/scryfall', requireAuth, makeScryfallRouter(config.scryfallRateLimitMax));
+// Reading a deck from an Archidekt or Moxfield link (the browser can't ask them itself)
+app.use('/import', requireAuth, createImportRouter());
 app.use('/admin', requireAuth, requireAdmin, adminRouter);
 
 // Anything else: a plain 404 that never repeats the address back

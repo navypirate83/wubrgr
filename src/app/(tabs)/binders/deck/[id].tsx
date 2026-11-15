@@ -75,7 +75,9 @@ import { isSearching, makeNameFilter } from '@/lib/nameFilter';
 import { detailsOf, costAndTypeOf, finishParam } from '@/lib/cardDetails';
 import { cardCount, MAX_COPIES, samePrinting } from '@/lib/binderStorage';
 import { cardByNamePath, cardBySetPath, loadOneCard, type ScryfallCard } from '@/lib/scryfall';
-import { downloadDeckCsv } from '@/lib/binderDownload';
+import ImportDeckDialog from '@/components/decks/ImportDeckDialog';
+import DownloadDeckDialog from '@/components/decks/DownloadDeckDialog';
+import { summaryText, type ImportSummary } from '@/lib/deckImportRun';
 import { askYesNo, showMessage } from '@/lib/dialogs';
 
 // The Card Finder's address for a card in this deck: that exact printing
@@ -122,6 +124,9 @@ export default function DeckScreen() {
   // to a binder (the pop-up list of binders)
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const [movingIndex, setMovingIndex] = useState<number | null>(null);
+  // The import window (the upload button) and the download window (the download button)
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   /* ----- The cards as the list and grid show them (the same as a list) ----- */
 
@@ -571,9 +576,11 @@ export default function DeckScreen() {
         <ViewSwitch
           mode={mode} sort={sort} reversed={reversed} modes={['list', 'grid']} onView={setListViewMode}
           extras={(
-            // Save (or share) the deck as a .csv file
-            <ToolButton icon="download-outline" label={`Download ${deck.name} as a .CSV file`}
-                        onPress={() => downloadDeckCsv(id).catch((err) => showMessage('Couldn\'t save the file', (err as Error).message))} />
+            // Import a decklist into this deck, and download the deck (.CSV, .TXT or copy)
+            <>
+              <ToolButton icon="cloud-upload-outline" label={`Import a decklist into ${deck.name}`} onPress={() => setImporting(true)} />
+              <ToolButton icon="download-outline" label={`Download ${deck.name}`} onPress={() => setDownloading(true)} />
+            </>
           )}
         />
         {/* Formats with a sideboard: switch between the main deck and the sideboard */}
@@ -702,6 +709,27 @@ export default function DeckScreen() {
             <Button label="Delete from deck" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuIndex)} />
           </View>
         </PopupWindow>
+      )}
+
+      {/* The upload button: a pasted list, a link, or a file, added to this deck */}
+      {importing && (
+        <ImportDeckDialog
+          deckId={id}
+          onCancel={() => setImporting(false)}
+          onDone={(summary: ImportSummary) => {
+            setImporting(false);
+            setDeck(findDeck(id));
+            setOwned(loadOwned());
+            if (summary.notFound.length > 0) showMessage('Import finished', summaryText(summary));
+            else { setNote(summaryText(summary)); announce(summaryText(summary)); }
+          }}
+        />
+      )}
+
+      {/* The download button: a .CSV file, a .TXT file, or copy the list */}
+      {downloading && (
+        <DownloadDeckDialog deckId={id} onClose={() => setDownloading(false)}
+                            onCopied={() => { setNote('List copied.'); announce('List copied to the clipboard.'); }} />
       )}
 
       {/* A command zone spot's search window: only cards allowed in the spot */}

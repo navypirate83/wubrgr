@@ -21,6 +21,8 @@ import { findList } from './listStorage';
 import { listToCsv } from './listCsv';
 import { findDeck } from './deckStorage';
 import { deckToCsv } from './deckCsv';
+import { deckToText } from './deckImport';
+import * as Clipboard from 'expo-clipboard';
 
 // The file name: the binder's name (characters not allowed in file
 // names removed) and today's date, like "Binder 1 2026-10-16.csv"
@@ -59,4 +61,24 @@ export async function downloadListCsv(id: string): Promise<void> {
 export async function downloadDeckCsv(id: string): Promise<void> {
   const deck = findDeck(id);
   if (deck) await shareCsv(deck.name, deckToCsv(deck));
+}
+
+// A deck as a .txt file (a plain list of cards, see deckToText): written to
+// the app's temporary folder, then the Share menu opens, the same as the .csv
+export async function downloadDeckText(id: string): Promise<void> {
+  const deck = findDeck(id);
+  if (!deck) return;
+  const file = new File(Paths.cache, `${deck.name.replace(/[\\/:*?"<>|]/g, '')} ${new Date().toISOString().slice(0, 10)}.txt`);
+  if (file.exists) file.delete();
+  file.create();
+  file.write(deckToText(deck));
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(file.uri, { dialogTitle: `Save ${deck.name}`, mimeType: 'text/plain', UTI: 'public.plain-text' });
+  }
+}
+
+// Put a deck's plain list of cards on the clipboard
+export async function copyDeckText(id: string): Promise<void> {
+  const deck = findDeck(id);
+  if (deck) await Clipboard.setStringAsync(deckToText(deck));
 }

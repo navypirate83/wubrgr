@@ -17,6 +17,7 @@ import { findList } from './listStorage';
 import { listToCsv } from './listCsv';
 import { findDeck } from './deckStorage';
 import { deckToCsv } from './deckCsv';
+import { deckToText } from './deckImport';
 
 // Save the binder as it is in this browser (its newest copy: every change
 // is saved here first). The file is named like "Binder 1 2026-10-16.csv".
@@ -37,15 +38,33 @@ export async function downloadDeckCsv(id: string): Promise<void> {
   if (deck) saveCsv(deck.name, deckToCsv(deck));
 }
 
-// Have the browser save a .csv file with this name (before the date) and text
-function saveCsv(name: string, text: string) {
-  const file = new Blob([text], { type: 'text/csv' });
+// A deck as a .txt file (a plain list of cards, see deckToText)
+export async function downloadDeckText(id: string): Promise<void> {
+  const deck = findDeck(id);
+  if (deck) saveCsv(deck.name, deckToText(deck), 'txt', 'text/plain');
+}
+
+// Put a deck's plain list of cards on the clipboard
+export async function copyDeckText(id: string): Promise<void> {
+  const deck = findDeck(id);
+  if (!deck) return;
+  try {
+    await navigator.clipboard.writeText(deckToText(deck));
+  } catch {
+    throw new Error('The browser wouldn\'t let the app use the clipboard. Download the .TXT file instead.');
+  }
+}
+
+// Have the browser save a file (a .csv unless told otherwise) with this name
+// (before the date) and text
+function saveCsv(name: string, text: string, extension = 'csv', type = 'text/csv') {
+  const file = new Blob([text], { type });
   // The browser saves files from a link, so make an invisible link to the
   // file's contents, "click" it, then clean up.
   const link = document.createElement('a');
   link.href = URL.createObjectURL(file);
   // The name (characters not allowed in file names removed), and today's date
-  link.download = `${name.replace(/[\\/:*?"<>|]/g, '')} ${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `${name.replace(/[\\/:*?"<>|]/g, '')} ${new Date().toISOString().slice(0, 10)}.${extension}`;
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -363,6 +363,43 @@ async function loadPrintingsDirect(wanted: { set: string; number: string }[]): P
   return found;
 }
 
+// Look up many cards at once, however each is known: by Scryfall ID, by set
+// and collector number, by name (with a set, or without one for the card's
+// usual printing). Straight from Scryfall, 75 to a request. Gives back the
+// cards that were found, in a list as long as the one asked (null: that
+// card wasn't found).
+export type CardAsk = { id: string } | { set: string; collector_number: string } | { name: string; set?: string };
+export async function loadCardsAsked(asks: CardAsk[]): Promise<(ScryfallCard | null)[]> {
+  // The same question twice is asked once
+  const key = (ask: CardAsk) => JSON.stringify(ask);
+  const unique = [...new Map(asks.map((ask) => [key(ask), ask])).values()];
+  const found: ScryfallCard[] = [];
+  for (let start = 0; start < unique.length; start += 75) {
+    const batch = unique.slice(start, start + 75);
+    const wait = Math.max(0, lastRequestTime + REQUEST_GAP_MS - Date.now());
+    lastRequestTime = Date.now() + wait;
+    if (wait) await sleep(wait);
+    const response = await fetchOrExplain(`${API}/cards/collection`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifiers: batch }),
+    }, 'Scryfall');
+    if (!response.ok) throw new RequestError(`Scryfall had a problem (error ${response.status}). Please try again in a moment.`);
+    const data: { data: ScryfallCard[] } = await response.json();
+    found.push(...data.data);
+  }
+  // Which card answers which question (the answers aren't relied on to be in order)
+  const lower = (text: string) => text.toLowerCase();
+  const frontName = (card: ScryfallCard) => lower(card.name.split(' // ')[0]);
+  const matches = (ask: CardAsk, card: ScryfallCard): boolean => {
+    if ('id' in ask) return lower(ask.id) === card.id;
+    if ('collector_number' in ask) return lower(ask.set) === card.set && lower(ask.collector_number) === lower(card.collector_number);
+    const name = lower(ask.name);
+    return (lower(card.name) === name || frontName(card) === name) && (!ask.set || lower(ask.set) === card.set);
+  };
+  return asks.map((ask) => found.find((card) => matches(ask, card)) ?? null);
+}
+
 // What a card does: its rules text, one entry per side (a two-sided, split
 // or adventure card has several; each says which side's name it goes with),
 // leaving out any side with no text. Looked up by the printing's set and
