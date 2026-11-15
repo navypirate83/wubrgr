@@ -20,9 +20,10 @@ type Props = {
   value: string;
   onChange: (text: string) => void;
   disabled?: boolean;
+  noLinks?: boolean;   // binders and lists: no links (only decks can read a link)
 };
 
-export default function ImportSource({ value, onChange, disabled }: Props) {
+export default function ImportSource({ value, onChange, disabled, noLinks }: Props) {
   const colors = useColors();
   // The name of the file whose text is in the box (shown under it)
   const [fileName, setFileName] = useState<string | null>(null);
@@ -42,20 +43,20 @@ export default function ImportSource({ value, onChange, disabled }: Props) {
   return (
     <View style={styles.wrap}>
       <TextField
-        label="Decklist or link"
+        label={noLinks ? 'List of cards' : 'Decklist or link'}
         value={value}
         onChangeText={(text) => { onChange(text); setFileName(null); }}
         editable={!disabled}
         multiline
         numberOfLines={6}
-        placeholder={'Paste a list, like\n1 Sol Ring\n1x Arcane Signet (CMM) 400\n\nor a link to a deck on Archidekt or Moxfield'}
+        placeholder={`Paste a list, like\n1 Sol Ring\n1x Arcane Signet (CMM) 400${noLinks ? '' : '\n\nor a link to a deck on Archidekt or Moxfield'}`}
         autoCapitalize="none"
         autoCorrect={false}
         style={styles.box}
       />
       <Button label="Choose a file…" icon="document-outline" kind="secondary" disabled={disabled} onPress={chooseFile} />
       <Text style={[styles.note, { color: colors.muted }]}>
-        {fileName ? `Loaded ${fileName}. ` : ''}A text list, a .csv or a .json file (from this app, Archidekt or Moxfield) all work.
+        {fileName ? `Loaded ${fileName}. ` : ''}A text list, a .csv or a .json file (from this app, ManaBox, Archidekt or Moxfield) all work.
       </Text>
     </View>
   );

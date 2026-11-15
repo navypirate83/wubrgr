@@ -23,12 +23,16 @@ import { deckCardFromPrint, secondSpotShows, zoneExtraOf } from './deckZones';
 import { looksLikeDeckLink, parseDeckData, parseDeckSource, type ImportLine, type ImportedDeck } from './deckImport';
 
 // What was typed, pasted or chosen, as a list of cards. Throws a plain
-// message if nothing could be read.
-export async function readImportSource(source: string): Promise<ImportedDeck> {
+// message if nothing could be read. Links (to a deck on Archidekt or
+// Moxfield) only work for decks: "allowLinks" is false for binders and lists.
+export async function readImportSource(source: string, allowLinks = true): Promise<ImportedDeck> {
   const trimmed = source.trim();
-  if (!trimmed) throw new Error('Paste a decklist or a link, or choose a file, first.');
+  if (!trimmed) throw new Error('Paste a list, or choose a file, first.');
   let deck: ImportedDeck | null;
   if (looksLikeDeckLink(trimmed)) {
+    if (!allowLinks) {
+      throw new Error('A link can only be imported into a deck. Here, paste a list of cards or choose a file.');
+    }
     if (!serverUsable()) {
       throw new Error('Importing from a link needs you to be signed in. You can also copy the deck\'s text list from its site and paste that here.');
     }

@@ -62,7 +62,11 @@ import {
 } from '@/lib/googleDrive';
 import { reconcileWithDrive } from '@/lib/driveSync';
 import { hapticTap } from '@/lib/haptics';
-import { askYesNo } from '@/lib/dialogs';
+import { askYesNo, showMessage } from '@/lib/dialogs';
+import { binderFromFile } from '@/lib/binderStorage';
+import { binderFromCsv } from '@/lib/binderCsv';
+import { cardsForCollection, placeInBinder } from '@/lib/collectionImport';
+import { readImportSource, summaryText } from '@/lib/deckImportRun';
 import { RADIUS } from '@/theme/colors';
 
 // The three boxes along the bottom of the screen that a binder picked up
@@ -299,6 +303,40 @@ export default function ShelfScreen() {
     addBinder({ name, color, cover, pages }, cards,
       `✓ Added ${name} with ${cardCountText(count)}` +
       (skipped > 0 ? ` (${skipped} unreadable entr${skipped === 1 ? 'y' : 'ies'} skipped).` : '.'));
+  }
+
+  // "Import cards" in the New binder window: make the binder from a pasted
+  // list or a file. A binder file from this app (or an older .json one, or a
+  // ManaBox-style .csv with set codes) keeps its pockets and cover; any other
+  // list of cards (text, or another site's .csv or .json) goes into the first
+  // pockets, with the name, symbol and cover chosen in the window. Cards that
+  // can't be found are skipped and listed. A list that can't be read leaves the
+  // window open, with nothing made.
+  async function importIntoNewBinder(name: string, color: string | null, cover: string, source: string) {
+    try {
+      const text = source.trim();
+      let uploaded: UploadedBinder | null = null;
+      if (text.startsWith('{')) {
+        try { uploaded = binderFromFile(JSON.parse(text)); } catch { /* another site's JSON: read below */ }
+      } else if (/set ?code/i.test(text.split(/\r?\n/, 1)[0] ?? '')) {
+        try { uploaded = await binderFromCsv(text, name); } catch { /* read below */ }
+      }
+      if (uploaded && Object.keys(uploaded.cards).length === 0) uploaded = null;   // not really a binder file
+      if (uploaded) {
+        setNewOpen(false);
+        addUploadedBinder(uploaded);
+        return;
+      }
+      const { cards: found, notFound } = await cardsForCollection(await readImportSource(text, false));
+      const placed = placeInBinder({}, DEFAULT_PAGES, found);
+      setNewOpen(false);
+      const count = found.reduce((sum, card) => sum + (card.count ?? 1), 0);
+      await addBinder({ name, color, cover, pages: placed.pages }, placed.cards, `✓ Added ${name} with ${count} ${count === 1 ? 'card' : 'cards'}.`);
+      // Cards that couldn't be found are listed, just for information
+      if (notFound.length > 0) showMessage('Import finished', summaryText({ copies: count, notFound }));
+    } catch (err) {
+      showMessage('Couldn\'t import that', (err as Error).message);
+    }
   }
 
   /* ----- Moving a binder up or down the shelf ----- */
@@ -812,6 +850,7 @@ export default function ShelfScreen() {
         <NewBinderDialog
           onCreate={(name, color, cover) => { setNewOpen(false); addBinder({ name, color, cover, pages: DEFAULT_PAGES }); }}
           onUpload={(binder) => { setNewOpen(false); addUploadedBinder(binder); }}
+          onImport={importIntoNewBinder}
           onCancel={() => setNewOpen(false)}
         />
       )}

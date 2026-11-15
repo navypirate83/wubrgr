@@ -26,8 +26,8 @@ import * as Clipboard from 'expo-clipboard';
 
 // The file name: the binder's name (characters not allowed in file
 // names removed) and today's date, like "Binder 1 2026-10-16.csv"
-function fileNameFor(name: string): string {
-  return `${name.replace(/[\\/:*?"<>|]/g, '')} ${new Date().toISOString().slice(0, 10)}.csv`;
+function fileNameFor(name: string, extension = 'csv'): string {
+  return `${name.replace(/[\\/:*?"<>|]/g, '')} ${new Date().toISOString().slice(0, 10)}.${extension}`;
 }
 
 // Write a .csv file with this name (before the date) and text into the
@@ -63,22 +63,46 @@ export async function downloadDeckCsv(id: string): Promise<void> {
   if (deck) await shareCsv(deck.name, deckToCsv(deck));
 }
 
-// A deck as a .txt file (a plain list of cards, see deckToText): written to
-// the app's temporary folder, then the Share menu opens, the same as the .csv
-export async function downloadDeckText(id: string): Promise<void> {
-  const deck = findDeck(id);
-  if (!deck) return;
-  const file = new File(Paths.cache, `${deck.name.replace(/[\\/:*?"<>|]/g, '')} ${new Date().toISOString().slice(0, 10)}.txt`);
+// A .txt file (a plain list of cards, see deckToText): written to the app's
+// temporary folder, then the Share menu opens, the same as the .csv
+async function shareTextFile(name: string, text: string): Promise<void> {
+  const file = new File(Paths.cache, fileNameFor(name, 'txt'));
   if (file.exists) file.delete();
   file.create();
-  file.write(deckToText(deck));
+  file.write(text);
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, { dialogTitle: `Save ${deck.name}`, mimeType: 'text/plain', UTI: 'public.plain-text' });
+    await Sharing.shareAsync(file.uri, { dialogTitle: `Save ${name}`, mimeType: 'text/plain', UTI: 'public.plain-text' });
   }
 }
 
-// Put a deck's plain list of cards on the clipboard
+// A binder's cards in order (page by page, pocket by pocket) as a plain list
+function binderText(id: string): string {
+  const cards = Object.entries(loadBinder(id))
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([, card]) => card);
+  return deckToText({ cards });
+}
+
+// A deck, a list or a binder as a .txt file, or its plain list on the clipboard
+export async function downloadDeckText(id: string): Promise<void> {
+  const deck = findDeck(id);
+  if (deck) await shareTextFile(deck.name, deckToText(deck));
+}
 export async function copyDeckText(id: string): Promise<void> {
   const deck = findDeck(id);
   if (deck) await Clipboard.setStringAsync(deckToText(deck));
+}
+export async function downloadListText(id: string): Promise<void> {
+  const list = findList(id);
+  if (list) await shareTextFile(list.name, deckToText(list));
+}
+export async function copyListText(id: string): Promise<void> {
+  const list = findList(id);
+  if (list) await Clipboard.setStringAsync(deckToText(list));
+}
+export async function downloadBinderText(id: string): Promise<void> {
+  await shareTextFile(binderDetails(id).name, binderText(id));
+}
+export async function copyBinderText(id: string): Promise<void> {
+  await Clipboard.setStringAsync(binderText(id));
 }

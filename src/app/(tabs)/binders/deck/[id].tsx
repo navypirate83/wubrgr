@@ -75,9 +75,10 @@ import { isSearching, makeNameFilter } from '@/lib/nameFilter';
 import { detailsOf, costAndTypeOf, finishParam } from '@/lib/cardDetails';
 import { cardCount, MAX_COPIES, samePrinting } from '@/lib/binderStorage';
 import { cardByNamePath, cardBySetPath, loadOneCard, type ScryfallCard } from '@/lib/scryfall';
-import ImportDeckDialog from '@/components/decks/ImportDeckDialog';
-import DownloadDeckDialog from '@/components/decks/DownloadDeckDialog';
-import { summaryText, type ImportSummary } from '@/lib/deckImportRun';
+import ImportCardsDialog from '@/components/ImportCardsDialog';
+import DownloadDialog from '@/components/DownloadDialog';
+import { importIntoDeck, summaryText, type ImportSummary } from '@/lib/deckImportRun';
+import { copyDeckText, downloadDeckCsv, downloadDeckText } from '@/lib/binderDownload';
 import { askYesNo, showMessage } from '@/lib/dialogs';
 
 // The Card Finder's address for a card in this deck: that exact printing
@@ -713,8 +714,10 @@ export default function DeckScreen() {
 
       {/* The upload button: a pasted list, a link, or a file, added to this deck */}
       {importing && (
-        <ImportDeckDialog
-          deckId={id}
+        <ImportCardsDialog
+          title="Import a decklist"
+          allowLinks
+          run={(imported) => importIntoDeck(id, imported)}
           onCancel={() => setImporting(false)}
           onDone={(summary: ImportSummary) => {
             setImporting(false);
@@ -728,8 +731,9 @@ export default function DeckScreen() {
 
       {/* The download button: a .CSV file, a .TXT file, or copy the list */}
       {downloading && (
-        <DownloadDeckDialog deckId={id} onClose={() => setDownloading(false)}
-                            onCopied={() => { setNote('List copied.'); announce('List copied to the clipboard.'); }} />
+        <DownloadDialog title="Download this deck" csv={() => downloadDeckCsv(id)} text={() => downloadDeckText(id)} copy={() => copyDeckText(id)}
+                        onClose={() => setDownloading(false)}
+                        onCopied={() => { setNote('List copied.'); announce('List copied to the clipboard.'); }} />
       )}
 
       {/* A command zone spot's search window: only cards allowed in the spot */}

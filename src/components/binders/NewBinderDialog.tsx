@@ -8,6 +8,10 @@
    On The Shelf it also has "Upload .CSV": make the binder from a
    binder file saved earlier, or a card list exported from ManaBox (or a
    similar app). An older .json binder file works too.
+   There it also has an optional "Import cards" part (the "onImport" answer):
+   fill the new binder from a pasted list or a file of cards, which go into
+   the first pockets (see ImportSource.tsx). The window waits for onImport to
+   finish, since looking up the cards takes a few seconds.
    ===================================================================== */
 
 import { useState } from 'react';
@@ -17,6 +21,9 @@ import { pickTextFile } from '@/lib/pickFile';
 import { showMessage } from '@/lib/dialogs';
 import PopupWindow, { type PopupButton } from '@/components/PopupWindow';
 import { NameField, SymbolChoices, CoverChoices } from './BinderChoices';
+import ImportSource from '@/components/decks/ImportSource';
+import { Pressable, StyleSheet, Text } from 'react-native';
+import { useColors } from '@/hooks/useTheme';
 
 // What an uploaded binder file turns into (see binderFromCsv and binderFromFile)
 export type UploadedBinder = ReturnType<typeof binderFromFile> & { cards: BinderCards };
@@ -28,9 +35,13 @@ type Props = {
   onCancel: () => void;
   // Given on The Shelf only: adds the "Upload .CSV" button
   onUpload?: (binder: UploadedBinder) => void;
+  // Given on The Shelf only: adds "Import cards". Gets the name, symbol (null
+  // for none), cover color and the list typed or pasted.
+  onImport?: (name: string, color: string | null, cover: string, source: string) => Promise<void>;
 };
 
-export default function NewBinderDialog({ onCreate, onCancel, onUpload }: Props) {
+export default function NewBinderDialog({ onCreate, onCancel, onUpload, onImport }: Props) {
+  const colors = useColors();
   // What's typed and picked. (The screen draws this window fresh each
   // time it opens, so these always start from the beginning.)
   const [name, setName] = useState(nextBinderName);
@@ -39,11 +50,25 @@ export default function NewBinderDialog({ onCreate, onCancel, onUpload }: Props)
   // Is a file being read right now? (Cards without a Scryfall ID are
   // looked up on Scryfall, which can take a few seconds.)
   const [reading, setReading] = useState(false);
+  // The cards to import (and whether their box is open)
+  const [source, setSource] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   // "Create binder": hand the name, symbol and cover color to the screen.
-  // A blank (or spaces-only) name falls back to the next free name.
-  function create() {
-    onCreate(name.trim().slice(0, NAME_LIMIT) || nextBinderName(), symbol || null, cover);
+  // A blank (or spaces-only) name falls back to the next free name. With
+  // cards to import, the screen makes the binder with them in it.
+  async function create() {
+    const finalName = name.trim().slice(0, NAME_LIMIT) || nextBinderName();
+    if (onImport && importOpen && source.trim()) {
+      setReading(true);
+      try {
+        await onImport(finalName, symbol || null, cover, source);
+      } finally {
+        setReading(false);
+      }
+      return;
+    }
+    onCreate(finalName, symbol || null, cover);
   }
 
   // "Upload .CSV": pick a file and read it. A .json file (or one that
@@ -79,6 +104,21 @@ export default function NewBinderDialog({ onCreate, onCancel, onUpload }: Props)
       <NameField value={name} onChange={setName} autoFocus onSubmit={create} />
       <SymbolChoices legend="Cover symbol (or none)" value={symbol} onChange={setSymbol} />
       <CoverChoices value={cover} onChange={setCover} />
+      {/* Import cards (optional): a pasted list or a file, put in the first pockets */}
+      {onImport && (
+        <>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: importOpen }} onPress={() => setImportOpen(!importOpen)} style={styles.importToggle}>
+            <Text style={[styles.importToggleText, { color: colors.accent }]}>{importOpen ? "− Don't import cards" : '+ Import cards (optional)'}</Text>
+          </Pressable>
+          {importOpen && <ImportSource value={source} onChange={setSource} disabled={reading} noLinks />}
+        </>
+      )}
     </PopupWindow>
   );
 }
+
+// The look: the "Import cards" line
+const styles = StyleSheet.create({
+  importToggle: { paddingVertical: 8 },
+  importToggleText: { fontSize: 15, fontWeight: '600' },
+});

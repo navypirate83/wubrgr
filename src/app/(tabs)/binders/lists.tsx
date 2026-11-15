@@ -18,7 +18,7 @@
    lists yet, the page says so, with a picture of a notebook.
    ===================================================================== */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Redirect, router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
@@ -35,7 +35,11 @@ import {
 import { DriveError, createListFile, syncList, trashListFile } from '@/lib/googleDrive';
 import { reconcileWithDrive } from '@/lib/driveSync';
 import { cardCountText } from '@/lib/binderStorage';
-import { askYesNo } from '@/lib/dialogs';
+import { askYesNo, showMessage } from '@/lib/dialogs';
+import ImportCardsDialog from '@/components/ImportCardsDialog';
+import { cardsForCollection } from '@/lib/collectionImport';
+import { summaryText, type ImportSummary } from '@/lib/deckImportRun';
+import type { ImportedDeck } from '@/lib/deckImport';
 import { hapticTap } from '@/lib/haptics';
 import { RADIUS } from '@/theme/colors';
 import SymbolText from '@/components/SymbolText';
@@ -119,6 +123,20 @@ export default function ListsScreen() {
     setAdding(false);
   }
 
+  // "Import a list": make a new list from a pasted list of cards or a file
+  // (in Drive when signed in) named with the next free "List 3" (rename it any
+  // time), then open it. Cards that couldn't be found are skipped and listed.
+  const [importing, setImporting] = useState(false);
+  const madeList = useRef<string | null>(null);
+  async function importList(imported: ImportedDeck): Promise<ImportSummary> {
+    const { cards, notFound } = await cardsForCollection(imported);
+    const name = nextListName();
+    const file = await createListFile(name, cards);
+    addListToDevice(file.id, name, cards);
+    madeList.current = file.id;
+    return { copies: cards.reduce((sum, card) => sum + (card.count ?? 1), 0), notFound };
+  }
+
   // "Save" in the Rename window: keep the new name here, then in Drive
   async function saveName() {
     if (!renaming) return;
@@ -174,6 +192,7 @@ export default function ListsScreen() {
           <View style={styles.header}>
             <ListSearch onPick={openList} />
             <Button label="Add list" icon="add" onPress={add} disabled={adding} />
+            <Button label="Import a list" icon="cloud-upload-outline" kind="secondary" onPress={() => setImporting(true)} disabled={adding} />
           </View>
         }
         ListHeaderComponentStyle={styles.headerOnTop}
@@ -218,6 +237,22 @@ export default function ListsScreen() {
             <Button label="Delete" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuList)} />
           </View>
         </PopupWindow>
+      )}
+
+      {/* Import a list: a pasted list of cards or a file, made into a new list */}
+      {importing && (
+        <ImportCardsDialog
+          title="Import a list"
+          run={importList}
+          onCancel={() => setImporting(false)}
+          onDone={(summary: ImportSummary) => {
+            setImporting(false);
+            setLists(loadLists());
+            // Cards that couldn't be found are listed, just for information
+            if (summary.notFound.length > 0) showMessage('Import finished', summaryText(summary));
+            if (madeList.current) openList(madeList.current);
+          }}
+        />
       )}
 
       {/* Rename: the name in a box, then Save (or Cancel to keep it) */}

@@ -57,7 +57,11 @@ import { finishParam } from '@/lib/cardDetails';
 import { addCardToList, fillListDetails, findList, removeCardFromList, setListCardCount, type CardList, type ListCard } from '@/lib/listStorage';
 import { DriveError, isSignedIn, signInWithGoogle, syncList } from '@/lib/googleDrive';
 import { MAX_COPIES, cardCount, cardCountText, isLocalMode, samePrinting } from '@/lib/binderStorage';
-import { downloadListCsv } from '@/lib/binderDownload';
+import { copyListText, downloadListCsv, downloadListText } from '@/lib/binderDownload';
+import ImportCardsDialog from '@/components/ImportCardsDialog';
+import DownloadDialog from '@/components/DownloadDialog';
+import { importIntoList } from '@/lib/collectionImport';
+import { summaryText, type ImportSummary } from '@/lib/deckImportRun';
 import { RequestError, pictureSource } from '@/lib/http';
 import { askYesNo, showMessage } from '@/lib/dialogs';
 import { RADIUS } from '@/theme/colors';
@@ -97,6 +101,9 @@ export default function ListScreen() {
   // moved to a binder (the pop-up list of binders)
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const [movingIndex, setMovingIndex] = useState<number | null>(null);
+  // The import window (the upload button) and the download window (the download button)
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   /* ----- Saving (the same as a binder: see binders/[id].tsx) ----- */
 
@@ -374,9 +381,11 @@ export default function ListScreen() {
         <ViewSwitch
           mode={mode} sort={sort} reversed={reversed} modes={['list', 'grid']} onView={setListViewMode}
           extras={(
-            // Save (or share) the list as a .csv file
-            <ToolButton icon="download-outline" label={`Download ${list.name} as a .CSV file`}
-                        onPress={() => downloadListCsv(id).catch((err) => showMessage('Couldn\'t save the file', (err as Error).message))} />
+            // Import cards into this list, and download the list (.CSV, .TXT or copy)
+            <>
+              <ToolButton icon="cloud-upload-outline" label={`Import cards into ${list.name}`} onPress={() => setImporting(true)} />
+              <ToolButton icon="download-outline" label={`Download ${list.name}`} onPress={() => setDownloading(true)} />
+            </>
           )}
         />
       </View>
@@ -447,6 +456,29 @@ export default function ListScreen() {
           onMoved={(note) => movedToBinder(note)}
           onCancel={() => setMovingIndex(null)}
         />
+      )}
+
+      {/* The upload button: a pasted list or a file, added to this list */}
+      {importing && (
+        <ImportCardsDialog
+          title="Import cards"
+          run={(imported) => importIntoList(id, imported)}
+          onCancel={() => setImporting(false)}
+          onDone={(summary: ImportSummary) => {
+            setImporting(false);
+            changed();
+            // Cards that couldn't be found are listed, just for information
+            if (summary.notFound.length > 0) showMessage('Import finished', summaryText(summary));
+            else { flash('none', summaryText(summary)); announce(summaryText(summary)); }
+          }}
+        />
+      )}
+
+      {/* The download button: a .CSV file, a .TXT file, or copy the list */}
+      {downloading && (
+        <DownloadDialog title="Download this list" csv={() => downloadListCsv(id)} text={() => downloadListText(id)} copy={() => copyListText(id)}
+                        onClose={() => setDownloading(false)}
+                        onCopied={() => { flash('none', 'List copied.'); announce('List copied to the clipboard.'); }} />
       )}
     </KeyboardAvoidingView>
   );

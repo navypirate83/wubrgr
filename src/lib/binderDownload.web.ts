@@ -38,21 +38,46 @@ export async function downloadDeckCsv(id: string): Promise<void> {
   if (deck) saveCsv(deck.name, deckToCsv(deck));
 }
 
-// A deck as a .txt file (a plain list of cards, see deckToText)
+// A binder's cards in order (page by page, pocket by pocket) as a plain list
+function binderText(id: string): string {
+  const cards = Object.entries(loadBinder(id))
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([, card]) => card);
+  return deckToText({ cards });
+}
+
+// Put a plain list on the clipboard (the browser may refuse)
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    throw new Error('The browser wouldn\'t let the app use the clipboard. Download the .TXT file instead.');
+  }
+}
+
+// A deck, a list or a binder as a .txt file (a plain list of cards, see
+// deckToText), or its plain list on the clipboard
 export async function downloadDeckText(id: string): Promise<void> {
   const deck = findDeck(id);
   if (deck) saveCsv(deck.name, deckToText(deck), 'txt', 'text/plain');
 }
-
-// Put a deck's plain list of cards on the clipboard
 export async function copyDeckText(id: string): Promise<void> {
   const deck = findDeck(id);
-  if (!deck) return;
-  try {
-    await navigator.clipboard.writeText(deckToText(deck));
-  } catch {
-    throw new Error('The browser wouldn\'t let the app use the clipboard. Download the .TXT file instead.');
-  }
+  if (deck) await copyText(deckToText(deck));
+}
+export async function downloadListText(id: string): Promise<void> {
+  const list = findList(id);
+  if (list) saveCsv(list.name, deckToText(list), 'txt', 'text/plain');
+}
+export async function copyListText(id: string): Promise<void> {
+  const list = findList(id);
+  if (list) await copyText(deckToText(list));
+}
+export async function downloadBinderText(id: string): Promise<void> {
+  saveCsv(binderDetails(id).name, binderText(id), 'txt', 'text/plain');
+}
+export async function copyBinderText(id: string): Promise<void> {
+  await copyText(binderText(id));
 }
 
 // Have the browser save a file (a .csv unless told otherwise) with this name

@@ -79,6 +79,13 @@ function changeList(id: string, change: (list: CardList) => CardList): boolean {
   return true;
 }
 
+// Replace a list's cards with what "change" makes of them (used by importing
+// cards, see collectionImport.ts). Returns false if there's no such list, or
+// the device wouldn't save.
+export function changeListCards(id: string, change: (cards: ListCard[]) => ListCard[]): boolean {
+  return changeList(id, (l) => ({ ...l, cards: change(l.cards) }));
+}
+
 /* ---------------------------------------------------------------------
    "NEEDS SAVING" MARKERS (the same idea as a binder's)
    --------------------------------------------------------------------- */

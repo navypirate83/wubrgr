@@ -70,7 +70,12 @@ import { APP_HEADERS, RequestError, pictureSource } from '@/lib/http';
 import { binderCardFrom, lookupFromDrop } from '@/lib/cardDrop';
 import { loadOneCard } from '@/lib/scryfall';
 import { hapticTap } from '@/lib/haptics';
-import { downloadBinderCsv } from '@/lib/binderDownload';
+import { copyBinderText, downloadBinderCsv, downloadBinderText } from '@/lib/binderDownload';
+import ImportCardsDialog from '@/components/ImportCardsDialog';
+import DownloadDialog from '@/components/DownloadDialog';
+import { cardsForCollection, placeInBinder } from '@/lib/collectionImport';
+import { summaryText, type ImportSummary } from '@/lib/deckImportRun';
+import type { ImportedDeck } from '@/lib/deckImport';
 import { layoutKey, onLayoutChange, pageLayout } from '@/lib/pageLayout';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, binderSort, binderSortReversed, binderViewMode, onBinderViewChange, onGridZoomChange, sortHeadersOn } from '@/lib/binderView';
 import { headerFor, sortEntries } from '@/lib/binderSort';
@@ -729,6 +734,31 @@ function BinderView({ binderId }: { binderId: string }) {
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [movingKey, setMovingKey] = useState<string | null>(null);
   const [remindOpen, setRemindOpen] = useState(false);
+  // The import window (the upload button) and the download window (the download button)
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // Add the cards of a pasted list or a file to this binder: a printing already
+  // here gets more copies; the rest fill the first empty pockets (a page is
+  // added when every pocket is full). Cards that couldn't be found are skipped
+  // and reported back.
+  async function importCards(imported: ImportedDeck): Promise<ImportSummary> {
+    const { cards: found, notFound } = await cardsForCollection(imported);
+    const placed = placeInBinder(cardsRef.current, totalPages, found);
+    if (!commit(placed.cards)) throw new Error('Saving isn\'t working on this device, so the cards could not be added.');
+    if (placed.pages > totalPages) {
+      // Tell the account (or Drive) about the new pages, the same as adding one card on a new page does
+      const all = loadBinderList();
+      const entry = all.find((b) => b.id === binderId);
+      if (entry) {
+        entry.pages = placed.pages;
+        saveBinderList(all);
+        updateBinderDetails(binderId, { pages: placed.pages }).catch(() => { /* retried when the cards are saved */ });
+      }
+    }
+    scheduleDriveSave();
+    return { copies: found.reduce((sum, card) => sum + (card.count ?? 1), 0), notFound };
+  }
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // The copies are safely in the other binder: take them out of this one
@@ -1262,9 +1292,9 @@ function BinderView({ binderId }: { binderId: string }) {
           mode={mode} sort={sort} reversed={reversed} onCleanUp={cleanUp} canCleanUp={hasGaps}
           extras={(
             <>
-              {/* Save (or share) the binder as a .csv file */}
-              <ToolButton icon="download-outline" label={`Download ${binder.name} as a .CSV file`}
-                          onPress={() => downloadBinderCsv(binderId).catch((err) => showMessage('Couldn\'t save the file', (err as Error).message))} />
+              {/* Import cards into this binder, and download it (.CSV, .TXT or copy) */}
+              <ToolButton icon="cloud-upload-outline" label={`Import cards into ${binder.name}`} onPress={() => setImporting(true)} />
+              <ToolButton icon="download-outline" label={`Download ${binder.name}`} onPress={() => setDownloading(true)} />
               {/* Set a reminder about this binder */}
               <ToolButton icon="notifications-outline" label="Remind me about this binder"
                           onPress={() => (REMINDERS_AVAILABLE ? setRemindOpen(true)
@@ -1470,6 +1500,29 @@ function BinderView({ binderId }: { binderId: string }) {
           onMoved={(note, amount) => takeMovedCardOut(movingKey, note, amount)}
           onCancel={() => setMovingKey(null)}
         />
+      )}
+
+      {/* The upload button: a pasted list or a file, added to this binder's
+          first empty pockets */}
+      {importing && (
+        <ImportCardsDialog
+          title="Import cards"
+          run={importCards}
+          onCancel={() => setImporting(false)}
+          onDone={(summary: ImportSummary) => {
+            setImporting(false);
+            // Cards that couldn't be found are listed, just for information
+            if (summary.notFound.length > 0) showMessage('Import finished', summaryText(summary));
+            else { savedNote.current = `✓ ${summaryText(summary)}`; announce(summaryText(summary)); }
+          }}
+        />
+      )}
+
+      {/* The download button: a .CSV file, a .TXT file, or copy the list */}
+      {downloading && (
+        <DownloadDialog title="Download this binder" csv={() => downloadBinderCsv(binderId)} text={() => downloadBinderText(binderId)} copy={() => copyBinderText(binderId)}
+                        onClose={() => setDownloading(false)}
+                        onCopied={() => announce('List copied to the clipboard.')} />
       )}
 
       {/* "Remind me": when the reminder should arrive */}
