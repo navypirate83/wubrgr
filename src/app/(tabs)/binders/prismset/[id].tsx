@@ -31,6 +31,7 @@ import DecksTab from '@/components/prism/DecksTab';
 import CardsTab, { type FilterId } from '@/components/prism/CardsTab';
 import MarkTab from '@/components/prism/MarkTab';
 import ChangesTab from '@/components/prism/ChangesTab';
+import PinDialog from '@/components/prism/PinDialog';
 import { loadDecks } from '@/lib/deckStorage';
 import { loadOwned } from '@/lib/deckOwnership';
 import { findPrismSet } from '@/lib/prismStorage';
@@ -73,6 +74,8 @@ export default function PrismSetScreen() {
   // (kept here so they're still there when you come back to it)
   const [cardText, setCardText] = useState('');
   const [cardFilter, setCardFilter] = useState<FilterId>('all');
+  // The card (its lowercase name) whose pin window is open, if any
+  const [pinning, setPinning] = useState<string | null>(null);
 
   // How far down each tab was scrolled, so going back to it puts you there
   // again. While the tab changes the page's height changes too, which makes
@@ -154,7 +157,7 @@ export default function PrismSetScreen() {
 
         {tab === 'decks' && <DecksTab set={set} decks={decks} onChange={refresh} />}
         {tab === 'cards' && (
-          <CardsTab set={set} plan={plan} owned={owned} header={header}
+          <CardsTab set={set} plan={plan} decks={decks} owned={owned} header={header} onPin={setPinning}
                     text={cardText} onText={setCardText} filter={cardFilter} onFilter={setCardFilter}
                     onOpenCard={(key) => goTab('mark', key)} />
         )}
@@ -164,6 +167,10 @@ export default function PrismSetScreen() {
         )}
         {tab === 'changes' && <ChangesTab set={set} plan={plan} decks={decks} changes={changes} onChanged={refresh} />}
       </ScrollView>
+      {/* The window for keeping a card in one deck only */}
+      {pinning !== null && (
+        <PinDialog set={set} decks={decks} name={pinning} onClose={() => setPinning(null)} onSaved={() => { setPinning(null); refresh(); }} />
+      )}
     </KeyboardAvoidingView>
   );
 }

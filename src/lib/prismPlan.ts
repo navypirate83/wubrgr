@@ -15,6 +15,7 @@
    ===================================================================== */
 
 import { zoneOf, type Deck, type DeckCard } from './deckStorage';
+import { printKey } from './deckOwnership';
 import type { PrismSet } from './prismStorage';
 
 // One card of the plan
@@ -27,6 +28,7 @@ export type PlanCard = {
   deckNeeds: { deckId: string; need: number }[];   // each deck that uses it, in the set's order
   required: string[][];      // per physical copy: the decks whose marks it carries
   pool: boolean;             // used by two or more decks
+  pin?: { deckId: string; print?: string };   // kept in one deck only: that deck's own copies (see PinRule)
 };
 
 export const nameKey = (name: string): string => name.trim().toLowerCase();
@@ -44,8 +46,19 @@ export function planFor(set: PrismSet, decks: Deck[]): PlanCard[] {
     const deck = decks.find((d) => d.id === member.deckId);
     if (!deck) continue;
     const counts = new Map<string, { card: DeckCard; need: number }>();
+    // The deck's pinned cards (kept to itself) are counted apart, each as its own card
+    const kept = new Map<string, { card: DeckCard; need: number; print?: string }>();
+    const pins = (set.pins ?? []).filter((p) => p.deckId === deck.id);
     for (const card of playedCards(deck)) {
       const key = nameKey(card.name);
+      // A pin for the whole name wins over one for a single printing
+      const pin = pins.find((p) => p.key === key && !p.print) ?? pins.find((p) => p.key === key && p.print === printKey(card));
+      if (pin) {
+        const pinKey = pin.print ? `${key}|${deck.id}|${pin.print}` : `${key}|${deck.id}`;
+        const have = kept.get(pinKey);
+        kept.set(pinKey, { card: have?.card ?? card, need: (have?.need ?? 0) + (card.count ?? 1), print: pin.print });
+        continue;
+      }
       const have = counts.get(key);
       counts.set(key, { card: have?.card ?? card, need: (have?.need ?? 0) + (card.count ?? 1) });
     }
@@ -54,6 +67,9 @@ export function planFor(set: PrismSet, decks: Deck[]): PlanCard[] {
       plan.deckNeeds.push({ deckId: deck.id, need });
       plan.separate += need;
       byName.set(key, plan);
+    }
+    for (const [key, { card, need, print }] of kept) {
+      byName.set(key, { key, name: card.name, sample: card, copies: 0, separate: need, deckNeeds: [{ deckId: deck.id, need }], required: [], pool: false, pin: { deckId: deck.id, print } });
     }
   }
   const cards = [...byName.values()];

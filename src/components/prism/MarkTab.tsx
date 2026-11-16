@@ -110,6 +110,12 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
         <View style={[styles.current, { backgroundColor: colors.surface }]}>
           <View style={styles.head}>
             <Text style={[styles.name, { color: colors.text }]}>{current.card.name}</Text>
+            {current.card.pin && (
+              <Text style={[styles.line, { color: colors.muted }]}>
+                Kept in {decks.find((d) => d.id === current.card.pin?.deckId)?.name ?? 'one deck'} only
+                {current.card.pin.print ? ` · ${current.card.sample.set.toUpperCase()} ${current.card.sample.number}` : ' · any printing'}
+              </Text>
+            )}
             <Text style={[styles.line, { color: colors.muted }]}>
               {current.card.copies > 1 ? `Copy ${current.copy + 1} of ${current.card.copies} · ` : ''}
               {isDone ? 'painted ✓' : `paint ${slots.length} ${slots.length === 1 ? 'mark' : 'marks'} on its inner sleeve`}

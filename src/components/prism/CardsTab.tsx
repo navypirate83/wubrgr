@@ -7,7 +7,12 @@
    The picture has a red border when you don't own enough copies: solid when
    you own none, dashed when you own some. A check mark says every copy is
    painted. Tap a card to go and mark it.
-   A search box and four buttons narrow the list: All, Pool (shared by two or more decks), Core (one deck), To Buy.
+   The pin button on a card opens a window to keep it in one deck only: a deck
+   that does gets its own copies of it, shown as their own highlighted row (CORE,
+   with a filled pin), and no other deck shares them. That's for things like
+   a deck's basic lands, or one printing of a card wanted only in its deck.
+   A search box and four buttons narrow the list: All, Pool (shared by two or
+   more decks), Core (one deck), To Buy.
    (What's typed and the button chosen are kept by the screen, so they're still
    there when you come back to this tab with the back arrow.) The rows are
    laid out all at once, not in a scrolling list of their own, so the page can
@@ -17,18 +22,21 @@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import TextField from '@/components/TextField';
 import DeckSquare from './DeckSquare';
 import { useColors } from '@/hooks/useTheme';
 import { pictureSource } from '@/lib/http';
 import { RADIUS } from '@/theme/colors';
 import type { OwnedMap } from '@/lib/deckOwnership';
-import { copyIsDone, type PlanCard } from '@/lib/prismPlan';
+import { copyIsDone, nameKey, type PlanCard } from '@/lib/prismPlan';
 import type { PrismSet } from '@/lib/prismStorage';
+import type { Deck } from '@/lib/deckStorage';
 
 type Props = {
   set: PrismSet;
   plan: PlanCard[];
+  decks: Deck[];
   owned: OwnedMap;
   header: string;                       // the totals line shown above the cards
   text: string;                         // what's typed in the search box
@@ -36,6 +44,7 @@ type Props = {
   filter: FilterId;                     // which button is chosen
   onFilter: (filter: FilterId) => void;
   onOpenCard: (key: string) => void;    // a card was tapped: go and mark it
+  onPin: (name: string) => void;        // a pin was tapped: open the window for this card name (lowercase)
 };
 
 const FILTERS = [
@@ -51,19 +60,56 @@ export function ownedTotal(owned: OwnedMap, key: string): number {
   return (owned.get(key) ?? []).reduce((sum, print) => sum + print.count, 0);
 }
 
-export default function CardsTab({ set, plan, owned, header, text, onText, filter, onFilter, onOpenCard }: Props) {
+// How many copies you own for each row. A card kept in one deck takes its
+// copies first (one printing's first, then any printing), and what's left is
+// what the shared row owns, so the same copy is never counted twice.
+function ownedByRow(plan: PlanCard[], owned: OwnedMap): Map<string, number> {
+  const have = new Map<string, number>();
+  const left = new Map<string, Map<string, number>>();
+  const leftFor = (name: string) => {
+    let prints = left.get(name);
+    if (!prints) {
+      prints = new Map((owned.get(name) ?? []).map((p) => [p.key, p.count]));
+      left.set(name, prints);
+    }
+    return prints;
+  };
+  const rank = (card: PlanCard) => (card.pin?.print ? 0 : card.pin ? 1 : 2);
+  for (const card of [...plan].sort((a, b) => rank(a) - rank(b))) {
+    const prints = leftFor(nameKey(card.name));
+    if (card.pin?.print) {
+      const here = Math.min(card.copies, prints.get(card.pin.print) ?? 0);
+      prints.set(card.pin.print, (prints.get(card.pin.print) ?? 0) - here);
+      have.set(card.key, here);
+    } else if (card.pin) {
+      let want = card.copies;
+      for (const [print, count] of prints) {
+        const take = Math.min(want, count);
+        prints.set(print, count - take);
+        want -= take;
+      }
+      have.set(card.key, card.copies - want);
+    } else {
+      have.set(card.key, [...prints.values()].reduce((sum, n) => sum + n, 0));
+    }
+  }
+  return have;
+}
+
+export default function CardsTab({ set, plan, decks, owned, header, text, onText, filter, onFilter, onOpenCard, onPin }: Props) {
   const colors = useColors();
+  const haves = useMemo(() => ownedByRow(plan, owned), [plan, owned]);
 
   const shown = useMemo(() => {
     const typed = text.trim().toLowerCase();
     return plan.filter((card) => {
-      if (typed && !card.key.includes(typed)) return false;
+      if (typed && !nameKey(card.name).includes(typed)) return false;
       if (filter === 'shared') return card.pool;
       if (filter === 'single') return !card.pool;
-      if (filter === 'buy') return ownedTotal(owned, card.key) < card.copies;
+      if (filter === 'buy') return (haves.get(card.key) ?? 0) < card.copies;
       return true;
     });
-  }, [plan, owned, text, filter]);
+  }, [plan, haves, text, filter]);
 
   return (
     <View style={styles.wrap}>
@@ -93,7 +139,9 @@ export default function CardsTab({ set, plan, owned, header, text, onText, filte
       ) : (
         <View>
           {shown.map((card) => (
-            <CardRow key={card.key} set={set} card={card} have={ownedTotal(owned, card.key)} onOpen={onOpenCard} />
+            <CardRow key={card.key} set={set} card={card} have={haves.get(card.key) ?? 0}
+                     deckName={card.pin ? decks.find((d) => d.id === card.pin?.deckId)?.name ?? 'a deck' : ''}
+                     onOpen={onOpenCard} onPin={onPin} />
           ))}
         </View>
       )}
@@ -102,39 +150,55 @@ export default function CardsTab({ set, plan, owned, header, text, onText, filte
 }
 
 // One card
-const CardRow = memo(function CardRow({ set, card, have, onOpen }: { set: PrismSet; card: PlanCard; have: number; onOpen: (key: string) => void }) {
+const CardRow = memo(function CardRow({ set, card, have, deckName, onOpen, onPin }: {
+  set: PrismSet; card: PlanCard; have: number; deckName: string; onOpen: (key: string) => void; onPin: (name: string) => void;
+}) {
   const colors = useColors();
   const need = card.copies;
   const done = Array.from({ length: need }, (_, copy) => copyIsDone(set, card, copy)).every(Boolean);
   const border = have >= need ? undefined : have === 0 ? 'solid' : 'dashed';
+  // A kept card says whose it is, and which printing if just one
+  const kept = card.pin ? `Only in ${deckName}${card.pin.print ? ` · ${card.sample.set.toUpperCase()} ${card.sample.number}` : ' · any printing'}` : '';
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${card.name}, ${card.pool ? 'shared' : 'one deck'}, ${need} ${need === 1 ? 'copy' : 'copies'} needed, you own ${have}${done ? ', painted' : ''}. Opens it to mark.`}
-      onPress={() => onOpen(card.key)}
-      style={({ pressed }) => [styles.card, { borderBottomColor: colors.border }, pressed && { backgroundColor: colors.surfaceHover }]}
-    >
-      <View>
-        <Image source={pictureSource(card.sample.image)} style={styles.thumb} contentFit="cover" />
-        {border && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: 2, borderStyle: border, borderColor: colors.error, borderRadius: 4 }]} />}
-      </View>
-      <View style={styles.cardText}>
-        <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{card.name}{need > 1 ? ` ×${need}` : ''}</Text>
-        <Text style={[styles.cardSub, { color: have >= need ? colors.muted : colors.error }]} numberOfLines={1}>
-          You own {have} of {need}{done ? ' · painted ✓' : ''}
-        </Text>
-        <View style={styles.squares}>
-          {/* The decks' squares, lowest slot number first */}
-          {[...card.deckNeeds].sort((a, b) => (set.decks.find((d) => d.deckId === a.deckId)?.slot ?? 99) - (set.decks.find((d) => d.deckId === b.deckId)?.slot ?? 99)).map(({ deckId }) => {
-            const slot = set.decks.find((d) => d.deckId === deckId)?.slot;
-            return slot === undefined ? null : <DeckSquare key={deckId} slot={slot} size={19} />;
-          })}
+    <View style={[styles.card, { borderBottomColor: colors.border }, card.pin && { backgroundColor: `${colors.accent}14` }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${card.name}, ${card.pool ? 'shared' : kept || 'one deck'}, ${need} ${need === 1 ? 'copy' : 'copies'} needed, you own ${have}${done ? ', painted' : ''}. Opens it to mark.`}
+        onPress={() => onOpen(card.key)}
+        style={({ pressed }) => [styles.open, pressed && { backgroundColor: colors.surfaceHover }]}
+      >
+        <View>
+          <Image source={pictureSource(card.sample.image)} style={styles.thumb} contentFit="cover" />
+          {border && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: 2, borderStyle: border, borderColor: colors.error, borderRadius: 4 }]} />}
         </View>
-      </View>
-      <View style={[styles.tag, { backgroundColor: card.pool ? `${colors.accent}33` : colors.surfaceHover }]}>
-        <Text style={[styles.tagText, { color: card.pool ? colors.accent : colors.muted }]}>{card.pool ? 'POOL' : 'CORE'}</Text>
-      </View>
-    </Pressable>
+        <View style={styles.cardText}>
+          <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{card.name}{need > 1 ? ` ×${need}` : ''}</Text>
+          {kept !== '' && <Text style={[styles.cardSub, { color: colors.muted }]} numberOfLines={1}>{kept}</Text>}
+          <Text style={[styles.cardSub, { color: have >= need ? colors.muted : colors.error }]} numberOfLines={1}>
+            You own {have} of {need}{done ? ' · painted ✓' : ''}
+          </Text>
+          <View style={styles.squares}>
+            {/* The decks' squares, lowest slot number first */}
+            {[...card.deckNeeds].sort((a, b) => (set.decks.find((d) => d.deckId === a.deckId)?.slot ?? 99) - (set.decks.find((d) => d.deckId === b.deckId)?.slot ?? 99)).map(({ deckId }) => {
+              const slot = set.decks.find((d) => d.deckId === deckId)?.slot;
+              return slot === undefined ? null : <DeckSquare key={deckId} slot={slot} size={19} />;
+            })}
+          </View>
+        </View>
+        <View style={[styles.tag, { backgroundColor: card.pool ? `${colors.accent}33` : colors.surfaceHover }]}>
+          <Text style={[styles.tagText, { color: card.pool ? colors.accent : colors.muted }]}>{card.pool ? 'POOL' : 'CORE'}</Text>
+        </View>
+      </Pressable>
+      {/* The pin: keep this card in one deck only */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={card.pin ? `Pinned: ${card.name} is kept in ${deckName}. Change it.` : `Keep ${card.name} in one deck only`}
+        onPress={() => onPin(nameKey(card.name))}
+        style={[styles.pin, card.pin ? { backgroundColor: colors.accent, borderColor: colors.accent } : { borderColor: colors.border }]}
+      >
+        <Ionicons name={card.pin ? 'pin' : 'pin-outline'} size={16} color={card.pin ? colors.bg : colors.muted} />
+      </Pressable>
+    </View>
   );
 });
 
@@ -146,7 +210,9 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5 },
   chipText: { fontSize: 13, fontWeight: '600' },
   empty: { fontSize: 14, textAlign: 'center', paddingVertical: 24 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: RADIUS - 4 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: RADIUS - 4 },
+  open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 4, borderRadius: RADIUS - 4, minWidth: 0 },
+  pin: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
   thumb: { width: 34, height: 48, borderRadius: 4 },
   cardText: { flex: 1, gap: 2, minWidth: 0 },
   cardName: { fontSize: 15, fontWeight: '700' },

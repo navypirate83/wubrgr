@@ -51,6 +51,7 @@ type Item = {
   inDecks: string[];          // names of the decks whose marks arrive
   tip?: string;               // a sleeve this card could move into
   leaving: boolean;           // no deck uses this card any more
+  keptIn: string;             // for a card kept in one deck only: a line saying so (empty: not kept)
 };
 
 const FILTERS = [
@@ -101,6 +102,7 @@ export default function ChangesTab({ set, plan, decks, changes, onChanged }: Pro
       inDecks: list.filter((c) => c.kind === 'add').map((c) => deckName(c.deckId)),
       tip: list.find((c) => c.sleeveTip)?.sleeveTip,
       leaving: wanted.length === 0,
+      keptIn: card?.pin ? `Kept in ${deckName(card.pin.deckId)} only${card.pin.print ? ` · ${card.sample.set.toUpperCase()} ${card.sample.number}` : ''}` : '',
     };
   });
 
@@ -180,6 +182,7 @@ export default function ChangesTab({ set, plan, decks, changes, onChanged }: Pro
                     {item.name}{showCopy ? ` (copy ${item.copy + 1})` : ''}
                   </Text>
                   <Text style={[styles.job, { color: hasRemove(item) ? colors.error : colors.success }]}>{jobs.join(' · ')}</Text>
+                  {item.keptIn !== '' && <Text style={[styles.text, { color: colors.muted }]}>{item.keptIn}</Text>}
                   {decksLine !== '' && <Text style={[styles.text, { color: colors.muted }]} numberOfLines={2}>{decksLine}</Text>}
                   {item.tip && <Text style={[styles.tip, { backgroundColor: `${colors.accent}22`, color: colors.text }]}>{item.tip}</Text>}
                 </View>

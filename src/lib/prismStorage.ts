@@ -36,6 +36,12 @@ export const CORNERS = ['top left', 'top right', 'bottom right', 'bottom left'] 
 // One deck in a set: which deck, and its slot (1 to 48)
 export type PrismDeck = { deckId: string; slot: number };
 
+// A card kept in one deck only (a "pin"): that deck always has its own copies
+// of it, which no other deck shares. "key" is the card's lowercase name. With
+// no "print" the pin covers every printing of the card in that deck; with a
+// "print" (a set and collector number, like "dmu/262") only that printing.
+export type PinRule = { deckId: string; key: string; print?: string };
+
 // One PRISM set. "painted" is what is really on the sleeves: for each card
 // (by lowercase name), one list per physical copy, each listing the ids of the
 // decks whose marks are painted on that copy.
@@ -44,6 +50,7 @@ export type PrismSet = {
   name: string;
   corner: 0 | 1 | 2 | 3;
   decks: PrismDeck[];
+  pins: PinRule[];
   painted: Record<string, string[][]>;
   // The names as shown, by lowercase name (for a card painted earlier that has since left every deck)
   names: Record<string, string>;
@@ -70,6 +77,9 @@ export function loadPrismSets(): PrismSet[] {
         corner: [0, 1, 2, 3].includes(s.corner) ? s.corner : 0,
         decks: Array.isArray(s.decks)
           ? s.decks.filter((d: PrismDeck) => d && typeof d.deckId === 'string' && Number.isInteger(d.slot) && d.slot >= 1 && d.slot <= MAX_SLOTS)
+          : [],
+        pins: Array.isArray(s.pins)
+          ? s.pins.filter((p: PinRule) => p && typeof p.deckId === 'string' && typeof p.key === 'string' && (p.print === undefined || typeof p.print === 'string'))
           : [],
         painted: s.painted && typeof s.painted === 'object' ? s.painted : {},
         names: s.names && typeof s.names === 'object' ? s.names : {},
@@ -113,7 +123,7 @@ export function nextPrismSetName(): string {
 // Make a new, empty set at the end, and give back its id
 export function addPrismSet(name: string): string {
   const id = `prism-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-  saveSets([...loadPrismSets(), { id, name: name.trim().slice(0, SET_NAME_LIMIT) || nextPrismSetName(), corner: 0, decks: [], painted: {}, names: {} }]);
+  saveSets([...loadPrismSets(), { id, name: name.trim().slice(0, SET_NAME_LIMIT) || nextPrismSetName(), corner: 0, decks: [], pins: [], painted: {}, names: {} }]);
   return id;
 }
 
@@ -168,6 +178,20 @@ export function moveDeckSlot(setId: string, deckId: string, slot: number): boole
 // Turn the sleeve corner (only when nothing is painted yet)
 export function setCorner(setId: string, corner: 0 | 1 | 2 | 3): boolean {
   return changePrismSet(setId, (s) => (Object.keys(s.painted).length > 0 ? s : { ...s, corner }));
+}
+
+/* ---------------------------------------------------------------------
+   PINS (a card a deck keeps to itself)
+   --------------------------------------------------------------------- */
+
+// Say how one deck keeps one card (by lowercase name): null means it shares it
+// again; { } keeps every printing of it to itself; { print } keeps just that
+// printing. (Replaces whatever the deck had for that card.)
+export function setPin(setId: string, deckId: string, key: string, rule: { print?: string } | null): boolean {
+  return changePrismSet(setId, (s) => {
+    const others = s.pins.filter((p) => !(p.deckId === deckId && p.key === key));
+    return { ...s, pins: rule ? [...others, rule.print ? { deckId, key, print: rule.print } : { deckId, key }] : others };
+  });
 }
 
 /* ---------------------------------------------------------------------

@@ -1513,6 +1513,15 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Pool</Strong>, <Strong>Core</Strong> and <Strong>To Buy</Strong> narrow the list (To Buy shows the cards
               you own too few of). Tap a card to go and mark it.
             </P>
+            <P>
+              The <Strong>pin</Strong> button on a card keeps it in one deck only. A window lists the decks that use the card;
+              tick a deck and it keeps its own copies, which no other deck shares (a deck's basic lands, say, or a printing you
+              only want in that deck). For a ticked deck, choose <Strong>Any</Strong> (every printing of the card in that deck)
+              or <Strong>Only the printing I pick</Strong>. A pinned card shows as its own highlighted row, marked CORE, with a
+              filled pin and which deck it belongs to. The other decks still share the rest. If the sleeves are already
+              painted, the window says how many will need touching, and the Changes tab lists them. Untick the deck to share
+              the card again.
+            </P>
           </>
         ),
       },
