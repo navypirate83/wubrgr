@@ -12,6 +12,7 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import SymbolText from '@/components/SymbolText';
 import { useColors } from '@/hooks/useTheme';
 import { manaSymbolGroups } from '@/lib/cards';
 import { pictureSource } from '@/lib/http';
@@ -47,7 +48,7 @@ export default function SortHeaderBar({ header, setIcon }: Props) {
   return (
     <View style={styles.bar} accessible accessibilityRole="header" accessibilityLabel={spokenName(header)}>
       {/* What the group is */}
-      {header.kind === 'text' && <Text style={[styles.text, { color: colors.text }]}>{header.text}</Text>}
+      {header.kind === 'text' && <SymbolText style={[styles.text, { color: colors.text }]}>{header.text}</SymbolText>}
       {header.kind === 'land' && <Image source={MOUNTAIN_PICTURE} style={styles.mountain} contentFit="contain" tintColor={colors.iconTint} />}
       {header.kind === 'mana' && (
         <View style={styles.symbols}>

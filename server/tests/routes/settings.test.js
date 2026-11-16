@@ -127,6 +127,10 @@ test("card lists, decks and PRISM each have their own sort, saved and read back,
   // PRISM can start at "shared" (shared cards first)
   const shared = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine, prismSort: 'shared', prismSortReversed: false });
   expect(shared.body.settings.prismSort).toBe('shared');
+  // The "most shared, then by deck" sort is saved too
+  const byDecks = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine, prismSort: 'decks', prismSortReversed: false });
+  expect(byDecks.status).toBe(200);
+  expect(byDecks.body.settings.prismSort).toBe('decks');
   // An older app saves again without them: the chosen ones stay
   const older = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, theme: 'light' });
   expect(older.status).toBe(200);

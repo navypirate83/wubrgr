@@ -40,7 +40,7 @@ const VIEWS = ['list', 'grid', 'binder'];
 const LIST_VIEWS = ['list', 'grid'];
 const SORTS = ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'];
 // PRISM's Cards tab sorts without price, and has "shared" (shared cards first)
-const PRISM_SORTS = ['shared', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'];
+const PRISM_SORTS = ['shared', 'decks', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'];
 const DEFAULT_VIEW = 'binder';
 const DEFAULT_LIST_VIEW = 'list';
 const DEFAULT_SORT = 'name';

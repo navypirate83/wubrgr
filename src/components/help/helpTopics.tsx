@@ -1562,7 +1562,8 @@ export const helpTopics: HelpTopic[] = [
               buy, and about what that's worth at your price store. The search box and the buttons <Strong>All</Strong>,{' '}
               <Strong>Pool</Strong>, <Strong>Core</Strong> and <Strong>To Buy</Strong> narrow the list (To Buy shows the cards
               you own too few of). The <Strong>Sort</Strong> button beside them orders the list: <Strong>Shared first</Strong> (the
-              start: the shared cards, then A to Z) or the usual sorts (name, newest added, color, set, type, rarity, mana
+              start: the shared cards, then A to Z), <Strong>Most shared, then by deck</Strong> (cards in the most decks first, counting
+              down, then the cards only one deck uses, deck by deck in slot order, with a header bar for each group) or the usual sorts (name, newest added, color, set, type, rarity, mana
               value; there's no price, since a card has several printings). Tap the sort in use to reverse it, where that
               makes sense. The Cards tab remembers its own sort, separate from your binders, lists and decks. Tap a card
               to go and mark it.

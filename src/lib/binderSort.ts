@@ -64,13 +64,16 @@ export const BINDER_SORTS: SortOption[] = [
 export const DEFAULT_BINDER_SORT: BinderSort = 'name';
 
 // PRISM's Cards tab has its own sorts: the usual ones without Price (a card has
-// several printings at different prices), plus "Shared first" at the top: the
-// cards used by two or more decks first, then A to Z. That's where it starts.
-// ("shared" has no reverse and no header bars.)
-export type PrismSort = 'shared' | Exclude<BinderSort, 'price'>;
+// several printings at different prices), plus two of its own at the top:
+//  - "Shared first": the cards used by two or more decks first, then A to Z. That's where it starts.
+//  - "Most shared, then by deck" ("decks"): the cards in the most decks first, counting down, then the
+//    cards only one deck uses, deck by deck in slot order (see prismOrder.ts). It has header bars.
+// ("shared" has no reverse and no header bars; "decks" has no reverse.)
+export type PrismSort = 'shared' | 'decks' | Exclude<BinderSort, 'price'>;
 export type PrismSortOption = { value: PrismSort; name: string; short: string; reversedName?: string; reversedShort?: string };
 export const PRISM_SORTS: PrismSortOption[] = [
   { value: 'shared', name: 'Shared first', short: 'Shared' },
+  { value: 'decks', name: 'Most shared, then by deck', short: 'By decks' },
   ...BINDER_SORTS.filter((s) => s.value !== 'price') as PrismSortOption[],
 ];
 export const DEFAULT_PRISM_SORT: PrismSort = 'shared';

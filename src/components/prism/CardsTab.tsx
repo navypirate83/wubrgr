@@ -44,6 +44,7 @@ import type { PrismSet } from '@/lib/prismStorage';
 import type { Deck } from '@/lib/deckStorage';
 import { choosePrismSort, onBinderViewChange, prismSort, prismSortReversed, sortHeadersOn } from '@/lib/binderView';
 import { PRISM_SORTS, headerFor, sortEntries, type BinderSort, type SortHeader } from '@/lib/binderSort';
+import { deckGroupOf, orderByDecks } from '@/lib/prismOrder';
 
 type Props = {
   set: PrismSet;
@@ -131,17 +132,25 @@ export default function CardsTab({ set, plan, decks, owned, header, text, onText
       if (filter === 'buy') return (haves.get(card.key) ?? 0) < card.copies;
       return true;
     });
-    // "Shared first" is the order the plan already has; the others use the usual sorting
+    // "Shared first" is the order the plan already has; "Most shared, then by deck" is PRISM's own; the others use the usual sorting
     if (sort === 'shared') return kept;
+    if (sort === 'decks') return orderByDecks(kept, (deckId) => set.decks.find((d) => d.deckId === deckId)?.slot);
     const order = new Map(sortEntries(kept.map((card) => ({ key: card.key, card: card.sample })), sort, reversed, { printings: prices.printings })
       .map((entry, index) => [entry.key, index]));
     return [...kept].sort((a, b) => (order.get(a.key) ?? 0) - (order.get(b.key) ?? 0));
-  }, [plan, haves, text, filter, sort, reversed, prices.printings]);
+  }, [plan, haves, text, filter, sort, reversed, prices.printings, set.decks]);
 
   // The group each card falls under for this sort (none for "Shared first", or
   // when header bars are turned off in Settings)
   function headerOf(card: PlanCard): SortHeader | null {
-    return headersOn && sort !== 'shared' ? headerFor({ key: card.key, card: card.sample }, sort as BinderSort, { printings: prices.printings }) : null;
+    // "Most shared, then by deck": "In 3 decks", then "Only in <deck>" for each deck
+    if (headersOn && sort === 'decks') {
+      const group = deckGroupOf(card);
+      return group.deckId === null
+        ? { id: group.id, kind: 'text', text: `In ${group.count} decks` }
+        : { id: group.id, kind: 'text', text: `Only in ${decks.find((d) => d.id === group.deckId)?.name ?? 'a deck'}` };
+    }
+    return headersOn && sort !== 'shared' && sort !== 'decks' ? headerFor({ key: card.key, card: card.sample }, sort as BinderSort, { printings: prices.printings }) : null;
   }
 
   return (

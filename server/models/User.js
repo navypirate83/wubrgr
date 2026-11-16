@@ -79,7 +79,7 @@ const userSchema = new mongoose.Schema(
       listSortReversed: { type: Boolean },
       deckSort: { type: String, enum: ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'] },
       deckSortReversed: { type: Boolean },
-      prismSort: { type: String, enum: ['shared', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'] },
+      prismSort: { type: String, enum: ['shared', 'decks', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'] },
       prismSortReversed: { type: Boolean },
       // Whether header bars show between groups in the list and grid
       sortHeaders: { type: Boolean },
