@@ -124,7 +124,8 @@ const CardRow = memo(function CardRow({ set, card, have, onOpen }: { set: PrismS
           You own {have} of {need}{done ? ' · painted ✓' : ''}
         </Text>
         <View style={styles.squares}>
-          {card.deckNeeds.map(({ deckId }) => {
+          {/* The decks' squares, lowest slot number first */}
+          {[...card.deckNeeds].sort((a, b) => (set.decks.find((d) => d.deckId === a.deckId)?.slot ?? 99) - (set.decks.find((d) => d.deckId === b.deckId)?.slot ?? 99)).map(({ deckId }) => {
             const slot = set.decks.find((d) => d.deckId === deckId)?.slot;
             return slot === undefined ? null : <DeckSquare key={deckId} slot={slot} size={19} />;
           })}

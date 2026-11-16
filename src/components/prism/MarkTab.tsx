@@ -131,7 +131,8 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
           </View>
 
           <View style={styles.marks}>
-            {required.map((deckId) => {
+            {/* The decks to paint, lowest slot number first */}
+            {[...required].sort((a, b) => (slotOf(a) ?? 99) - (slotOf(b) ?? 99)).map((deckId) => {
               const slot = slotOf(deckId);
               const deck = decks.find((d) => d.id === deckId);
               return slot === null ? null : (
