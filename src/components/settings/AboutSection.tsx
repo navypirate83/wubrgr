@@ -2,7 +2,7 @@
    SETTINGS → ABOUT
    The app's version, where its card information comes from (Scryfall),
    a link to the website (and, on the website only, a link to download
-   the Android app), the server's status, and the notice Wizards of the
+   the Android app, with the date of its latest build under it), the server's status, and the notice Wizards of the
    Coast asks fan projects like this one to show (their "Fan Content
    Policy").
    Server status: on the website, UptimeRobot's live badge sits at the
@@ -29,6 +29,12 @@ const FAN_POLICY_URL = 'https://company.wizards.com/en/legal/fancontentpolicy';
 // who has the link (shown on the website only). It's a folder, not one
 // file, so a newer version put in it is found without changing this link.
 const ANDROID_APP_URL = 'https://drive.google.com/drive/folders/1UVEg-bix-rpSoCbjCq6uOToQi9vmVUDl?usp=sharing';
+
+// When the Android app was last built (the finish time of the newest build, in UTC).
+// Update it after every new Android build. It's shown under the download link, as a
+// date in the viewer's own time zone.
+const ANDROID_BUILD_DATE = '2026-11-12T06:59:53Z';
+const androidBuildDay = new Date(ANDROID_BUILD_DATE).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
 // The server's status page, and the small live badge picture UptimeRobot
 // makes for it (it says "up", "down" and so on; 24 tall, as wide as its
@@ -108,7 +114,7 @@ export default function AboutSection() {
       <LinkRow name="Website" description={SITE_NAME} url={WEBSITE_URL} />
       {/* A download link for the Android app, just under the website. It
           only shows on the website: on a phone the app is already installed. */}
-      {Platform.OS === 'web' && <LinkRow name="Download Android App from Google Drive" url={ANDROID_APP_URL} />}
+      {Platform.OS === 'web' && <LinkRow name="Download Android App from Google Drive" description={`Latest build: ${androidBuildDay}`} url={ANDROID_APP_URL} />}
       <LinkRow name="Card information and pictures" description="From Scryfall (scryfall.com)" url={SCRYFALL_URL} />
 
       {/* Whether the server is up: the live badge on the website, a link to
