@@ -1533,6 +1533,9 @@ export const helpTopics: HelpTopic[] = [
               to 48). Each gets the lowest free <Strong>slot</Strong> and that slot's color; tap its slot to pick another. A
               deck's slot, and which corner of the sleeve is slot 1 (<Strong>Sleeve corner</Strong>), can't change once paint
               is noted, because paint doesn't move. <Strong>Forget what's painted</Strong> starts the marking over.
+              A deck that is already in another Prism shows a pill under its name for each one ("In Prism: Name · side A, slot 3"),
+              so you can see at a glance. Ticking it anyway asks first; you can always go ahead, and the window suggests a slot
+              on the opposite side of the sleeve from its marks in the other Prism.
             </P>
           </>
         ),

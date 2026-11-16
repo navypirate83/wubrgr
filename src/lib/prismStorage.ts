@@ -182,6 +182,25 @@ export function addDeckToSet(setId: string, deckId: string): boolean {
   });
 }
 
+// Which side of the sleeve a slot is on: Side A is slots 1 to 24, Side B is 25 to 48
+export const sideOfSlot = (slot: number): 'A' | 'B' => (slot <= SLOTS_PER_SIDE ? 'A' : 'B');
+
+// The lowest free slot on one side of the sleeve (null if that side is full)
+export function freeSlotOnSide(set: PrismSet, side: 'A' | 'B'): number | null {
+  const used = new Set(set.decks.map((d) => d.slot));
+  const from = side === 'A' ? 1 : SLOTS_PER_SIDE + 1;
+  for (let slot = from; slot < from + SLOTS_PER_SIDE; slot++) if (!used.has(slot)) return slot;
+  return null;
+}
+
+// Put a deck in the set in a slot you choose (it must be free)
+export function addDeckToSetAt(setId: string, deckId: string, slot: number): boolean {
+  return changePrismSet(setId, (s) => {
+    if (s.decks.some((d) => d.deckId === deckId || d.slot === slot)) return s;
+    return { ...s, decks: [...s.decks, { deckId, slot }] };
+  });
+}
+
 // Take a deck out of the set. Its marks that are painted stay on the sleeves
 // (the Changes page lists them to clear); its slot is free again.
 export function removeDeckFromSet(setId: string, deckId: string): boolean {

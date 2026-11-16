@@ -8,6 +8,10 @@
    forget everything noted as painted (to start the marking over).
    A deck's slot, and the corner, can't change once something is painted,
    because paint doesn't move.
+   A deck that is already in ANOTHER Prism shows an outlined pill under its name
+   for each one (its name, and the side and slot its marks use there). Ticking
+   such a deck asks first: "Add anyway" always works, and when its marks there
+   are all on one side, the window suggests a slot on the opposite side here.
    ===================================================================== */
 
 import { useState } from 'react';
@@ -22,7 +26,8 @@ import { RADIUS } from '@/theme/colors';
 import { deckFormat } from '@/lib/deckFormats';
 import type { Deck } from '@/lib/deckStorage';
 import {
-  CORNERS, MAX_SLOTS, addDeckToSet, changePrismSet, deckHasPaint, freeSlot, moveDeckSlot, removeDeckFromSet, setCorner,
+  CORNERS, MAX_SLOTS, addDeckToSet, addDeckToSetAt, changePrismSet, deckHasPaint, freeSlot, freeSlotOnSide, loadPrismSets, moveDeckSlot,
+  removeDeckFromSet, setCorner, sideOfSlot,
   type PrismSet,
 } from '@/lib/prismStorage';
 import { cardCountText } from '@/lib/binderStorage';
@@ -37,6 +42,15 @@ export default function DecksTab({ set, decks, onChange }: Props) {
   const colors = useColors();
   // The deck whose slot is being picked (its id), or null
   const [picking, setPicking] = useState<string | null>(null);
+  // A deck that is already in another Prism and was just ticked (waiting for the answer to "add it here too?")
+  const [asking, setAsking] = useState<Deck | null>(null);
+
+  // The OTHER Prisms each deck is in (and its slot there), so the deck can say so
+  const otherSets = loadPrismSets().filter((s) => s.id !== set.id);
+  const elsewhere = (deckId: string) => otherSets.flatMap((s) => {
+    const entry = s.decks.find((d) => d.deckId === deckId);
+    return entry ? [{ name: s.name, slot: entry.slot }] : [];
+  });
 
   const painted = Object.keys(set.painted).length > 0;
   const slotOf = (deckId: string) => set.decks.find((d) => d.deckId === deckId)?.slot;
@@ -51,6 +65,8 @@ export default function DecksTab({ set, decks, onChange }: Props) {
     hapticTap();
     if (slotOf(deck.id) === undefined) {
       if (freeSlot(set) === null) { showMessage('The set is full', `A sleeve edge has ${MAX_SLOTS} slots, so a set holds up to ${MAX_SLOTS} decks.`); return; }
+      // Already in another Prism: ask first (it can always go ahead), with a suggestion
+      if (elsewhere(deck.id).length > 0) { setAsking(deck); return; }
       addDeckToSet(set.id, deck.id);
     } else {
       if (deckHasPaint(set, deck.id)) {
@@ -98,6 +114,12 @@ export default function DecksTab({ set, decks, onChange }: Props) {
                 <Text style={[styles.deckSub, { color: colors.muted }]}>
                   {commander ? `${cardCountText(deck.cards.reduce((sum, c) => sum + (c.count ?? 1), 0))} · ${deckFormat(deck.format).name}` : 'Not a Commander deck'}
                 </Text>
+                {/* One pill for each OTHER Prism this deck is already in, with the side its marks are on there */}
+                {elsewhere(deck.id).map((other) => (
+                  <View key={other.name + other.slot} style={[styles.pill, { borderColor: colors.accent }]}>
+                    <Text style={[styles.pillText, { color: colors.text }]} numberOfLines={1}>In Prism: {other.name} · side {sideOfSlot(other.slot)}, slot {other.slot}</Text>
+                  </View>
+                ))}
               </View>
             </Pressable>
             {slot !== undefined && (
@@ -134,6 +156,37 @@ export default function DecksTab({ set, decks, onChange }: Props) {
           onChange();
         }} />
       )}
+
+      {/* A deck that is already in another Prism: add it here anyway, or (suggested) on the other side of the sleeve */}
+      {asking && (() => {
+        const others = elsewhere(asking.id);
+        // The sides its marks are already on; the suggestion is the side that none of them use
+        const used = new Set(others.map((o) => sideOfSlot(o.slot)));
+        const opposite = used.size === 1 ? (used.has('A') ? 'B' : 'A') : null;
+        const oppositeSlot = opposite ? freeSlotOnSide(set, opposite) : null;
+        const names = others.map((o) => o.name).join(' and ');
+        const close = () => setAsking(null);
+        const add = (slot: number | null) => {
+          if (slot === null) addDeckToSet(set.id, asking.id); else addDeckToSetAt(set.id, asking.id, slot);
+          close();
+          onChange();
+        };
+        return (
+          <PopupWindow title="Already in a Prism" onClose={close}
+                       buttons={[
+                         { label: 'Cancel', onPress: close, kind: 'secondary' },
+                         { label: 'Add anyway', onPress: () => add(null), kind: oppositeSlot === null ? 'primary' : 'secondary' },
+                         ...(oppositeSlot !== null && opposite ? [{ label: `Use side ${opposite} (slot ${oppositeSlot})`, onPress: () => add(oppositeSlot) }] : []),
+                       ]}>
+            <Text style={[styles.hint, { color: colors.text }]}>
+              {asking.name} is already in {names}, with its marks on side {[...used].join(' and ')}.
+              {opposite && oppositeSlot !== null
+                ? ` Suggestion: give it a slot on side ${opposite} here, so its marks here sit on the other side of the sleeve from its marks there.`
+                : opposite ? ` Side ${opposite} is full in this set, so it would have to share the same side.` : ' It would have to share a side with marks it already has.'}
+            </Text>
+          </PopupWindow>
+        );
+      })()}
 
       {/* The slot picker */}
       {picking && (
@@ -175,6 +228,9 @@ const styles = StyleSheet.create({
   deckText: { flex: 1, gap: 1 },
   deckName: { fontSize: 15, fontWeight: '700' },
   deckSub: { fontSize: 13 },
+  // The little outlined pill that says which other Prism a deck is in
+  pill: { alignSelf: 'flex-start', borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2, marginTop: 4 },
+  pillText: { fontSize: 12, fontWeight: '600' },
   slotButton: { alignItems: 'center', gap: 2, padding: 4 },
   slotText: { fontSize: 11 },
   setting: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: RADIUS, padding: 12 },
