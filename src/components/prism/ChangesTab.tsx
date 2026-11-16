@@ -19,6 +19,7 @@
 
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import SymbolText from '@/components/SymbolText';
 import Button from '@/components/Button';
 import CardMarks, { type CardMark } from './CardMarks';
 import { useColors } from '@/hooks/useTheme';
@@ -182,8 +183,8 @@ export default function ChangesTab({ set, plan, decks, changes, onChanged }: Pro
                     {item.name}{showCopy ? ` (copy ${item.copy + 1})` : ''}
                   </Text>
                   <Text style={[styles.job, { color: hasRemove(item) ? colors.error : colors.success }]}>{jobs.join(' · ')}</Text>
-                  {item.keptIn !== '' && <Text style={[styles.text, { color: colors.muted }]}>{item.keptIn}</Text>}
-                  {decksLine !== '' && <Text style={[styles.text, { color: colors.muted }]} numberOfLines={2}>{decksLine}</Text>}
+                  {item.keptIn !== '' && <SymbolText inline style={[styles.text, { color: colors.muted }]}>{item.keptIn}</SymbolText>}
+                  {decksLine !== '' && <SymbolText inline style={[styles.text, { color: colors.muted }]} numberOfLines={2}>{decksLine}</SymbolText>}
                   {item.tip && <Text style={[styles.tip, { backgroundColor: `${colors.accent}22`, color: colors.text }]}>{item.tip}</Text>}
                 </View>
                 </Pressable>

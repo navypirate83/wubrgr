@@ -15,6 +15,7 @@
 
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import SymbolText from '@/components/SymbolText';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PopupWindow from '@/components/PopupWindow';
@@ -162,7 +163,7 @@ export default function PinDialog({ set, decks, name, onClose, onSaved }: Props)
                          onPress={() => change(use.deckId, { on: !choice.on })} style={styles.deckHead}>
                 <Ionicons name={choice.on ? 'checkbox' : 'square-outline'} size={24} color={choice.on ? colors.accent : colors.muted} />
                 <DeckSquare slot={use.slot} size={22} />
-                <Text style={[styles.deckName, { color: colors.text }]} numberOfLines={1}>{use.deckName}</Text>
+                <SymbolText style={[styles.deckName, { color: colors.text }]} numberOfLines={1}>{use.deckName}</SymbolText>
                 <Text style={[styles.count, { color: colors.muted }]}>×{use.total}</Text>
               </Pressable>
 

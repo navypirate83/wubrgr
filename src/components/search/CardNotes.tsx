@@ -8,6 +8,7 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 import { useContentWidth } from '@/hooks/useMenuStyle';
+import SymbolText from '@/components/SymbolText';
 import { useQuery } from '@tanstack/react-query';
 import { loadRulings, type ScryfallCard } from '@/lib/scryfall';
 import { formatDate, legalityRows, rulingSource } from '@/lib/cards';
@@ -57,7 +58,7 @@ export function Rulings({ card }: { card: ScryfallCard }) {
             <Text style={[styles.rulingDate, { color: colors.muted }]}>
               {formatDate(ruling.published_at)} · {rulingSource(ruling.source)}
             </Text>
-            <Text style={[styles.rulingText, { color: colors.text }]}>{ruling.comment}</Text>
+            <SymbolText inline style={[styles.rulingText, { color: colors.text }]}>{ruling.comment}</SymbolText>
           </View>
         ))
       )}

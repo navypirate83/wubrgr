@@ -26,6 +26,7 @@
 
 import { memo, useMemo, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import SymbolText from '@/components/SymbolText';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import TextField from '@/components/TextField';
@@ -216,7 +217,7 @@ const CardRow = memo(function CardRow({ set, card, have, deckName, onOpen, onPin
         </View>
         <View style={styles.cardText}>
           <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{card.name}{need > 1 ? ` ×${need}` : ''}</Text>
-          {kept !== '' && <Text style={[styles.cardSub, { color: colors.muted }]} numberOfLines={1}>{kept}</Text>}
+          {kept !== '' && <SymbolText inline style={[styles.cardSub, { color: colors.muted }]} numberOfLines={1}>{kept}</SymbolText>}
           <Text style={[styles.cardSub, { color: have >= need ? colors.muted : colors.error }]} numberOfLines={1}>
             You own {have} of {need}{done ? ' · painted ✓' : ''}
           </Text>

@@ -22,6 +22,7 @@ import Button from '@/components/Button';
 import PopupWindow from '@/components/PopupWindow';
 import TextField from '@/components/TextField';
 import DeckSquare from '@/components/prism/DeckSquare';
+import SymbolText from '@/components/SymbolText';
 import { loadDecks } from '@/lib/deckStorage';
 import { addPrismSet, forgetPrismSet, loadPrismSets, nextPrismSetName, renamePrismSet, SET_NAME_LIMIT, type PrismSet } from '@/lib/prismStorage';
 import { planFor, totalsOf } from '@/lib/prismPlan';
@@ -118,7 +119,7 @@ export default function PrismScreen() {
               style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.surfaceHover : colors.surface, borderColor: colors.border }]}
             >
               <View style={styles.rowText}>
-                <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+                <SymbolText style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{item.name}</SymbolText>
                 <Text style={[styles.rowCount, { color: colors.muted }]}>
                   {inSet.length} {inSet.length === 1 ? 'deck' : 'decks'} · {totals.needed} {totals.needed === 1 ? 'copy' : 'copies'} needed
                   {totals.saved > 0 ? ` · ${totals.saved} fewer to buy` : ''}

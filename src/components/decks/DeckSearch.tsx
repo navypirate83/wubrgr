@@ -14,6 +14,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import SymbolText, { hasSymbols } from '@/components/SymbolText';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { loadDecks, type Deck } from '@/lib/deckStorage';
 import { deckFormat } from '@/lib/deckFormats';
@@ -142,12 +143,17 @@ export default function DeckSearch({ onPick }: { onPick: (id: string) => void })
                   <View style={styles.resultText}>
                     {/* The part of the name that matches what was typed is
                         highlighted (bold and orange), as in the Card Finder */}
-                    <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
-                      {parts.before}
-                      <Text style={{ color: colors.accent, fontWeight: '700' }}>{parts.match}</Text>
-                      {parts.after}
-                    </Text>
-                    <Text style={[styles.resultAbout, { color: colors.muted }]} numberOfLines={1}>{about}</Text>
+                    {/* A name with symbol codes in it is drawn with its symbols (and no highlight) */}
+                    {item.kind === 'deck' && hasSymbols(title) ? (
+                      <SymbolText style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>{title}</SymbolText>
+                    ) : (
+                      <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
+                        {parts.before}
+                        <Text style={{ color: colors.accent, fontWeight: '700' }}>{parts.match}</Text>
+                        {parts.after}
+                      </Text>
+                    )}
+                    <SymbolText inline style={[styles.resultAbout, { color: colors.muted }]} numberOfLines={1}>{about}</SymbolText>
                   </View>
                 </Pressable>
               );

@@ -9,6 +9,7 @@
 
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import SymbolText from '@/components/SymbolText';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { NAME_LIMIT, pocketsPerPage, cardCountText, cleanCover, minPagesFor, type Binder } from '@/lib/binderStorage';
 import { useColors } from '@/hooks/useTheme';
@@ -145,7 +146,7 @@ export function DeleteBinderDialog({ binder, cardCount, localMode, onDelete, onC
     >
       {/* Signed in, it goes to the Drive trash; used locally, it's gone for good */}
       <Text style={[styles.text, { color: colors.text }]}>
-        "{binder.name}" and its {cardCountText(cardCount)} will be deleted.{' '}
+        "<SymbolText inline>{binder.name}</SymbolText>" and its {cardCountText(cardCount)} will be deleted.{' '}
         {localMode
           ? 'It\'s only saved on this device, so it can\'t be brought back.'
           : 'It goes to your Google Drive trash, where it can be restored for 30 days.'}

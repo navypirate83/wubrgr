@@ -22,6 +22,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import SymbolText from '@/components/SymbolText';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { cardCount, loadBinder, loadBinderList } from '@/lib/binderStorage';
@@ -244,7 +245,7 @@ export default function BinderSearch({ currentBinderId, onQuery, clearToken }: P
                     {parts.after}
                     {found.count > 1 && <Text style={{ color: colors.muted }}> ×{found.count}</Text>}
                   </Text>
-                  <Text style={[styles.resultWhere, { color: colors.muted }]}>{found.binderName} · page {found.page}</Text>
+                  <SymbolText inline style={[styles.resultWhere, { color: colors.muted }]}>{`${found.binderName} · page ${found.page}`}</SymbolText>
                 </Pressable>
               );
             }}

@@ -12,6 +12,7 @@
    each one says what it's called and what it does.
    ===================================================================== */
 
+import SymbolText from '@/components/SymbolText';
 import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
@@ -58,7 +59,8 @@ export default function PopupWindow({ title, onClose, buttons = [], children }: 
             aria-modal
           >
             {/* The heading, read out first by screen readers */}
-            <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">{title}</Text>
+            {/* The title is drawn with symbols when it has codes like {R} in it (a binder, list, deck or Prism name) */}
+            <SymbolText inline style={[styles.title, { color: colors.text }]} accessibilityRole="header">{title}</SymbolText>
 
             {/* What goes inside, scrolling if it's taller than the screen
                 ("handled" lets taps on buttons inside work while the

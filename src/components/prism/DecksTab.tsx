@@ -19,6 +19,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
 import DeckSquare from './DeckSquare';
+import SymbolText from '@/components/SymbolText';
 import { useColors } from '@/hooks/useTheme';
 import { askYesNo, showMessage } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
@@ -110,14 +111,14 @@ export default function DecksTab({ set, decks, onChange }: Props) {
                 {slot !== undefined && <Text style={[styles.checkMark, { color: colors.bg }]}>✓</Text>}
               </View>
               <View style={styles.deckText}>
-                <Text style={[styles.deckName, { color: colors.text }]} numberOfLines={1}>{deck.name}</Text>
+                <SymbolText style={[styles.deckName, { color: colors.text }]} numberOfLines={1}>{deck.name}</SymbolText>
                 <Text style={[styles.deckSub, { color: colors.muted }]}>
                   {commander ? `${cardCountText(deck.cards.reduce((sum, c) => sum + (c.count ?? 1), 0))} · ${deckFormat(deck.format).name}` : 'Not a Commander deck'}
                 </Text>
                 {/* One pill for each OTHER Prism this deck is already in, with the side its marks are on there */}
                 {elsewhere(deck.id).map((other) => (
                   <View key={other.name + other.slot} style={[styles.pill, { borderColor: colors.accent }]}>
-                    <Text style={[styles.pillText, { color: colors.text }]} numberOfLines={1}>In Prism: {other.name} · side {sideOfSlot(other.slot)}, slot {other.slot}</Text>
+                    <SymbolText inline style={[styles.pillText, { color: colors.text }]} numberOfLines={1}>{`In Prism: ${other.name} · side ${sideOfSlot(other.slot)}, slot ${other.slot}`}</SymbolText>
                   </View>
                 ))}
               </View>

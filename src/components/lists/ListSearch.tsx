@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import SymbolText, { hasSymbols } from '@/components/SymbolText';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { loadLists, type CardList } from '@/lib/listStorage';
 import { fuzzySearch, matchParts, prepareNames } from '@/lib/nameSearch';
@@ -107,11 +108,16 @@ export default function ListSearch({ onPick }: { onPick: (id: string) => void })
                 <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.name}`}
                            onPress={() => pick(item.id)}
                            style={({ pressed }) => [styles.result, { borderBottomColor: colors.border }, pressed && { backgroundColor: colors.surfaceHover }]}>
-                  <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
-                    {parts.before}
-                    <Text style={{ color: colors.accent, fontWeight: '700' }}>{parts.match}</Text>
-                    {parts.after}
-                  </Text>
+                  {/* A name with symbol codes in it is drawn with its symbols (and no highlight) */}
+                  {hasSymbols(item.name) ? (
+                    <SymbolText style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>{item.name}</SymbolText>
+                  ) : (
+                    <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
+                      {parts.before}
+                      <Text style={{ color: colors.accent, fontWeight: '700' }}>{parts.match}</Text>
+                      {parts.after}
+                    </Text>
+                  )}
                 </Pressable>
               );
             }}

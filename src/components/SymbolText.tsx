@@ -1,5 +1,8 @@
 /* =====================================================================
-   A NAME WITH MAGIC SYMBOLS IN IT
+   TEXT WITH MAGIC SYMBOLS IN IT
+   Use this wherever the app shows a name you typed (a binder, list, deck or
+   Prism) or text from Scryfall (a card's rulings), so the codes are drawn
+   as symbols instead of showing as letters in brackets.
    Binders, lists and decks can be named with Scryfall's symbol codes in
    curly brackets, and each one is drawn as its symbol: "{R}" is the red
    mana symbol, "{2}{U}{U}" a cost, "{W/U}" the white-or-blue symbol, "{T}"
@@ -8,9 +11,15 @@
    changes. A code that isn't a real symbol ("{hello}") is left as typed.
    A name with no symbols is drawn as plain text, exactly as before.
    Screen readers hear the name as typed.
+   Two ways to draw it:
+     - the default puts the pieces side by side on ONE line (for short names that
+       are cut off with "..." when they're too long);
+     - "inline" makes ONE piece of text with the symbols sitting in the line of
+       words, so long text (a ruling) wraps like normal text, and it can sit inside
+       a longer sentence.
    ===================================================================== */
 
-import { StyleSheet, Text, View, type StyleProp, type TextProps, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, Text, View, type StyleProp, type TextProps, type TextStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { pictureSource } from '@/lib/http';
 
@@ -44,9 +53,17 @@ type Props = Omit<TextProps, 'style' | 'children'> & {
   style?: StyleProp<TextStyle>;
   // How big each symbol is (by default a little bigger than the letters)
   size?: number;
+  // Draw it as one wrapping piece of text with the symbols in the line (see the top of this file)
+  inline?: boolean;
 };
 
-export default function SymbolText({ children, style, size, ...textProps }: Props) {
+// Does this text have at least one real symbol code in it?
+export const hasSymbols = (text: string): boolean => pieces(text).some((part) => 'symbol' in part);
+
+// On the website a picture inside a line of words has to be told to sit in the line, not on a line of its own
+const INLINE_PICTURE = (Platform.OS === 'web' ? { display: 'inline-block', verticalAlign: 'middle' } : {}) as object;
+
+export default function SymbolText({ children, style, size, inline, ...textProps }: Props) {
   const parts = pieces(children);
   // No symbols: plain text, as always
   if (!parts.some((part) => 'symbol' in part)) {
@@ -54,6 +71,16 @@ export default function SymbolText({ children, style, size, ...textProps }: Prop
   }
   const fontSize = StyleSheet.flatten(style)?.fontSize ?? 16;
   const icon = size ?? Math.round(fontSize * 1.2);
+  // Inline: one Text holding the words and the little pictures, so it wraps like any text
+  if (inline) {
+    return (
+      <Text style={style} accessibilityLabel={children} {...textProps}>
+        {parts.map((part, index) => ('symbol' in part
+          ? <Image key={index} source={pictureSource(symbolUrl(part.symbol))} style={[{ width: icon, height: icon }, INLINE_PICTURE]} contentFit="contain" />
+          : part.text))}
+      </Text>
+    );
+  }
   return (
     <View style={styles.row} accessible accessibilityLabel={children} accessibilityRole={textProps.accessibilityRole}>
       {parts.map((part, index) => ('symbol' in part
