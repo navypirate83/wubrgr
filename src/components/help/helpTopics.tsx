@@ -1592,7 +1592,8 @@ export const helpTopics: HelpTopic[] = [
               marks and a flat drawing of the sleeve edge. Paint them on the <Strong>inner</Strong> sleeve (never the card), let the paint dry, then
               tap <Strong>Marked ✓</Strong>. <Strong>Skip</Strong> puts it at the back. If you opened the card from the Cards tab, Marked
               moves to that card's next copy that needs marking, and after its last copy it takes you straight back to the Cards tab,
-              scrolled to where you were, with your search still there. <Strong>Copy the undone list</Strong> puts
+              scrolled to where you were, with your search still there.
+              A card with several copies, some marked and some not, says so (like <Strong>2 of 5 marked</Strong>) in the Cards list and on the Mark tab. <Strong>Copy the undone list</Strong> puts
               what's left on your clipboard as text, to take to the table. What you've marked is remembered on this device.
             </P>
           </>

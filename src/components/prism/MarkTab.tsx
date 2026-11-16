@@ -78,6 +78,8 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
   const isDone = current ? copyIsDone(set, current.card, current.copy) : false;
   // Marks left in a slot a deck was moved out of: scrape these off first
   const scrapeSlots = current ? [...scrapeOn(set, current.card.key, current.copy)].sort((a, b) => a - b) : [];
+  // How many copies of this card are painted already (shown as "2 of 5 marked" when some, but not all, are)
+  const cardMarked = current ? current.card.copies - undoneCopies(set, plan).filter((u) => u.card.key === current.card.key).length : 0;
   const tip = current && !isDone ? sleeveTipFor(set, plan, changes, current.card.key, current.copy) : null;
 
   function note(painted: boolean) {
@@ -129,6 +131,7 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
             )}
             <Text style={[styles.line, { color: colors.muted }]}>
               {current.card.copies > 1 ? `Copy ${current.copy + 1} of ${current.card.copies} · ` : ''}
+              {current.card.copies > 1 && cardMarked > 0 ? `${cardMarked} of ${current.card.copies} marked · ` : ''}
               {isDone ? 'painted ✓' : `${scrapeSlots.length > 0 ? `scrape off ${scrapeSlots.length === 1 ? 'slot' : 'slots'} ${scrapeSlots.join(', ')}, then ` : ''}paint ${slots.length} ${slots.length === 1 ? 'mark' : 'marks'} on its inner sleeve`}
             </Text>
           </View>

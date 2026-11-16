@@ -199,7 +199,9 @@ const CardRow = memo(function CardRow({ set, card, have, deckName, onOpen, onPin
 }) {
   const colors = useColors();
   const need = card.copies;
-  const done = Array.from({ length: need }, (_, copy) => copyIsDone(set, card, copy)).every(Boolean);
+  // How many of the copies are painted as they should be (all of them: the card is done)
+  const markedCount = Array.from({ length: need }, (_, copy) => copyIsDone(set, card, copy)).filter(Boolean).length;
+  const done = markedCount === need;
   const border = have >= need ? undefined : have === 0 ? 'solid' : 'dashed';
   // A kept card says whose it is, and which printing if just one
   const kept = card.pin ? `Only in ${deckName}${card.pin.print ? ` · ${card.sample.set.toUpperCase()} ${card.sample.number}` : ' · any printing'}` : '';
@@ -207,7 +209,7 @@ const CardRow = memo(function CardRow({ set, card, have, deckName, onOpen, onPin
     <View style={[styles.card, { borderBottomColor: colors.border }, card.pin && { backgroundColor: `${colors.accent}14` }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${card.name}, ${card.pool ? 'shared' : kept || 'one deck'}, ${need} ${need === 1 ? 'copy' : 'copies'} needed, you own ${have}${done ? ', painted' : ''}. Opens it to mark.`}
+        accessibilityLabel={`${card.name}, ${card.pool ? 'shared' : kept || 'one deck'}, ${need} ${need === 1 ? 'copy' : 'copies'} needed, you own ${have}${done ? ', painted' : markedCount > 0 ? `, ${markedCount} of ${need} marked` : ''}. Opens it to mark.`}
         onPress={() => onOpen(card.key)}
         style={({ pressed }) => [styles.open, pressed && { backgroundColor: colors.surfaceHover }]}
       >
@@ -219,7 +221,7 @@ const CardRow = memo(function CardRow({ set, card, have, deckName, onOpen, onPin
           <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{card.name}{need > 1 ? ` ×${need}` : ''}</Text>
           {kept !== '' && <SymbolText inline style={[styles.cardSub, { color: colors.muted }]} numberOfLines={1}>{kept}</SymbolText>}
           <Text style={[styles.cardSub, { color: have >= need ? colors.muted : colors.error }]} numberOfLines={1}>
-            You own {have} of {need}{done ? ' · painted ✓' : ''}
+            You own {have} of {need}{done ? ' · painted ✓' : markedCount > 0 ? ` · ${markedCount} of ${need} marked` : ''}
           </Text>
           <View style={styles.squares}>
             {/* The decks' squares, lowest slot number first */}
