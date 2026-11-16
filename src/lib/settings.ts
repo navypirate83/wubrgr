@@ -13,7 +13,10 @@
    - phoneView and wideView: how an opened binder is shown (list, grid or
      the binder's pockets) on a narrow window and on a wide one, and
      binderSort and binderSortReversed: how the list and grid are sorted,
-     and whether the other way round (see binderView.ts)
+     and whether the other way round (see binderView.ts). Card lists, decks
+     and PRISM's Cards tab each remember their OWN sort the same way
+     (listSort, deckSort, prismSort, each with its "Reversed"), so choosing a
+     sort in one never changes another
    - phoneLayout and wideLayout: pockets across and down each binder page
      on a narrow window (a phone) and on a wide one (see pageLayout.ts).
      Changing the one in use moves every binder's cards to match.
@@ -53,7 +56,7 @@ import { DEFAULT_PRICE_STORE, cleanPriceStore, type PriceStore } from './prices'
 import {
   DEFAULT_BINDER_VIEW, DEFAULT_LIST_VIEW, cleanBinderView, cleanListView, type BinderViewMode, type ListViewMode,
 } from './binderViewTypes';
-import { DEFAULT_BINDER_SORT, cleanBinderSort, type BinderSort } from './binderSort';
+import { DEFAULT_BINDER_SORT, DEFAULT_PRISM_SORT, cleanBinderSort, cleanPrismSort, type BinderSort, type PrismSort } from './binderSort';
 import { isServerSignedIn, SETTINGS_UNSENT_KEY } from './session';
 import {
   DEFAULT_LAYOUT, cleanLayout, currentSizeClass, layoutFor, pageLayout, pocketsPerPage,
@@ -70,8 +73,14 @@ export type Settings = {
   wideView: BinderViewMode;
   phoneListView: ListViewMode;
   wideListView: ListViewMode;
-  binderSort: BinderSort;
+  binderSort: BinderSort;           // binders
   binderSortReversed: boolean;
+  listSort: BinderSort;             // card lists
+  listSortReversed: boolean;
+  deckSort: BinderSort;             // decks
+  deckSortReversed: boolean;
+  prismSort: PrismSort;             // PRISM's Cards tab
+  prismSortReversed: boolean;
   sortHeaders: boolean;            // header bars between groups in the list and grid
   phoneLayout: PageLayout;
   wideLayout: PageLayout;
@@ -87,6 +96,12 @@ const DEFAULT_SETTINGS: Settings = {
   wideListView: DEFAULT_LIST_VIEW,
   binderSort: DEFAULT_BINDER_SORT,
   binderSortReversed: false,
+  listSort: DEFAULT_BINDER_SORT,
+  listSortReversed: false,
+  deckSort: DEFAULT_BINDER_SORT,
+  deckSortReversed: false,
+  prismSort: DEFAULT_PRISM_SORT,
+  prismSortReversed: false,
   sortHeaders: true,
   phoneLayout: DEFAULT_LAYOUT,
   wideLayout: DEFAULT_LAYOUT,
@@ -111,6 +126,12 @@ const PHONE_LIST_VIEW_KEY = 'phoneListView';
 const WIDE_LIST_VIEW_KEY = 'wideListView';
 const BINDER_SORT_KEY = 'binderSort';
 const SORT_REVERSED_KEY = 'binderSortReversed';
+const LIST_SORT_KEY = 'listSort';
+const LIST_SORT_REVERSED_KEY = 'listSortReversed';
+const DECK_SORT_KEY = 'deckSort';
+const DECK_SORT_REVERSED_KEY = 'deckSortReversed';
+const PRISM_SORT_KEY = 'prismSort';
+const PRISM_SORT_REVERSED_KEY = 'prismSortReversed';
 // Header bars between groups: kept as "0" when turned off (anything else, or
 // nothing saved yet, means on)
 const SORT_HEADERS_KEY = 'sortHeaders';
@@ -159,6 +180,12 @@ export function currentSettings(): Settings {
     wideListView: cleanListView(storageGet(WIDE_LIST_VIEW_KEY)),
     binderSort: cleanBinderSort(storageGet(BINDER_SORT_KEY)),
     binderSortReversed: storageGet(SORT_REVERSED_KEY) === '1',
+    listSort: savedSortFor('list'),
+    listSortReversed: savedSortReversedFor('list'),
+    deckSort: savedSortFor('deck'),
+    deckSortReversed: savedSortReversedFor('deck'),
+    prismSort: savedPrismSort(),
+    prismSortReversed: savedPrismSortReversed(),
     sortHeaders: storageGet(SORT_HEADERS_KEY) !== '0',
     phoneLayout: layouts.phone,
     wideLayout: layouts.wide,
@@ -175,11 +202,33 @@ export function savedBinderView(narrow: boolean): BinderViewMode {
 export function savedListView(narrow: boolean): ListViewMode {
   return cleanListView(storageGet(narrow ? PHONE_LIST_VIEW_KEY : WIDE_LIST_VIEW_KEY));
 }
+// The sort of each place that has its own: binders, card lists and decks.
+// Lists and decks used to share the binders' sort, so until one of them has
+// its own saved choice, it starts as the binders' (nothing seems to jump).
+export type SortArea = 'binder' | 'list' | 'deck';
+const SORT_KEYS: Record<SortArea, { sort: string; reversed: string }> = {
+  binder: { sort: BINDER_SORT_KEY, reversed: SORT_REVERSED_KEY },
+  list: { sort: LIST_SORT_KEY, reversed: LIST_SORT_REVERSED_KEY },
+  deck: { sort: DECK_SORT_KEY, reversed: DECK_SORT_REVERSED_KEY },
+};
+export function savedSortFor(area: SortArea): BinderSort {
+  return cleanBinderSort(storageGet(SORT_KEYS[area].sort) ?? storageGet(BINDER_SORT_KEY));
+}
+export function savedSortReversedFor(area: SortArea): boolean {
+  return (storageGet(SORT_KEYS[area].reversed) ?? storageGet(SORT_REVERSED_KEY)) === '1';
+}
 export function savedBinderSort(): BinderSort {
-  return cleanBinderSort(storageGet(BINDER_SORT_KEY));
+  return savedSortFor('binder');
 }
 export function savedBinderSortReversed(): boolean {
-  return storageGet(SORT_REVERSED_KEY) === '1';
+  return savedSortReversedFor('binder');
+}
+// PRISM's Cards tab: starts as "Shared first"
+export function savedPrismSort(): PrismSort {
+  return cleanPrismSort(storageGet(PRISM_SORT_KEY));
+}
+export function savedPrismSortReversed(): boolean {
+  return storageGet(PRISM_SORT_REVERSED_KEY) === '1';
 }
 // Are the header bars between groups turned on? (They are, unless turned
 // off in Settings.)
@@ -203,6 +252,12 @@ function applySettings(settings: Settings): void {
   storageSet(WIDE_LIST_VIEW_KEY, settings.wideListView);
   storageSet(BINDER_SORT_KEY, settings.binderSort);
   storageSet(SORT_REVERSED_KEY, settings.binderSortReversed ? '1' : '0');
+  storageSet(LIST_SORT_KEY, settings.listSort);
+  storageSet(LIST_SORT_REVERSED_KEY, settings.listSortReversed ? '1' : '0');
+  storageSet(DECK_SORT_KEY, settings.deckSort);
+  storageSet(DECK_SORT_REVERSED_KEY, settings.deckSortReversed ? '1' : '0');
+  storageSet(PRISM_SORT_KEY, settings.prismSort);
+  storageSet(PRISM_SORT_REVERSED_KEY, settings.prismSortReversed ? '1' : '0');
   storageSet(SORT_HEADERS_KEY, settings.sortHeaders ? '1' : '0');
   const nowShowing = currentSizeClass() === 'phone' ? settings.phoneLayout : settings.wideLayout;
   if (!sameLayout(nowShowing, pageLayout())) {
@@ -251,6 +306,13 @@ function fromFile(data: Record<string, unknown>, from: 'server' | 'drive'): Sett
   if (data.wideListView !== undefined) settings.wideListView = cleanListView(data.wideListView);
   if (data.binderSort !== undefined) settings.binderSort = cleanBinderSort(data.binderSort);
   if (typeof data.binderSortReversed === 'boolean') settings.binderSortReversed = data.binderSortReversed;
+  // Likewise the sorts of card lists, decks and PRISM (an older save has none: keep this device's)
+  if (data.listSort !== undefined) settings.listSort = cleanBinderSort(data.listSort);
+  if (typeof data.listSortReversed === 'boolean') settings.listSortReversed = data.listSortReversed;
+  if (data.deckSort !== undefined) settings.deckSort = cleanBinderSort(data.deckSort);
+  if (typeof data.deckSortReversed === 'boolean') settings.deckSortReversed = data.deckSortReversed;
+  if (data.prismSort !== undefined) settings.prismSort = cleanPrismSort(data.prismSort);
+  if (typeof data.prismSortReversed === 'boolean') settings.prismSortReversed = data.prismSortReversed;
   // An older save has no header-bars choice: keep the one chosen here
   if (typeof data.sortHeaders === 'boolean') settings.sortHeaders = data.sortHeaders;
   const isObject = (v: unknown): v is object => !!v && typeof v === 'object';
@@ -295,15 +357,15 @@ function saveToDrive(): Promise<void> {
 
 // What the server sends back: the saved settings (null if none yet)
 type ServerSettings = {
-  settings: { theme?: unknown; hiddenFormats?: unknown; priceStore?: unknown; phoneView?: unknown; wideView?: unknown; phoneListView?: unknown; wideListView?: unknown; binderSort?: unknown; binderSortReversed?: unknown; sortHeaders?: unknown; pageLayout?: unknown; phoneLayout?: unknown; wideLayout?: unknown } | null;
+  settings: { theme?: unknown; hiddenFormats?: unknown; priceStore?: unknown; phoneView?: unknown; wideView?: unknown; phoneListView?: unknown; wideListView?: unknown; binderSort?: unknown; binderSortReversed?: unknown; listSort?: unknown; listSortReversed?: unknown; deckSort?: unknown; deckSortReversed?: unknown; prismSort?: unknown; prismSortReversed?: unknown; sortHeaders?: unknown; pageLayout?: unknown; phoneLayout?: unknown; wideLayout?: unknown } | null;
 };
 
 // Send the settings as they are now to the account on the server
 async function saveToServer(): Promise<void> {
-  const { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, sortHeaders, phoneLayout, wideLayout, accountLayout: stored } = currentSettings();
+  const { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, sortHeaders, phoneLayout, wideLayout, accountLayout: stored } = currentSettings();
   await apiRequest('/settings', {
     method: 'PUT',
-    body: { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, sortHeaders, pageLayout: stored, phoneLayout, wideLayout },
+    body: { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, sortHeaders, pageLayout: stored, phoneLayout, wideLayout },
   });
   storageRemove(SERVER_DIRTY_KEY);
 }

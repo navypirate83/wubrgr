@@ -659,6 +659,8 @@ export const helpTopics: HelpTopic[] = [
         in use again to <Strong>reverse it</Strong>: Z to A, oldest added first, cheapest first, newest set first, most
         common first, or highest mana value first (<Strong>Color</Strong> and <Strong>Type</Strong> have no reverse). Cards that tie
         are in name order, and a card with nothing to go by (like no price) is always last.
+        Binders, card lists, decks and the PRISM Cards tab each remember their own sort (and its direction), so
+        choosing one in one place never changes the others; each follows your account to your other devices.
         In the list and grid (not the pockets of the Binder view), a small <Strong>header bar</Strong> goes
         in above each group: the letter (A, B, C...) for Name; the mana symbols for Color (the colorless
         diamond for colorless, a little mountain for Lands); the type's name for Type; the set's symbol,
@@ -1511,7 +1513,11 @@ export const helpTopics: HelpTopic[] = [
               The line above says how many copies are needed, how many carry two or more marks, how many fewer you have to
               buy, and about what that's worth at your price store. The search box and the buttons <Strong>All</Strong>,{' '}
               <Strong>Pool</Strong>, <Strong>Core</Strong> and <Strong>To Buy</Strong> narrow the list (To Buy shows the cards
-              you own too few of). Tap a card to go and mark it.
+              you own too few of). The <Strong>Sort</Strong> button beside them orders the list: <Strong>Shared first</Strong> (the
+              start: the shared cards, then A to Z) or the usual sorts (name, newest added, color, set, type, rarity, mana
+              value; there's no price, since a card has several printings). Tap the sort in use to reverse it, where that
+              makes sense. The Cards tab remembers its own sort, separate from your binders, lists and decks. Tap a card
+              to go and mark it.
             </P>
             <P>
               The <Strong>pin</Strong> button on a card keeps it in one deck only. A window lists the decks that use the card;

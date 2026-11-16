@@ -74,6 +74,13 @@ const userSchema = new mongoose.Schema(
       binderSort: { type: String, enum: ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'] },
       // Whether the sort is the other way round (cheapest first, oldest first...)
       binderSortReversed: { type: Boolean },
+      // Card lists, decks and PRISM's Cards tab each have their own sort
+      listSort: { type: String, enum: ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'] },
+      listSortReversed: { type: Boolean },
+      deckSort: { type: String, enum: ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'] },
+      deckSortReversed: { type: Boolean },
+      prismSort: { type: String, enum: ['shared', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'] },
+      prismSortReversed: { type: Boolean },
       // Whether header bars show between groups in the list and grid
       sortHeaders: { type: Boolean },
       // The layout the account's cards are stored in (see routes/settings.js)

@@ -46,7 +46,7 @@ import CardRules from '@/components/binder/CardRules';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import { useContentWidth } from '@/hooks/useMenuStyle';
-import { GRID_ZOOM_WIDTHS, binderGridZoom, binderSort, binderSortReversed, listViewMode, onBinderViewChange, onGridZoomChange, setListViewMode, sortHeadersOn } from '@/lib/binderView';
+import { GRID_ZOOM_WIDTHS, binderGridZoom, chooseListSort, listSort, listSortReversed, listViewMode, onBinderViewChange, onGridZoomChange, setListViewMode, sortHeadersOn } from '@/lib/binderView';
 import { headerFor, sortEntries } from '@/lib/binderSort';
 import { useCardAreaDrop } from '@/hooks/useCardAreaDrop';
 import { binderCardFrom, lookupFromDrop } from '@/lib/cardDrop';
@@ -209,8 +209,8 @@ export default function ListScreen() {
 
   // How the cards are shown (a list or a grid), the sort, and the grid's zoom
   const mode = useSyncExternalStore(onBinderViewChange, listViewMode, listViewMode);
-  const sort = useSyncExternalStore(onBinderViewChange, binderSort, binderSort);
-  const reversed = useSyncExternalStore(onBinderViewChange, binderSortReversed, binderSortReversed);
+  const sort = useSyncExternalStore(onBinderViewChange, listSort, listSort);
+  const reversed = useSyncExternalStore(onBinderViewChange, listSortReversed, listSortReversed);
   const gridZoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
   const contentWidth = useContentWidth();
 
@@ -379,7 +379,7 @@ export default function ListScreen() {
           autoCapitalize="none"
         />
         <ViewSwitch
-          mode={mode} sort={sort} reversed={reversed} modes={['list', 'grid']} onView={setListViewMode}
+          mode={mode} sort={sort} reversed={reversed} onSort={chooseListSort} modes={['list', 'grid']} onView={setListViewMode}
           extras={(
             // Import cards into this list, and download the list (.CSV, .TXT or copy)
             <>

@@ -112,6 +112,37 @@ test('the binder views and sort are saved and read back, and an older app that s
   expect(older.body.settings).toMatchObject(mine);
 });
 
+test("card lists, decks and PRISM each have their own sort, saved and read back, and an older app that sends none keeps them", async () => {
+  const user = await makeUser();
+  const auth = bearer(user);
+  const mine = {
+    binderSort: 'rarity', binderSortReversed: true,
+    listSort: 'color', listSortReversed: false,
+    deckSort: 'set', deckSortReversed: true,
+    prismSort: 'type', prismSortReversed: true,
+  };
+  const saved = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine });
+  expect(saved.status).toBe(200);
+  expect(saved.body.settings).toMatchObject(mine);
+  // PRISM can start at "shared" (shared cards first)
+  const shared = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine, prismSort: 'shared', prismSortReversed: false });
+  expect(shared.body.settings.prismSort).toBe('shared');
+  // An older app saves again without them: the chosen ones stay
+  const older = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, theme: 'light' });
+  expect(older.status).toBe(200);
+  expect(older.body.settings).toMatchObject({ ...mine, prismSort: 'shared', prismSortReversed: false });
+});
+
+test('an account that never saved the new sorts leaves them out of the answer', async () => {
+  const user = await makeUser();
+  const auth = bearer(user);
+  const saved = await request(app).put('/settings').set('Authorization', auth).send(GOOD);
+  expect(saved.status).toBe(200);
+  for (const name of ['listSort', 'deckSort', 'prismSort', 'listSortReversed', 'deckSortReversed', 'prismSortReversed']) {
+    expect(saved.body.settings[name]).toBeUndefined();
+  }
+});
+
 test('bad values are refused and nothing is saved', async () => {
   const user = await makeUser();
   const auth = bearer(user);
@@ -132,6 +163,14 @@ test('bad values are refused and nothing is saved', async () => {
     { ...GOOD, phoneListView: 'binder' },
     { ...GOOD, binderSort: 'luck' },
     { ...GOOD, binderSortReversed: 'yes' },
+    // the other sorts: a made-up one, price for PRISM (it has none), "shared" for a deck, a non-yes/no flag
+    { ...GOOD, listSort: 'luck' },
+    { ...GOOD, deckSort: 'shared' },
+    { ...GOOD, prismSort: 'price' },
+    { ...GOOD, prismSort: 'luck' },
+    { ...GOOD, listSortReversed: 'yes' },
+    { ...GOOD, deckSortReversed: 1 },
+    { ...GOOD, prismSortReversed: 'no' },
     { ...GOOD, sortHeaders: 'no' },
     // the phone and wide layouts: only one of them, or a bad one
     { ...GOOD, phoneLayout: { across: 3, down: 3 } },

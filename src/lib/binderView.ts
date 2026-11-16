@@ -4,7 +4,8 @@
    pictures, or its pages of pockets (see binderViewTypes.ts). The choice
    is remembered separately for a narrow window (a phone) and a wide one
    (a computer or tablet), and starts as the Binder view. The sort of
-   the list and grid (see binderSort.ts) is one choice for both.
+   the list and grid (see binderSort.ts) is one choice for both. Binders, card
+   lists, decks and PRISM's Cards tab each remember their own sort.
    The Grid view can also be zoomed in and out on the website (how big
    each card picture is). That's remembered on this device only.
    These aren't on the Settings page: tapping the switch inside a binder
@@ -14,11 +15,11 @@
    Plain TypeScript with no React in it.
    ===================================================================== */
 
-import { changeSettings, onSettingsChange, savedBinderSort, savedBinderSortReversed, savedBinderView, savedListView, savedSortHeaders } from './settings';
+import { changeSettings, onSettingsChange, savedBinderView, savedListView, savedPrismSort, savedPrismSortReversed, savedSortFor, savedSortReversedFor, savedSortHeaders, type SortArea } from './settings';
 import { storageGet, storageSet } from './storage';
 import { currentSizeClass } from './pageLayout';
 import type { BinderViewMode, ListViewMode } from './binderViewTypes';
-import { canReverse, type BinderSort } from './binderSort';
+import { canReverse, canReversePrism, type BinderSort, type PrismSort } from './binderSort';
 
 // The view for this window's size (narrow or wide)
 export function binderViewMode(): BinderViewMode {
@@ -35,12 +36,31 @@ export function setListViewMode(mode: BinderViewMode): void {
   changeSettings(currentSizeClass() === 'phone' ? { phoneListView: mode } : { wideListView: mode }).catch(() => { /* kept on this device */ });
 }
 
-// The sort chosen, and whether it's the other way round
+// The sort chosen, and whether it's the other way round. Binders, card lists,
+// decks and PRISM's Cards tab each have their own.
 export function binderSort(): BinderSort {
-  return savedBinderSort();
+  return savedSortFor('binder');
 }
 export function binderSortReversed(): boolean {
-  return savedBinderSortReversed();
+  return savedSortReversedFor('binder');
+}
+export function listSort(): BinderSort {
+  return savedSortFor('list');
+}
+export function listSortReversed(): boolean {
+  return savedSortReversedFor('list');
+}
+export function deckSort(): BinderSort {
+  return savedSortFor('deck');
+}
+export function deckSortReversed(): boolean {
+  return savedSortReversedFor('deck');
+}
+export function prismSort(): PrismSort {
+  return savedPrismSort();
+}
+export function prismSortReversed(): boolean {
+  return savedPrismSortReversed();
 }
 // Are the header bars between groups turned on? (Switched in Settings.)
 export function sortHeadersOn(): boolean {
@@ -57,8 +77,28 @@ export function setBinderViewMode(mode: BinderViewMode): void {
 // flips it the other way round (price highest first, then lowest first...);
 // choosing a different one starts it in its usual direction.
 export function chooseBinderSort(sort: BinderSort): void {
-  const flip = sort === savedBinderSort() && canReverse(sort);
-  changeSettings(flip ? { binderSortReversed: !savedBinderSortReversed() } : { binderSort: sort, binderSortReversed: false })
+  chooseSort('binder', sort);
+}
+export function chooseListSort(sort: BinderSort): void {
+  chooseSort('list', sort);
+}
+export function chooseDeckSort(sort: BinderSort): void {
+  chooseSort('deck', sort);
+}
+function chooseSort(area: SortArea, sort: BinderSort): void {
+  const flip = sort === savedSortFor(area) && canReverse(sort);
+  const reversed = !savedSortReversedFor(area);
+  const changes = {
+    binder: flip ? { binderSortReversed: reversed } : { binderSort: sort, binderSortReversed: false },
+    list: flip ? { listSortReversed: reversed } : { listSort: sort, listSortReversed: false },
+    deck: flip ? { deckSortReversed: reversed } : { deckSort: sort, deckSortReversed: false },
+  }[area];
+  changeSettings(changes).catch(() => { /* kept on this device */ });
+}
+// The same for PRISM's Cards tab
+export function choosePrismSort(sort: PrismSort): void {
+  const flip = sort === savedPrismSort() && canReversePrism(sort);
+  changeSettings(flip ? { prismSortReversed: !savedPrismSortReversed() } : { prismSort: sort, prismSortReversed: false })
     .catch(() => { /* kept on this device */ });
 }
 

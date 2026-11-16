@@ -12,18 +12,27 @@
    with a filled pin), and no other deck shares them. That's for things like
    a deck's basic lands, or one printing of a card wanted only in its deck.
    A search box and four buttons narrow the list: All, Pool (shared by two or
-   more decks), Core (one deck), To Buy.
+   more decks), Core (one deck), To Buy. A Sort button beside them orders it:
+   "Shared first" (the start: shared cards, then A to Z) or the usual ways
+   (name, newest added, color, set, type, rarity, mana value; no price, since a
+   card has several printings). PRISM remembers its own sort, separate from
+   binders, lists and decks. Under some sorts a header bar goes above each group,
+   like everywhere else.
    (What's typed and the button chosen are kept by the screen, so they're still
    there when you come back to this tab with the back arrow.) The rows are
    laid out all at once, not in a scrolling list of their own, so the page can
    return to exactly where you were scrolled.
    ===================================================================== */
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import TextField from '@/components/TextField';
+import SortButton from '@/components/binder/SortButton';
+import SortHeaderBar from '@/components/binder/SortHeaderBar';
+import { useBinderPrices } from '@/hooks/useBinderPrices';
+import type { CardEntry } from '@/components/binder/CardList';
 import DeckSquare from './DeckSquare';
 import { useColors } from '@/hooks/useTheme';
 import { pictureSource } from '@/lib/http';
@@ -32,6 +41,8 @@ import type { OwnedMap } from '@/lib/deckOwnership';
 import { copyIsDone, nameKey, type PlanCard } from '@/lib/prismPlan';
 import type { PrismSet } from '@/lib/prismStorage';
 import type { Deck } from '@/lib/deckStorage';
+import { choosePrismSort, onBinderViewChange, prismSort, prismSortReversed, sortHeadersOn } from '@/lib/binderView';
+import { PRISM_SORTS, headerFor, sortEntries, type BinderSort, type SortHeader } from '@/lib/binderSort';
 
 type Props = {
   set: PrismSet;
@@ -100,16 +111,37 @@ export default function CardsTab({ set, plan, decks, owned, header, text, onText
   const colors = useColors();
   const haves = useMemo(() => ownedByRow(plan, owned), [plan, owned]);
 
+  // The sort chosen here (PRISM's own, remembered on this device), and whether
+  // the header bars between groups are on
+  const sort = useSyncExternalStore(onBinderViewChange, prismSort, prismSort);
+  const reversed = useSyncExternalStore(onBinderViewChange, prismSortReversed, prismSortReversed);
+  const headersOn = useSyncExternalStore(onBinderViewChange, sortHeadersOn, sortHeadersOn);
+  // The cards' details from Scryfall, which the color, set, type, rarity and
+  // mana value sorts go by (looked up for the whole set, not just what shows)
+  const allEntries = useMemo<CardEntry[]>(() => plan.map((card) => ({ key: card.key, card: card.sample })), [plan]);
+  const prices = useBinderPrices(allEntries);
+
   const shown = useMemo(() => {
     const typed = text.trim().toLowerCase();
-    return plan.filter((card) => {
+    const kept = plan.filter((card) => {
       if (typed && !nameKey(card.name).includes(typed)) return false;
       if (filter === 'shared') return card.pool;
       if (filter === 'single') return !card.pool;
       if (filter === 'buy') return (haves.get(card.key) ?? 0) < card.copies;
       return true;
     });
-  }, [plan, haves, text, filter]);
+    // "Shared first" is the order the plan already has; the others use the usual sorting
+    if (sort === 'shared') return kept;
+    const order = new Map(sortEntries(kept.map((card) => ({ key: card.key, card: card.sample })), sort, reversed, { printings: prices.printings })
+      .map((entry, index) => [entry.key, index]));
+    return [...kept].sort((a, b) => (order.get(a.key) ?? 0) - (order.get(b.key) ?? 0));
+  }, [plan, haves, text, filter, sort, reversed, prices.printings]);
+
+  // The group each card falls under for this sort (none for "Shared first", or
+  // when header bars are turned off in Settings)
+  function headerOf(card: PlanCard): SortHeader | null {
+    return headersOn && sort !== 'shared' ? headerFor({ key: card.key, card: card.sample }, sort as BinderSort, { printings: prices.printings }) : null;
+  }
 
   return (
     <View style={styles.wrap}>
@@ -123,13 +155,16 @@ export default function CardsTab({ set, plan, decks, owned, header, text, onText
         autoCapitalize="none"
         returnKeyType="search"
       />
-      <View style={styles.filters}>
-        {FILTERS.map((f) => (
-          <Pressable key={f.id} accessibilityRole="radio" accessibilityState={{ selected: filter === f.id }} onPress={() => onFilter(f.id)}
-                     style={[styles.chip, { borderColor: filter === f.id ? colors.accent : colors.border, backgroundColor: filter === f.id ? colors.accent : 'transparent' }]}>
-            <Text style={[styles.chipText, { color: filter === f.id ? colors.bg : colors.text }]}>{f.label}</Text>
-          </Pressable>
-        ))}
+      <View style={styles.filterRow}>
+        <View style={styles.filters}>
+          {FILTERS.map((f) => (
+            <Pressable key={f.id} accessibilityRole="radio" accessibilityState={{ selected: filter === f.id }} onPress={() => onFilter(f.id)}
+                       style={[styles.chip, { borderColor: filter === f.id ? colors.accent : colors.border, backgroundColor: filter === f.id ? colors.accent : 'transparent' }]}>
+              <Text style={[styles.chipText, { color: filter === f.id ? colors.bg : colors.text }]}>{f.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <SortButton sort={sort} reversed={reversed} options={PRISM_SORTS} onChoose={(value) => choosePrismSort(value as typeof sort)} />
       </View>
 
       {plan.length === 0 ? (
@@ -138,11 +173,19 @@ export default function CardsTab({ set, plan, decks, owned, header, text, onText
         <Text style={[styles.empty, { color: colors.muted }]}>No cards match.</Text>
       ) : (
         <View>
-          {shown.map((card) => (
-            <CardRow key={card.key} set={set} card={card} have={haves.get(card.key) ?? 0}
-                     deckName={card.pin ? decks.find((d) => d.id === card.pin?.deckId)?.name ?? 'a deck' : ''}
-                     onOpen={onOpenCard} onPin={onPin} />
-          ))}
+          {shown.map((card, index) => {
+            // A header bar goes in wherever the group changes
+            const header = headerOf(card);
+            const before = index > 0 ? headerOf(shown[index - 1]) : null;
+            return (
+              <View key={card.key}>
+                {header && header.id !== before?.id && <SortHeaderBar header={header} />}
+                <CardRow set={set} card={card} have={haves.get(card.key) ?? 0}
+                         deckName={card.pin ? decks.find((d) => d.id === card.pin?.deckId)?.name ?? 'a deck' : ''}
+                         onOpen={onOpenCard} onPin={onPin} />
+              </View>
+            );
+          })}
         </View>
       )}
     </View>
@@ -206,7 +249,8 @@ const CardRow = memo(function CardRow({ set, card, have, deckName, onOpen, onPin
 const styles = StyleSheet.create({
   wrap: { gap: 10 },
   header: { fontSize: 13 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  filters: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5 },
   chipText: { fontSize: 13, fontWeight: '600' },
   empty: { fontSize: 14, textAlign: 'center', paddingVertical: 24 },

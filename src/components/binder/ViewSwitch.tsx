@@ -12,12 +12,13 @@
    window gets narrower.
    (the one you're on is filled in orange), and one more button at the
    right that depends on the view:
-   - List and Grid: a Sort button that shows the sort in use and drops a
-     menu down from itself listing every way to sort (see
+   - List and Grid: a Sort button (see SortButton.tsx) that shows the sort in
+     use and drops a menu down from itself listing every way to sort (see
      lib/binderSort.ts). Tapping an option sorts that way and closes the
      menu; tapping the one already in use reverses it (price highest
      first, then lowest first), except Color and Type, which have no
-     reverse. Tapping anywhere else closes the menu.
+     reverse. Binders, card lists and decks each remember their own sort,
+     so the screen says which one to change ("onSort").
    - Grid, on the website only: two small zoom buttons (− and +) before
      Sort, to make the card pictures smaller or bigger (the zoom is kept
      on this device: see lib/binderView.ts).
@@ -28,13 +29,14 @@
    (see lib/binderView.ts).
    ===================================================================== */
 
-import { useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSyncExternalStore, type ReactNode } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useTheme';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, chooseBinderSort, onGridZoomChange, setBinderViewMode, zoomBinderGrid } from '@/lib/binderView';
-import { BINDER_SORTS, canReverse, type BinderSort } from '@/lib/binderSort';
+import { BINDER_SORTS, type BinderSort } from '@/lib/binderSort';
+import SortButton from './SortButton';
 import type { BinderViewMode } from '@/lib/binderViewTypes';
 import { RADIUS } from '@/theme/colors';
 
@@ -54,6 +56,7 @@ type Props = {
   mode: BinderViewMode;
   sort: BinderSort;
   reversed: boolean;       // the sort is the other way round
+  onSort?: (sort: BinderSort) => void;   // a sort was picked (binders by default; lists and decks give their own)
   // Which views to offer (a binder has all three; a card list just List and
   // Grid), and what to do when one is picked (a binder and a card list each
   // remember their own choice)
@@ -84,29 +87,10 @@ export function ToolButton({ icon, label, onPress }: { icon: keyof typeof Ionico
   );
 }
 
-export default function ViewSwitch({ mode, sort, reversed, modes, onView = setBinderViewMode, onCleanUp, canCleanUp = false, extras }: Props) {
+export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinderSort, modes, onView = setBinderViewMode, onCleanUp, canCleanUp = false, extras }: Props) {
   const colors = useColors();
-  const { width: windowWidth } = useWindowDimensions();
-  // A very narrow screen: the Sort button shows just its icon (no word) so
-  // the buttons all stay on one line
-  const tight = windowWidth < 350;
-  const current = BINDER_SORTS.find((s) => s.value === sort) ?? BINDER_SORTS[0];
-  // The sort's name and short word the way round it's in now
-  const flipped = reversed && canReverse(sort);
-  const currentName = flipped ? current.reversedName ?? current.name : current.name;
-  const currentShort = flipped ? current.reversedShort ?? current.short : current.short;
   // How far the grid is zoomed (a step from 0, the smallest pictures)
   const zoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
-
-  // The Sort button (measured, so the menu can drop down right under it)
-  // and where the menu is (null: closed)
-  const sortButton = useRef<ComponentRef<typeof View>>(null);
-  const [menu, setMenu] = useState<{ top: number; right: number } | null>(null);
-  function openMenu() {
-    sortButton.current?.measureInWindow((x, y, width, height) => {
-      setMenu({ top: y + height + 4, right: Math.max(8, windowWidth - (x + width)) });
-    });
-  }
 
   return (
     <View style={styles.row}>
@@ -180,61 +164,10 @@ export default function ViewSwitch({ mode, sort, reversed, modes, onView = setBi
               </Pressable>
             </View>
           )}
-        <View ref={sortButton} collapsable={false}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Sorted by ${currentName}. Tap to change.`}
-            accessibilityState={{ expanded: menu !== null }}
-            onPress={openMenu}
-            style={({ pressed }) => [styles.button, styles.sort, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}
-          >
-            <Ionicons name="swap-vertical" size={14} color={colors.muted} />
-            {!tight && <Text style={[styles.label, { color: colors.muted }]}>{currentShort}</Text>}
-            <Ionicons name="chevron-down" size={12} color={colors.muted} />
-          </Pressable>
-        </View>
+        <SortButton sort={sort} reversed={reversed} options={BINDER_SORTS} onChoose={(value) => onSort(value as BinderSort)} />
         </View>
       )}
 
-      {/* THE DROP-DOWN MENU: a see-through layer over the screen (tap it to
-          close the menu) with the menu on it, under the Sort button. One
-          row per way to sort, a check mark on the one in use. */}
-      <Modal visible={menu !== null} transparent animationType="none" onRequestClose={() => setMenu(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setMenu(null)} accessibilityLabel="Close the sort menu" />
-        {menu && (
-          <View
-            accessibilityRole="menu"
-            style={[styles.menu, { top: menu.top, right: menu.right, backgroundColor: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }]}
-          >
-            {BINDER_SORTS.map((option, index) => {
-              const picked = option.value === sort;
-              // The name the way round it's in now (for the sort in use)
-              const name = picked && flipped ? option.reversedName ?? option.name : option.name;
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="menuitem"
-                  accessibilityState={{ selected: picked }}
-                  accessibilityLabel={name}
-                  accessibilityHint={picked && canReverse(option.value) ? 'Tap again to reverse the order' : undefined}
-                  onPress={() => { chooseBinderSort(option.value); setMenu(null); }}
-                  style={({ pressed }) => [
-                    styles.option,
-                    index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-                    pressed && { backgroundColor: colors.surfaceHover },
-                  ]}
-                >
-                  <View style={styles.optionName}>
-                    <Text style={[styles.optionText, { color: colors.text }, picked && styles.labelOn]}>{name}</Text>
-                    {picked && canReverse(option.value) && <Text style={[styles.optionHint, { color: colors.muted }]}>Tap again to reverse</Text>}
-                  </View>
-                  {picked && <Ionicons name="checkmark" size={18} color={colors.accent} />}
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </Modal>
     </View>
   );
 }
@@ -258,13 +191,6 @@ const styles = StyleSheet.create({
   button: { height: 30, paddingHorizontal: 12, borderRadius: RADIUS - 4, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
   sort: { paddingHorizontal: 10 },
   label: { fontSize: 13, fontWeight: '600' },
-  labelOn: { fontWeight: '800' },
   pressed: { opacity: 0.6 },
   faded: { opacity: 0.4 },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  menu: { position: 'absolute', minWidth: 220, borderWidth: 1, borderRadius: RADIUS, overflow: 'hidden' },
-  option: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 12, paddingHorizontal: 14 },
-  optionName: { flexShrink: 1 },
-  optionText: { fontSize: 15 },
-  optionHint: { fontSize: 11, marginTop: 1 },
 });

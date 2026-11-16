@@ -39,6 +39,8 @@ const VIEWS = ['list', 'grid', 'binder'];
 // An opened card list has no pockets, so no Binder view
 const LIST_VIEWS = ['list', 'grid'];
 const SORTS = ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'];
+// PRISM's Cards tab sorts without price, and has "shared" (shared cards first)
+const PRISM_SORTS = ['shared', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'];
 const DEFAULT_VIEW = 'binder';
 const DEFAULT_LIST_VIEW = 'list';
 const DEFAULT_SORT = 'name';
@@ -46,9 +48,11 @@ const DEFAULT_SORT = 'name';
 // A save that leaves one out keeps the one already saved.
 const OPTIONAL = {
   priceStore: PRICE_STORES, phoneView: VIEWS, wideView: VIEWS, phoneListView: LIST_VIEWS, wideListView: LIST_VIEWS, binderSort: SORTS,
+  // Card lists, decks and PRISM's Cards tab each have their own sort
+  listSort: SORTS, deckSort: SORTS, prismSort: PRISM_SORTS,
 };
 // Optional like the above, but yes or no instead of one of a list
-const OPTIONAL_FLAGS = ['binderSortReversed', 'sortHeaders'];
+const OPTIONAL_FLAGS = ['binderSortReversed', 'listSortReversed', 'deckSortReversed', 'prismSortReversed', 'sortHeaders'];
 
 // A page layout count must be a whole number from 1 to 6
 const isCount = (n) => Number.isInteger(n) && n >= 1 && n <= 6;
@@ -117,6 +121,14 @@ function answer(user) {
       wideListView: saved.wideListView ?? DEFAULT_LIST_VIEW,
       binderSort: saved.binderSort ?? DEFAULT_SORT,
       binderSortReversed: saved.binderSortReversed ?? false,
+      // The sorts of card lists, decks and PRISM are left out when never saved
+      // (an older account), so the app keeps its own
+      ...(saved.listSort !== undefined && { listSort: saved.listSort }),
+      ...(saved.listSortReversed !== undefined && { listSortReversed: saved.listSortReversed }),
+      ...(saved.deckSort !== undefined && { deckSort: saved.deckSort }),
+      ...(saved.deckSortReversed !== undefined && { deckSortReversed: saved.deckSortReversed }),
+      ...(saved.prismSort !== undefined && { prismSort: saved.prismSort }),
+      ...(saved.prismSortReversed !== undefined && { prismSortReversed: saved.prismSortReversed }),
       sortHeaders: saved.sortHeaders ?? true,
       pageLayout: stored,
       // Settings saved before there were two layouts: both are the one layout

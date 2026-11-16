@@ -63,6 +63,26 @@ export const BINDER_SORTS: SortOption[] = [
 ];
 export const DEFAULT_BINDER_SORT: BinderSort = 'name';
 
+// PRISM's Cards tab has its own sorts: the usual ones without Price (a card has
+// several printings at different prices), plus "Shared first" at the top: the
+// cards used by two or more decks first, then A to Z. That's where it starts.
+// ("shared" has no reverse and no header bars.)
+export type PrismSort = 'shared' | Exclude<BinderSort, 'price'>;
+export type PrismSortOption = { value: PrismSort; name: string; short: string; reversedName?: string; reversedShort?: string };
+export const PRISM_SORTS: PrismSortOption[] = [
+  { value: 'shared', name: 'Shared first', short: 'Shared' },
+  ...BINDER_SORTS.filter((s) => s.value !== 'price') as PrismSortOption[],
+];
+export const DEFAULT_PRISM_SORT: PrismSort = 'shared';
+// Keep only a real PRISM sort name (anything else becomes the default)
+export function cleanPrismSort(value: unknown): PrismSort {
+  return PRISM_SORTS.some((sort) => sort.value === value) ? (value as PrismSort) : DEFAULT_PRISM_SORT;
+}
+// Can this PRISM sort be reversed?
+export function canReversePrism(sort: PrismSort): boolean {
+  return PRISM_SORTS.find((s) => s.value === sort)?.reversedName !== undefined;
+}
+
 // Keep only a real sort name (anything else becomes the default)
 export function cleanBinderSort(value: unknown): BinderSort {
   return BINDER_SORTS.some((sort) => sort.value === value) ? (value as BinderSort) : DEFAULT_BINDER_SORT;

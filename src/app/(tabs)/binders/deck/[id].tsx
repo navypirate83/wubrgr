@@ -66,7 +66,7 @@ import { isBanned, useBanned } from '@/lib/bannedCards';
 import { assignPrinting, choicesFor, loadOwned, marksFor, normalizeOwnership, type Mark, type OwnedPrint } from '@/lib/deckOwnership';
 import { Image } from 'expo-image';
 import { pictureSource } from '@/lib/http';
-import { GRID_ZOOM_WIDTHS, binderGridZoom, binderSort, binderSortReversed, listViewMode, onBinderViewChange, onGridZoomChange, setListViewMode, sortHeadersOn } from '@/lib/binderView';
+import { GRID_ZOOM_WIDTHS, binderGridZoom, chooseDeckSort, deckSort, deckSortReversed, listViewMode, onBinderViewChange, onGridZoomChange, setListViewMode, sortHeadersOn } from '@/lib/binderView';
 import { headerFor, sortEntries } from '@/lib/binderSort';
 import { CARD_BACK, costAndType, imageFor, isDoubleSided } from '@/lib/cards';
 import { useCardAreaDrop } from '@/hooks/useCardAreaDrop';
@@ -134,8 +134,8 @@ export default function DeckScreen() {
 
   // How the cards are shown (a list or a grid), the sort, and the grid's zoom
   const mode = useSyncExternalStore(onBinderViewChange, listViewMode, listViewMode);
-  const sort = useSyncExternalStore(onBinderViewChange, binderSort, binderSort);
-  const reversed = useSyncExternalStore(onBinderViewChange, binderSortReversed, binderSortReversed);
+  const sort = useSyncExternalStore(onBinderViewChange, deckSort, deckSort);
+  const reversed = useSyncExternalStore(onBinderViewChange, deckSortReversed, deckSortReversed);
   const gridZoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
   const headersOn = useSyncExternalStore(onBinderViewChange, sortHeadersOn, sortHeadersOn);
   const contentWidth = useContentWidth();
@@ -576,7 +576,7 @@ export default function DeckScreen() {
           onAdd={add} note={note}
         />
         <ViewSwitch
-          mode={mode} sort={sort} reversed={reversed} modes={['list', 'grid']} onView={setListViewMode}
+          mode={mode} sort={sort} reversed={reversed} onSort={chooseDeckSort} modes={['list', 'grid']} onView={setListViewMode}
           extras={(
             // Import a decklist into this deck, and download the deck (.CSV, .TXT or copy)
             <>
