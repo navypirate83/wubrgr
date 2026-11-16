@@ -32,7 +32,7 @@ const GUIDE_WIDTH = 0.82;
 
 type Rect = { x: number; y: number; w: number; h: number };
 
-export default function ScannerCamera({ onReading }: ScannerCameraProps) {
+export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName }: ScannerCameraProps) {
   const colors = useColors();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -128,7 +128,7 @@ export default function ScannerCamera({ onReading }: ScannerCameraProps) {
     setHint('');
     try {
       const dark = brightness(source, card) < 45;
-      const reading = await readCard(source, card);
+      const reading = await readCard(source, card, looksLikeName);
       if (dark) setHint('It is dark. Light the card better (or use the torch) and scan again.');
       onReading(reading);
     } catch (err) {
@@ -193,35 +193,41 @@ export default function ScannerCamera({ onReading }: ScannerCameraProps) {
         </View>
       )}
 
-      {/* One line of words: why there's no camera, a hint, or how to start */}
+      {/* One line of words: why there's no camera, what just happened, a hint, or how to start */}
       <Text style={[styles.hint, { color: '#ffffff' }]} pointerEvents="none">
-        {busy ? 'Reading the card…' : problem || hint || 'Line the card up in the corners'}
+        {busy ? 'Reading the card…' : problem || message || hint || 'Line the card up in the corners'}
       </Text>
 
-      {/* The buttons along the bottom */}
-      <View style={styles.bar}>
-        <Pressable
-          accessibilityRole="button" accessibilityLabel="Choose a photo of a card"
-          onPress={() => fileRef.current?.click()}
-          style={styles.side}
-        >
-          <Ionicons name="images-outline" size={22} color="#ffffff" />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button" accessibilityLabel="Scan the card" accessibilityState={{ disabled: !!problem || busy }}
-          disabled={!!problem || busy}
-          onPress={takePicture}
-          style={[styles.shutter, (!!problem || busy) && { opacity: 0.4 }]}
-        >
-          {busy ? <ActivityIndicator color={colors.accentText} /> : <View style={[styles.shutterInner, { backgroundColor: colors.accent }]} />}
-        </Pressable>
+      {/* The photo and torch buttons, in the top corners */}
+      <Pressable
+        accessibilityRole="button" accessibilityLabel="Choose a photo of a card"
+        onPress={() => fileRef.current?.click()}
+        style={[styles.side, styles.topLeftButton]}
+      >
+        <Ionicons name="images-outline" size={22} color="#ffffff" />
+      </Pressable>
+      {torch !== null && (
         <Pressable
           accessibilityRole="button" accessibilityLabel={torchOn ? 'Torch off' : 'Torch on'}
-          disabled={torch === null} onPress={toggleTorch}
-          style={[styles.side, torch === null && { opacity: 0 }]}
+          onPress={toggleTorch}
+          style={[styles.side, styles.topRightButton]}
         >
           <Ionicons name={torchOn ? 'flash' : 'flash-outline'} size={22} color={torchOn ? colors.accent : '#ffffff'} />
         </Pressable>
+      )}
+
+      {/* Along the bottom: what the screen gives (the mode choice), the round scan button, what the screen gives (the list) */}
+      <View style={styles.bar}>
+        <View style={styles.barSide}>{bar?.left}</View>
+        <Pressable
+          accessibilityRole="button" accessibilityLabel="Scan the card" accessibilityState={{ disabled: !!problem || busy || !!paused }}
+          disabled={!!problem || busy || !!paused}
+          onPress={takePicture}
+          style={[styles.shutter, (!!problem || busy || !!paused) && { opacity: 0.4 }]}
+        >
+          {busy ? <ActivityIndicator color={colors.accentText} /> : <View style={[styles.shutterInner, { backgroundColor: colors.accent }]} />}
+        </Pressable>
+        <View style={[styles.barSide, styles.barRight]}>{bar?.right}</View>
       </View>
 
       {/* The hidden file chooser behind the "photo" button */}
@@ -249,8 +255,12 @@ const styles = StyleSheet.create({
   bottomLeft: { bottom: -3, left: -3, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 12 },
   bottomRight: { bottom: -3, right: -3, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 12 },
   hint: { position: 'absolute', left: 16, right: 16, bottom: 112, textAlign: 'center', fontSize: 14, textShadowColor: '#000', textShadowRadius: 4 },
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 100, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingBottom: 6 },
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 100, flexDirection: 'row', alignItems: 'center', paddingBottom: 6 },
   side: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' },
+  topLeftButton: { position: 'absolute', top: 10, left: 12 },
+  topRightButton: { position: 'absolute', top: 10, right: 12 },
+  barSide: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  barRight: { justifyContent: 'flex-end' },
   shutter: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 48, height: 48, borderRadius: 24 },
 });

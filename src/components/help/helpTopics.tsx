@@ -503,12 +503,19 @@ export const helpTopics: HelpTopic[] = [
             <Bullet><Strong>Card Finder</Strong> (the magnifying glass): the MTG Card Finder, to look up any card.</Bullet>
             <Bullet>
               <Strong>Scan</Strong> (the camera): the card scanner, to point your camera at a card and add it to a binder.
-              It's still being built, one part at a time, the website's first. For now, on the website, it shows the camera
-              with a card-shaped guide: line a card up in the corners and tap the round button (or tap the picture button to
-              choose a photo of a card), and it reads the card's name, its small print at the bottom left and its copyright
-              line, then shows what it read, which set and number that is, and whether the name agrees. It identifies cards from the{' '}
-              <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, so it works with no internet.
-              Adding the card to a binder, and the phone app's camera, come next.
+              It's still being built: the website's scanner works first, then the phone app's camera. On the website it shows the
+              camera with a card-shaped guide: line a card up in the corners and tap the round button (or tap the picture button
+              to choose a photo of a card). It reads the card's name and the small print at the bottom left, finds the exact
+              printing in the <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, and
+              slides up a sheet with the card's picture, set and number, how many (− 1 +), the finish button (foil, like in the Card
+              Finder), the language (just its letters; the list has the full names) and <Strong>Add to binder</Strong>, which asks
+              which binder: the card goes into the first empty pocket, and pages are added if the binder is full.
+              <Strong>Wrong printing?</Strong> lets you pick another printing. A card with no readable small print (older cards)
+              is found from its name, narrowed down by its border, copyright year, set symbol and artwork, and you pick from
+              what's left (it's never added by itself). <Strong>Stack</Strong> mode scans one card after another into a list
+              (a card scanned again adds a copy); ones it wasn't sure of are marked PICK or FIX to sort out at the end, and the
+              list's <Strong>Add N to binder</Strong> adds them all. Once the catalogue is on the device, and you've opened the
+              scanner once with a connection, it works with no internet.
             </Bullet>
             <Bullet>
               <Strong>Settings</Strong> (the gear): the theme (light or dark) and more

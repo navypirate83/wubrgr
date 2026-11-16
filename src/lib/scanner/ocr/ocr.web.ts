@@ -18,7 +18,8 @@
 
 import { rgbaToGray } from '../core/phash';
 import { binarizeForOcr } from '../core/ocrPrep';
-import { CARD_PARTS, type Box, type ScanReading } from '../core/scannerTypes';
+import { borderFromBrightness } from '../core/borderColor';
+import { ART_BOX, ART_SHIFTS, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_BOX, type Box, type GrayPicture, type ScanExtras, type ScanReading } from '../core/scannerTypes';
 import type { CardOcr } from './ocr';
 
 /* ---------- a little of Tesseract's own shape ---------- */
@@ -81,6 +82,8 @@ export const cardOcr: CardOcr = {
 
 // What Tesseract is told to expect in each part
 const KINDS = {
+  // the whole band across the top, as scattered text (the name is one of the lines it finds)
+  band: { psm: 11, whitelist: '' },
   // two short lines of capitals, digits and the bullet: a block of text, with only those characters allowed
   info: { psm: 6, whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ•·/★*+.-★' },
   // one line of a name: letters, and the marks names have
@@ -139,6 +142,7 @@ async function readPart(source: CanvasImageSource, card: { x: number; y: number;
     tessedit_char_whitelist: KINDS[kind].whitelist,
     preserve_interword_spaces: 1,
   });
+  // The title band is read both ways round, whatever the first way gave
   const once = async (flip: boolean) => {
     const picture = prepare(source, part, flip);
     const { data } = await reader.recognize(picture);
@@ -147,22 +151,76 @@ async function readPart(source: CanvasImageSource, card: { x: number; y: number;
   const first = await once(false);
   // A title bar on a dark or coloured frame can come out the wrong way round (text taken
   // for background). If very little was read, try the other way and keep the one with more letters.
+  if (kind === 'band') {
+    const second = await once(true);
+    return { text: `${first.text}\n${second.text}`, picture: first.picture };
+  }
   if (kind !== 'name' || letterCount(first.text) >= 6) return first;
   const second = await once(true);
   return letterCount(second.text) > letterCount(first.text) ? second : first;
 }
 
+/* ---------- the extra clues: symbol, artwork and border ---------- */
+
+type CardRect = { x: number; y: number; w: number; h: number };
+
+// A part of the photo as a grey picture no wider than "maxWidth"
+function grayCrop(source: CanvasImageSource, from: CardRect, maxWidth: number): GrayPicture {
+  const width = Math.max(1, Math.min(maxWidth, Math.round(from.w)));
+  const height = Math.max(1, Math.round((width * from.h) / from.w));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d', { willReadFrequently: true })!;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(source, from.x, from.y, from.w, from.h, 0, 0, width, height);
+  const { data } = context.getImageData(0, 0, width, height);
+  return { data: rgbaToGray(data, width, height), width, height };
+}
+
+const partOf = (card: CardRect, box: Box): CardRect => ({
+  x: card.x + box[0] * card.w, y: card.y + box[1] * card.h, w: (box[2] - box[0]) * card.w, h: (box[3] - box[1]) * card.h,
+});
+
+// The set symbol crop, the art box cropped a few ways, and the border colour
+function readExtras(source: CanvasImageSource, card: CardRect): ScanExtras {
+  const symbol = grayCrop(source, partOf(card, SYMBOL_BOX), 128);
+  const arts = ART_SHIFTS.map(([dx, dy]) => {
+    const art = partOf(card, ART_BOX);
+    return grayCrop(source, { x: art.x + dx * card.w, y: art.y + dy * card.h, w: art.w, h: art.h }, 128);
+  });
+  const strip = grayCrop(source, partOf(card, BORDER_STRIP), 16);
+  const mean = strip.data.reduce((sum, v) => sum + v, 0) / strip.data.length;
+  // A small picture of the art as the camera saw it, to show beside the candidates
+  const preview = document.createElement('canvas');
+  const art = partOf(card, ART_BOX);
+  preview.width = 240;
+  preview.height = Math.round((240 * art.h) / art.w);
+  preview.getContext('2d')!.drawImage(source, art.x, art.y, art.w, art.h, 0, 0, preview.width, preview.height);
+  return { symbol, arts, border: borderFromBrightness(mean), artPreview: preview.toDataURL('image/jpeg', 0.8) };
+}
+
 // Read the three parts of a card from a photo. "card" is where the card is in the
 // photo, in the photo's own pixels (the camera works it out from the guide on the screen).
-export async function readCard(source: CanvasImageSource, card: { x: number; y: number; w: number; h: number }): Promise<ScanReading> {
+export async function readCard(
+  source: CanvasImageSource,
+  card: { x: number; y: number; w: number; h: number },
+  looksLikeName: (text: string) => boolean = () => true,
+): Promise<ScanReading> {
   const info = await readPart(source, card, CARD_PARTS.infoLine, 'info');
-  const name = await readPart(source, card, CARD_PARTS.name, 'name');
+  // The name: where the modern frame puts it; if that isn't a card's name, the whole title band
+  let name = await readPart(source, card, CARD_PARTS.name, 'name');
+  if (!looksLikeName(name.text)) {
+    const band = await readPart(source, card, NAME_BAND, 'band');
+    name = { text: `${name.text}\n${band.text}`.trim(), picture: name.picture };
+  }
   const bottom = await readPart(source, card, CARD_PARTS.bottomLine, 'bottom');
   return {
     infoText: info.text,
     nameText: name.text,
     bottomText: bottom.text,
     takenAt: Date.now(),
+    extras: readExtras(source, card),
     debug: { info: info.picture, name: name.picture, bottom: bottom.picture },
   };
 }

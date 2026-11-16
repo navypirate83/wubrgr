@@ -7,6 +7,10 @@
      the "public" folder, which says the site opens as a standalone app,
      with no address bar) and the matching tags iPhones read. Without
      these, "Add to Home Screen" would just make a bookmark.
+   - the service worker: "public/sw.js" (copied into dist by the build) is stamped with
+     the build's time so each version of the site saves its own files, and index.html
+     gets a few lines that start it. It lets the site, and the card scanner, open with
+     no internet (see public/sw.js).
    - 404.html: a copy of index.html. GitHub Pages shows 404.html for any
      address it has no file for (like /wubrgr/binders/abc), and since
      it's the app itself, the app opens and shows the right page instead
@@ -31,6 +35,8 @@ const appTags = [
   '<meta name="mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="WUBRG\'r">',
+  // Start the service worker once the page has loaded (so it never slows the first draw)
+  '<script>if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/wubrgr/sw.js",{scope:"/wubrgr/"}).catch(function(){})})}</script>',
 ].join('\n');
 // The page's own pinch-to-zoom is switched off too (the app has its own zoom
 // in the Grid view; see src/lib/noPageZoom.ts), by changing the viewport tag
@@ -38,6 +44,12 @@ const html = fs.readFileSync(indexPath, 'utf8')
   .replace(/<meta name="viewport" content="[^"]*"\s*\/?>/, '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no" />');
 if (!html.includes('</head>')) throw new Error('index.html has no </head> to add the app tags to');
 fs.writeFileSync(indexPath, html.replace('</head>', `${appTags}\n</head>`));
+
+// Stamp the service worker with this build's time (so every build has its own saved set)
+const workerPath = path.join(dist, 'sw.js');
+if (fs.existsSync(workerPath)) {
+  fs.writeFileSync(workerPath, fs.readFileSync(workerPath, 'utf8').replace("const BUILD = '__BUILD__'", `const BUILD = '${Date.now()}'`));
+}
 
 // Copy index.html to 404.html, and make the empty .nojekyll file
 fs.copyFileSync(path.join(dist, 'index.html'), path.join(dist, '404.html'));

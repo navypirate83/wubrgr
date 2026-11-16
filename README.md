@@ -166,8 +166,15 @@ printings and how sure a scan is): `node --test src/lib/scanner/core/*.test.ts`.
 **The website's scanner** reads one full-size photo per tap (or a photo you choose from the
 device) with Tesseract.js in a web worker. Its files are copies in `public/tesseract/`
 (see the README there) and load only when the Scan tab opens; the camera is the browser's
-`getUserMedia` and needs https. The phone app's camera and text reading are built after the
-website's.
+`getUserMedia` and needs https. One-card mode (confirm sheet, "Wrong printing?" picker) and
+stack mode (a running list, "Add N to binder") are in `src/components/scanner/`, shared with the
+phone app; the matching is `src/lib/scanner/scanResolve.ts`. The site is also a PWA: `public/sw.js`
+(started by `scripts/finish-web-build.js`) saves the app, the scanner's files and sql.js so it all
+opens with no internet; the catalogue itself is kept in the browser's IndexedDB. To try the
+built site (service worker included) with no internet: `npm run build` with
+`EXPO_PUBLIC_CATALOGUE_URL` set, serve `dist/` at `/wubrgr/`, download the catalogue once,
+open the Scan tab once, then stop the servers and reload. The phone app's camera and text
+reading are built after the website's.
 
 ## Card data
 
