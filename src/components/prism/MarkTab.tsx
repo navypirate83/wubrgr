@@ -117,7 +117,7 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
           </View>
 
           {/* The big card with its marks, and the button right under it */}
-          <CardMarks image={current.card.sample.image} slots={slots} corner={set.corner} />
+          <CardMarks image={current.card.sample.image} marks={slots.map((slot) => ({ slot, kind: 'paint' as const }))} corner={set.corner} />
 
           <View style={styles.buttons}>
             {isDone ? (

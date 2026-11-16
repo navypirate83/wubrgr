@@ -162,7 +162,7 @@ export default function PrismSetScreen() {
           <MarkTab set={set} plan={plan} decks={decks} changes={changes} selected={selected}
                    onChanged={() => { refresh(); if (cardParam) router.setParams({ card: undefined }); }} />
         )}
-        {tab === 'changes' && <ChangesTab set={set} decks={decks} changes={changes} onChanged={refresh} />}
+        {tab === 'changes' && <ChangesTab set={set} plan={plan} decks={decks} changes={changes} onChanged={refresh} />}
       </ScrollView>
     </KeyboardAvoidingView>
   );

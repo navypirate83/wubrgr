@@ -1540,9 +1540,12 @@ export const helpTopics: HelpTopic[] = [
           <>
             <P>
               The app remembers what is painted on each copy. When you add a card to a deck or take one out, or take a deck
-              out of the set, the <Strong>Changes</Strong> tab lists only the sleeves that need touching: a mark to{' '}
-              <Strong>paint</Strong> (+) or <Strong>clear</Strong> (−), under the deck. Tap <Strong>Done</Strong> on each when
-              it's done. If a card leaving a deck has a sleeve with exactly the marks another card needs, it says so: move the
+              out of the set, the <Strong>Changes</Strong> tab lists only the sleeves that need touching, one row for each card.
+              The row shows a small picture of the card with its marks along the edges: marks that stay are dimmed, a mark to{' '}
+              <Strong>scrape off</Strong> is a dashed outline with a − and a mark to <Strong>paint</Strong> is solid with a +.
+              Tap a row to see the card larger. The buttons <Strong>All</Strong>, <Strong>Scrape off</Strong> and{' '}
+              <Strong>Paint</Strong> narrow the list, and cards with something to scrape off come first. Tap{' '}
+              <Strong>Done</Strong> on a row when its sleeve has the right marks. If a card leaving a deck has a sleeve with exactly the marks another card needs, it says so: move the
               card into that sleeve and nothing needs painting. Wet paint wipes off; dry paint means a fresh inner sleeve.
               Cards you've never marked are simply still on the Mark tab.
             </P>
