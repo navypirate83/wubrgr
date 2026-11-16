@@ -52,6 +52,7 @@ import CopiesBar from './CopiesBar';
 import SortHeaderBar, { HEADER_HEIGHT } from './SortHeaderBar';
 import MissingOutline from '@/components/decks/MissingOutline';
 import BannedSlash from '@/components/decks/BannedSlash';
+import GameChangerBadge from '@/components/decks/GameChangerBadge';
 import type { SortHeader } from '@/lib/binderSort';
 import type { BinderPrices } from '@/hooks/useBinderPrices';
 import { SPACE } from '@/theme/colors';
@@ -392,7 +393,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
       {/* The picture and name: tap them for the card's menu */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)}` : ''}. Opens its menu.`}
+        accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)}` : ''}${gold ? ', Game Changer' : ''}. Opens its menu.`}
         onPress={() => onPick(key)}
         style={({ pressed }) => [styles.rowMain, pressed && { backgroundColor: colors.surfaceHover }]}
       >
@@ -403,9 +404,14 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
           {banned && <BannedSlash radius={4} />}
           {gold && <MissingOutline radius={4} width={2} yellow />}
           {missing && <MissingOutline radius={4} width={2} dashed={missing === 'printing'} inset={gold ? 2 : 0} />}
+          {gold && <GameChangerBadge size={14} />}
         </View>
         <View style={styles.rowText}>
-          <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
+          {/* The name, with a small gold "GC" tag after it for a Game Changer */}
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, styles.nameText, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
+            {gold && <Text style={[styles.gcTag, { backgroundColor: colors.gameChanger }]}>GC</Text>}
+          </View>
           {/* The casting cost, then the set's symbol, then the set code and number */}
           <View style={styles.aboutRow}>
             {manaCost ? <ManaCost cost={manaCost} size={13} /> : null}
@@ -443,7 +449,7 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
       {/* The picture: tap it for the card's menu */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${card.name}${card.foil ? ', foil' : ''}, ${count} ${count === 1 ? 'copy' : 'copies'}. Opens its menu.`}
+        accessibilityLabel={`${card.name}${card.foil ? ', foil' : ''}${gold ? ', Game Changer' : ''}, ${count} ${count === 1 ? 'copy' : 'copies'}. Opens its menu.`}
         onPress={() => onPick(key)}
         style={({ pressed }) => pressed && styles.pressed}
       >
@@ -453,6 +459,7 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
         {banned && <BannedSlash radius={6} />}
         {gold && <MissingOutline radius={6} width={3} yellow />}
         {missing && <MissingOutline radius={6} width={3} dashed={missing === 'printing'} inset={gold ? 3 : 0} />}
+        {gold && <GameChangerBadge size={Math.max(16, Math.round(size * 0.2))} />}
       </Pressable>
 
       {/* The "− 3 +" bar along the bottom of the card: how many copies you
@@ -465,6 +472,10 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
 
 // The look: rows with a thin line under each, and grid tiles with a tag
 const styles = StyleSheet.create({
+  // A card's name with its small gold "GC" tag after it (a Game Changer)
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameText: { flexShrink: 1 },
+  gcTag: { color: '#1a1206', fontSize: 10, fontWeight: '800', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, overflow: 'hidden' },
   // The view around the list and grid (it catches the two-finger pinch)
   fill: { flex: 1, overflow: 'hidden' },
   // The zoom level number in the middle of the screen while pinching

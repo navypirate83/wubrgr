@@ -263,8 +263,9 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>
               <Strong>Game Changers</Strong>: the cards on Wizards of the Coast's Game Changers list (asked from Scryfall, and kept
-              on your device for a week at a time) get a <Strong>yellow border</Strong> in Commander decks (a card you don't own has
-              its red border just inside it). A deck with <Strong>1 to 3</Strong> Game Changers is at least Bracket 3, so only 3, 4 or 5 can
+              on your device for a week at a time) get a <Strong>yellow border</Strong> and a small <Strong>gold star</Strong> in the corner of their picture in Commander decks (a card you
+              don't own has its red border just inside the yellow one), and a gold <Strong>GC</Strong> tag after the name in the list view. The
+              <Strong> Game Changers only</Strong> button next to the bracket button shows just those cards. A deck with <Strong>1 to 3</Strong> Game Changers is at least Bracket 3, so only 3, 4 or 5 can
               be chosen; with <Strong>4 or more</Strong> it is at least Bracket 4, so only 4 or 5. The brackets that aren't allowed are
               greyed out, and a deck with none chosen (or a lower one) shows at the lowest allowed bracket by itself. A deck with no
               Game Changers can be any bracket.

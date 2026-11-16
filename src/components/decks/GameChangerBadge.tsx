@@ -1,0 +1,32 @@
+/* =====================================================================
+   THE GAME CHANGER BADGE
+   A small gold circle with a star in it, laid over the top right corner of
+   a Game Changer card's picture (a Commander deck). It goes with the yellow
+   border, and it's still easy to see where the border isn't: on a tiny
+   picture, on a card with a light frame, or for someone who can't tell the
+   colors apart. Put it inside the box that holds the picture; it doesn't
+   catch any taps. (A screen reader hears "Game Changer" in the card's own
+   label instead, so the badge itself is skipped.)
+   ===================================================================== */
+
+import { StyleSheet, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useColors } from '@/hooks/useTheme';
+
+export default function GameChangerBadge({ size = 16 }: { size?: number }) {
+  const colors = useColors();
+  return (
+    <View
+      pointerEvents="none"
+      accessible={false}
+      style={[styles.badge, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.gameChanger }]}
+    >
+      <Ionicons name="star" size={Math.round(size * 0.66)} color="#1a1206" />
+    </View>
+  );
+}
+
+// Over the picture's top right corner, with a thin dark ring so it shows on any picture
+const styles = StyleSheet.create({
+  badge: { position: 'absolute', top: 2, right: 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.55)' },
+});

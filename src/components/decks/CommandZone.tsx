@@ -19,6 +19,7 @@ import ManaCost from '@/components/lists/ManaCost';
 import FoilFrame from '@/components/binder/FoilFrame';
 import MissingOutline from './MissingOutline';
 import BannedSlash from './BannedSlash';
+import GameChangerBadge from './GameChangerBadge';
 import { commandCard, type Deck, type DeckCard } from '@/lib/deckStorage';
 import { deckFormat } from '@/lib/deckFormats';
 import { secondSpotShows, slotHint, slotName } from '@/lib/deckZones';
@@ -70,7 +71,7 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
           }
           return (
             <View key={slot} style={[styles.slot, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`${card.name}, your ${name.toLowerCase()}. Opens its menu.`}
+              <Pressable accessibilityRole="button" accessibilityLabel={`${card.name}${gameChanger?.(card.name) ? ', Game Changer' : ''}, your ${name.toLowerCase()}. Opens its menu.`}
                          onPress={() => onOpenCard(deck.cards.indexOf(card))} style={styles.cardPress}>
                 <View>
                   <FoilFrame foil={card.foil === true} width={54} height={76} radius={6}>
@@ -79,6 +80,7 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
                   {banned?.(card.name) && <BannedSlash radius={6} />}
                   {gameChanger?.(card.name) && <MissingOutline radius={6} width={3} yellow />}
                   {missing?.(card) && <MissingOutline radius={6} width={3} dashed={missing(card) === 'printing'} inset={gameChanger?.(card.name) ? 3 : 0} />}
+                  {gameChanger?.(card.name) && <GameChangerBadge size={16} />}
                 </View>
                 <View style={styles.what}>
                   <Text style={[styles.role, { color: colors.text }]} numberOfLines={2}>{card.name}</Text>

@@ -30,7 +30,8 @@
    deck's Commander Bracket ("Bracket 3 · Upgraded", or "Set power bracket"). Tap
    it to choose one of the five, or "Not rated" (see deckBrackets.ts). It also
    shows on the deck's row on the Decks page. The deck's Game Changer cards get
-   a yellow border; 1 to 3 of them make the deck at least Bracket 3 (3, 4 or 5
+   a yellow border and a small gold star (and a "GC" tag in the list view), and a
+   "Game Changers only" button next to the bracket button shows just those cards; 1 to 3 of them make the deck at least Bracket 3 (3, 4 or 5
    may be chosen) and 4 or more make it at least Bracket 4 (4 or 5), and the
    other brackets are greyed out in the window.
 
@@ -154,6 +155,14 @@ export default function DeckScreen() {
   const headersOn = useSyncExternalStore(onBinderViewChange, sortHeadersOn, sortHeadersOn);
   const contentWidth = useContentWidth();
 
+  // Game Changers (Commander only): marked with a yellow border, and they set the lowest bracket the deck may have
+  const isGameChanger = useGameChangers();
+  const gameChangers = deck && hasBrackets(format.code) ? countGameChangers(deck.cards, isGameChanger) : 0;
+  // The bracket the deck counts as: the one chosen, raised to the lowest allowed if it has Game Changers
+  const bracket = deck && hasBrackets(format.code) ? effectiveBracket(deck.bracket, gameChangers) : undefined;
+  // Showing only the Game Changer cards? (A button next to the bracket button turns it on and off.)
+  const [onlyGameChangers, setOnlyGameChangers] = useState(false);
+
   // The cards in the list showing (the main deck or the sideboard; the command
   // zone cards have their own spots), each with its "key": its spot in the
   // deck (0 is the first), as text
@@ -177,9 +186,13 @@ export default function DeckScreen() {
   // Looked up for the whole deck, so typing in the search box doesn't start
   // a new lookup each time.
   const prices = useBinderPrices(allEntries);
+  // (with "Game Changers only" on, just those)
   const entries = useMemo<CardEntry[]>(
-    () => sortEntries(baseEntries, sort, reversed, { printings: prices.printings, prices: prices.byKey }),
-    [baseEntries, sort, reversed, prices.printings, prices.byKey],
+    () => sortEntries(
+      onlyGameChangers ? baseEntries.filter((entry) => isGameChanger(entry.card.name)) : baseEntries,
+      sort, reversed, { printings: prices.printings, prices: prices.byKey },
+    ),
+    [baseEntries, onlyGameChangers, isGameChanger, gameChangers, sort, reversed, prices.printings, prices.byKey],
   );
   // Which group each card falls under for the sort in use, so the list can
   // put a header bar between the groups (none if turned off in Settings)
@@ -218,11 +231,6 @@ export default function DeckScreen() {
   // The cards banned in this deck's format (asked from Scryfall once): they
   // get a black "BANNED" slash across their picture
   const isBannedHere = useBanned(format.code);
-  // Game Changers (Commander only): marked with a yellow border, and they set the lowest bracket the deck may have
-  const isGameChanger = useGameChangers();
-  const gameChangers = deck && hasBrackets(format.code) ? countGameChangers(deck.cards, isGameChanger) : 0;
-  // The bracket the deck counts as: the one chosen, raised to the lowest allowed if it has Game Changers
-  const bracket = deck && hasBrackets(format.code) ? effectiveBracket(deck.bracket, gameChangers) : undefined;
 
   // Every time this page comes into view: read the deck again (and what you own)
   useFocusEffect(useCallback(() => { setDeck(findDeck(id)); setOwned(loadOwned()); }, [id]));
@@ -609,6 +617,7 @@ export default function DeckScreen() {
         />
         {/* Commander decks: the power bracket. Tap to choose one (or to say it isn't rated). */}
         {hasBrackets(format.code) && (
+          <View style={styles.chipRow}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Power bracket: ${bracket ? bracketText(bracket) : 'not rated'}${gameChangers > 0 ? `, ${gameChangers} Game Changers` : ''}. Tap to change.`}
                      onPress={() => setPicking(true)}
                      style={[styles.bracketChip, { borderColor: colors.border, backgroundColor: colors.surface }]}>
@@ -619,6 +628,17 @@ export default function DeckScreen() {
             </Text>
             <Ionicons name="chevron-down" size={14} color={colors.muted} />
           </Pressable>
+          {/* Show just the Game Changer cards (only offered when the deck has some, or while it's on) */}
+          {(gameChangers > 0 || onlyGameChangers) && (
+            <Pressable accessibilityRole="button" accessibilityState={{ selected: onlyGameChangers }}
+                       accessibilityLabel={onlyGameChangers ? 'Showing only Game Changers. Tap to show every card.' : 'Show only Game Changers'}
+                       onPress={() => setOnlyGameChangers((on) => !on)}
+                       style={[styles.bracketChip, { borderColor: onlyGameChangers ? colors.gameChanger : colors.border, backgroundColor: onlyGameChangers ? colors.gameChanger : colors.surface }]}>
+              <Ionicons name="star" size={14} color={onlyGameChangers ? '#1a1206' : colors.gameChanger} />
+              <Text style={[styles.bracketText, { color: onlyGameChangers ? '#1a1206' : colors.text }]}>Game Changers only</Text>
+            </Pressable>
+          )}
+          </View>
         )}
         {/* Formats with a sideboard: switch between the main deck and the sideboard */}
         {format.sideboard > 0 && (
@@ -667,9 +687,9 @@ export default function DeckScreen() {
           // No cards yet (or none matching the search)
           empty={(
             <View style={[styles.empty, { borderColor: colors.border }]}>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>{searching ? 'No cards match' : shownZone === 'side' ? 'No sideboard cards yet' : 'No cards yet'}</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>{onlyGameChangers && !searching ? 'No Game Changers here' : searching ? 'No cards match' : shownZone === 'side' ? 'No sideboard cards yet' : 'No cards yet'}</Text>
               <Text style={[styles.emptyText, { color: colors.muted }]}>
-                {searching ? `None of the ${allEntries.length} cards match "${filter.trim()}".` : shownZone === 'side' ? 'The sideboard is empty. Flip the switch to Add, search for a card and tap the + on it, or move a card here from its window.' : 'Flip the switch to Add, search for a card and tap the + on it.'}
+                {onlyGameChangers && !searching ? 'None of the cards in this list is a Game Changer. Tap Game Changers only to show every card again.' : searching ? `None of the ${allEntries.length} cards match "${filter.trim()}".` : shownZone === 'side' ? 'The sideboard is empty. Flip the switch to Add, search for a card and tap the + on it, or move a card here from its window.' : 'Flip the switch to Add, search for a card and tap the + on it.'}
               </Text>
             </View>
           )}
@@ -836,6 +856,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 7, alignItems: 'center' },
   tabText: { fontSize: 14, fontWeight: '600' },
   // The power bracket button, and the window's choices
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   bracketChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10 },
   bracketText: { fontSize: 14, fontWeight: '600' },
   bracketList: { gap: 8 },
