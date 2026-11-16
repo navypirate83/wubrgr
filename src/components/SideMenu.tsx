@@ -56,7 +56,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // Everything else under /binders is the Binders page (the shelf, or one binder).
 const LISTS_ADDRESS = /^\/binders\/lists?(\/|$)/;
 const DECKS_ADDRESS = /^\/binders\/decks?(\/|$)/;
-const PRISM_ADDRESS = /^\/binders\/prism(\/|$)/;
+const PRISM_ADDRESS = /^\/binders\/prism(set)?(\/|$)/;
 
 export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
   const colors = useColors();

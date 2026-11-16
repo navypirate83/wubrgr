@@ -25,7 +25,8 @@ import { useShortcutKeys, useShowKeyHints } from '@/hooks/useShortcutKeys';
 import { MAX_CONTENT_WIDTH, RADIUS, SPACE } from '@/theme/colors';
 import Button from '@/components/Button';
 import ShortcutsDialog, { type Shortcut } from '@/components/ShortcutsDialog';
-import { helpTopics, topicFor } from '@/components/help/helpTopics';
+import { helpTopics as allHelpTopics, topicFor } from '@/components/help/helpTopics';
+import { useAccount } from '@/hooks/useAccount';
 import { HelpJumpContext, Key } from '@/components/help/HelpText';
 import TopicChips from '@/components/help/TopicChips';
 
@@ -43,13 +44,19 @@ export default function HelpScreen() {
   // The phone's "safe area": how much room the home bar (or rounded
   // corners) take at the bottom, so the last line isn't hidden behind it
   const insets = useSafeAreaInsets();
+  // The PRISM topic is only for accounts with the PRISM role: nobody else sees it listed
+  const { hasPrism } = useAccount();
+  const helpTopics = allHelpTopics.filter((t) => t.id !== 'prism' || hasPrism);
 
   // The topic or section asked for when Help was opened (like "finder")
   const { topic: askedFor } = useLocalSearchParams<{ topic?: string }>();
 
   // Which topic is showing: the one asked for (or the one holding the
   // section asked for), or the first one
-  const [topicId, setTopicId] = useState(() => topicFor(askedFor ?? '')?.id ?? helpTopics[0].id);
+  const [topicId, setTopicId] = useState(() => {
+    const asked = topicFor(askedFor ?? '')?.id;
+    return asked && (asked !== 'prism' || hasPrism) ? asked : helpTopics[0].id;
+  });
   const topic = helpTopics.find((t) => t.id === topicId) ?? helpTopics[0];
   // Its sections, without the keyboard ones in the phone app (or on a
   // phone-sized screen), where nobody uses shortcut keys

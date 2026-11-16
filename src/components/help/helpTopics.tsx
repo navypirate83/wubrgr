@@ -1460,6 +1460,90 @@ export const helpTopics: HelpTopic[] = [
       },
     ],
   },
+
+  /* ===================== PRISM (only for accounts with the PRISM role) ===================== */
+  {
+    id: 'prism',
+    title: 'PRISM',
+    lead: (
+      <>
+        PRISM lets <Strong>one physical card</Strong> serve several Commander decks. You paint a small mark on the card's
+        inner sleeve for each deck that uses it: a <Strong>color</Strong> (which deck) at a <Strong>slot</Strong> (a place
+        along the sleeve's edge, 1 to 48). This section only shows for accounts with the PRISM role.
+        PRISM is someone else's idea (prismmtg.com); this section just helps you plan and keep track of it.
+      </>
+    ),
+    sections: [
+      {
+        id: 'prism-sets',
+        title: 'Sets of decks',
+        body: (
+          <>
+            <P>
+              A <Strong>PRISM set</Strong> is a group of Commander decks that share cards. On the PRISM page (the prism
+              button beside Binders, Lists and Decks), tap <Strong>Add set</Strong>, name it, then open it. Hold a set for{' '}
+              <Strong>Rename</Strong> and <Strong>Delete</Strong> (deleting a set never touches your decks). Sets are kept on
+              this device for now.
+            </P>
+            <P>
+              On a set's <Strong>Decks</Strong> tab, tick the decks that share cards (only Commander decks can be ticked; up
+              to 48). Each gets the lowest free <Strong>slot</Strong> and that slot's color; tap its slot to pick another. A
+              deck's slot, and which corner of the sleeve is slot 1 (<Strong>Sleeve corner</Strong>), can't change once paint
+              is noted, because paint doesn't move. <Strong>Forget what's painted</Strong> starts the marking over.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'prism-cards',
+        title: 'The cards',
+        body: (
+          <>
+            <P>
+              The <Strong>Cards</Strong> tab lists every card the decks use, once each (the sideboard doesn't count). You need
+              as many physical copies as the deck that wants the most: Island ×12 in one deck and ×8 in another is 12
+              copies, and 8 of them carry both decks' marks. A card used by two or more decks is <Strong>POOL</Strong>; a
+              card used by one is <Strong>CORE</Strong>. Each card shows a colored square (with its slot number) for every
+              deck that uses it, how many you own, and a red border when you own too few (solid: none; dashed: some).
+              The line above says how many copies are needed, how many carry two or more marks, how many fewer you have to
+              buy, and about what that's worth at your price store. Tap a card to go and mark it.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'prism-mark',
+        title: 'Marking the sleeves',
+        body: (
+          <>
+            <P>
+              The <Strong>Mark</Strong> tab goes through the copies still to paint, shared cards first. For each: a drawing of
+              the sleeve edge (Side A has slots 1 to 24, Side B 25 to 48) with the slots to paint filled in each deck's color,
+              and the list of marks. Paint them on the <Strong>inner</Strong> sleeve (never the card), let the paint dry, then
+              tap <Strong>Marked ✓</Strong>. <Strong>Skip</Strong> puts it at the back. <Strong>Copy the undone list</Strong> puts
+              what's left on your clipboard as text, to take to the table. What you've marked is remembered on this device.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'prism-changes',
+        title: 'Changing a deck later',
+        body: (
+          <>
+            <P>
+              The app remembers what is painted on each copy. When you add a card to a deck or take one out, or take a deck
+              out of the set, the <Strong>Changes</Strong> tab lists only the sleeves that need touching: a mark to{' '}
+              <Strong>paint</Strong> (+) or <Strong>clear</Strong> (−), under the deck. Tap <Strong>Done</Strong> on each when
+              it's done. If a card leaving a deck has a sleeve with exactly the marks another card needs, it says so: move the
+              card into that sleeve and nothing needs painting. Wet paint wipes off; dry paint means a fresh inner sleeve.
+              Cards you've never marked are simply still on the Mark tab.
+            </P>
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
 // Find the topic an id belongs to: the topic itself, or the topic

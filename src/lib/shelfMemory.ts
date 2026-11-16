@@ -25,6 +25,7 @@
 import { findBinder } from './binderStorage';
 import { findList } from './listStorage';
 import { findDeck } from './deckStorage';
+import { findPrismSet } from './prismStorage';
 
 export type ShelfSection = 'binders' | 'lists' | 'decks' | 'prism';
 
@@ -49,7 +50,7 @@ function sectionOf(pathname: string): ShelfSection | null {
   if (path === '/binders') return 'binders';
   if (path === '/binders/lists' || /^\/binders\/list\/[^/]+$/.test(path)) return 'lists';
   if (path === '/binders/decks' || /^\/binders\/deck\/[^/]+$/.test(path)) return 'decks';
-  if (path === '/binders/prism') return 'prism';
+  if (path === '/binders/prism' || /^\/binders\/prismset\/[^/]+$/.test(path)) return 'prism';
   if (/^\/binders\/[^/]+$/.test(path)) return 'binders';   // one binder
   return null;
 }
@@ -71,6 +72,8 @@ function stillThere(href: string): boolean {
   if (list) return findList(list) !== undefined;
   const deck = /^\/binders\/deck\/([^/]+)$/.exec(href)?.[1];
   if (deck) return findDeck(deck) !== undefined;
+  const prismSet = /^\/binders\/prismset\/([^/]+)$/.exec(href)?.[1];
+  if (prismSet) return findPrismSet(decodeURIComponent(prismSet)) !== undefined;
   return true;
 }
 
