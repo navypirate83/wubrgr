@@ -31,6 +31,8 @@ import Button from '@/components/Button';
 import NewDeckDialog from '@/components/decks/NewDeckDialog';
 import { addDeck, forgetDeck, loadDecks, nextDeckName, renameDeck, type Deck } from '@/lib/deckStorage';
 import { readImportSource, importIntoDeck, summaryText } from '@/lib/deckImportRun';
+import { deckProblems } from '@/lib/deckLegality';
+import { useBannedIn } from '@/lib/bannedCards';
 import type { ImportedDeck } from '@/lib/deckImport';
 import { deckFormat } from '@/lib/deckFormats';
 import { cardCountText } from '@/lib/binderStorage';
@@ -61,6 +63,8 @@ export default function DecksScreen() {
   // The decks, the new deck being made (its name and format), and which
   // window is open: a held deck's options, or Rename (with the name being typed)
   const [decks, setDecks] = useState<Deck[]>(loadDecks);
+  // The banned lists of the formats your decks use (to mark a deck that has a banned card in it as not legal)
+  const bannedIn = useBannedIn(decks.map((d) => d.format));
   const [making, setMaking] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -154,7 +158,7 @@ export default function DecksScreen() {
           // One deck: tap to open, hold for its options
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}, ${cardCountText(cardsIn(item))}`}
+            accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}, ${cardCountText(cardsIn(item))}${deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0 ? ', not legal' : ''}`}
             accessibilityHint="Opens the deck. Hold for Rename and Delete."
             onPress={() => openDeck(item.id)}
             onLongPress={() => { hapticTap(); setMenuId(item.id); }}
@@ -163,7 +167,12 @@ export default function DecksScreen() {
           >
             <View style={styles.rowText}>
               <SymbolText style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{item.name}</SymbolText>
-              <Text style={[styles.rowCount, { color: colors.muted }]}>{deckFormat(item.format).name} · {cardCountText(cardsIn(item))}</Text>
+              <Text style={[styles.rowCount, { color: colors.muted }]}>
+                {deckFormat(item.format).name} · {cardCountText(cardsIn(item))}
+                {/* A deck that isn't legal says so, in red (too many cards, or a banned card in it) */}
+                {deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0
+                  ? <Text style={{ color: colors.error, fontWeight: '700' }}> · Not legal</Text> : null}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={22} color={colors.muted} />
           </Pressable>

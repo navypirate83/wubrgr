@@ -63,6 +63,7 @@ import SlotSearchDialog from '@/components/decks/SlotSearchDialog';
 import { allowedInSlot, deckCardFromPrint, secondSpotShows, slotHint, slotName, slotQuery, zoneExtraOf } from '@/lib/deckZones';
 import { deckFormat, skipsCopyWarning } from '@/lib/deckFormats';
 import { isBanned, useBanned } from '@/lib/bannedCards';
+import { deckProblems } from '@/lib/deckLegality';
 import { assignPrinting, choicesFor, loadOwned, marksFor, normalizeOwnership, type Mark, type OwnedPrint } from '@/lib/deckOwnership';
 import { Image } from 'expo-image';
 import { pictureSource } from '@/lib/http';
@@ -556,6 +557,9 @@ export default function DeckScreen() {
     );
   }
 
+  // Why the deck isn't legal (too many cards, or banned cards in it): empty if nothing is wrong
+  const problems = deckProblems(deck, format, isBannedHere);
+
   const menuCard = menuIndex !== null ? deck.cards[menuIndex] : undefined;
   const addingCard = addingIndex !== null ? deck.cards[addingIndex] : undefined;
   // The printings you own that this card could switch to
@@ -624,6 +628,7 @@ export default function DeckScreen() {
           headerOf={headerOf}
           missing={isMissing}
           banned={(card) => isBannedHere(card.name)}
+          warn={problems.length > 0 ? problems.join(', ') : undefined}
           // The format, at the end of the line of totals (and how many cards aren't in your binders, and the card just dropped)
           note={[format.name, deck.cards.some((c) => c.zone === 'command') ? `${deck.cards.filter((c) => c.zone === 'command').length} in command zone` : '', deck.cards.some((c) => isMissing(c) === 'card') ? `${deck.cards.filter((c) => isMissing(c) === 'card').reduce((sum, c) => sum + cardCount(c), 0)} not in your binders` : '', addedNote].filter(Boolean).join(' · ')}
           searchOf={searching ? allEntries.length : undefined}

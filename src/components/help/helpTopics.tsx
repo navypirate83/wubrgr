@@ -287,6 +287,10 @@ export const helpTopics: HelpTopic[] = [
               A card that is <Strong>banned in the deck's format</Strong> gets a thick black slash across its picture
               (top left to bottom right) with <Strong>BANNED</Strong> written on it, and adding one (with the + in the
               deck, a dropped picture, or the Card Finder) first asks whether you're sure.
+              A deck is marked <Strong>Not legal</Strong> (in red, on the Decks page and at the end of the line above its cards,
+              with the reason) when it has a banned card in it, or more cards than its format allows: more than 100 in Commander,
+              Duel Commander, PreDH and Pauper Commander (command zone included), 60 in Oathbreaker, 50 in Tiny Leaders, or a
+              sideboard over 15 (10 in Tiny Leaders). A deck with too few cards isn't marked; it's just unfinished.
               The <Strong>down arrow</Strong> button offers three ways to take the deck with you: a <Strong>.CSV</Strong> file
               (it has the deck's name, format and where each card is kept: main, sideboard or command), a
               <Strong> .TXT</Strong> file (a plain list like <Strong>1 Sol Ring (CMM) 400</Strong>, with Commander,

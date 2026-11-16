@@ -63,6 +63,23 @@ export async function isBanned(formatCode: string, name: string): Promise<boolea
   }
 }
 
+// For a screen with decks of several formats (the Decks page): the banned lists of all those
+// formats, loaded as the screen needs them. Gives back a function that says whether a card
+// name is banned in a format ("no" until that format's list arrives, then the screen redraws).
+export function useBannedIn(formatCodes: string[]): (formatCode: string, name: string) => boolean {
+  const [, redraw] = useState(0);
+  const wanted = [...new Set(formatCodes)].sort().join(',');
+  useEffect(() => {
+    let stale = false;
+    for (const code of wanted.split(',').filter(Boolean)) {
+      if (known.has(code)) continue;
+      loadBanned(code).then(() => { if (!stale) redraw((n) => n + 1); }).catch(() => { /* no marks if it can't be loaded */ });
+    }
+    return () => { stale = true; };
+  }, [wanted]);
+  return (formatCode, name) => isBannedNow(formatCode, name);
+}
+
 // For a screen: the format's banned list, loaded as soon as the screen needs
 // it. Gives back a function that says whether a card name is banned (it
 // says "no" until the list arrives, then the screen redraws with the marks).

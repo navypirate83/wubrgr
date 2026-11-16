@@ -28,19 +28,20 @@ export type DeckFormat = {
   copyLimit: number;            // copies of one card before the app warns (basic lands never warn)
   command?: CommandZone;        // the spots outside the deck (none for a main + sideboard format)
   sideboard: number;            // the sideboard's size (0: none)
+  deckSize?: number;            // the most cards the deck may hold (command zone and all): more is not legal (none: no top limit, like Modern's "60 or more")
   maxManaValue?: number;        // the highest mana value any card may have (Tiny Leaders: 3)
 };
 
 // The formats, in the order they're offered
 export const DECK_FORMATS: DeckFormat[] = [
-  { code: 'commander', name: 'Commander', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0 },
-  { code: 'oathbreaker', name: 'Oathbreaker', kind: 'commander', copyLimit: 1, command: { kind: 'oathbreaker' }, sideboard: 0 },
-  { code: 'duel', name: 'Duel Commander', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0 },
-  { code: 'paupercommander', name: 'Pauper Commander', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0 },
-  { code: 'predh', name: 'PreDH', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0 },
+  { code: 'commander', name: 'Commander', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0, deckSize: 100 },
+  { code: 'oathbreaker', name: 'Oathbreaker', kind: 'commander', copyLimit: 1, command: { kind: 'oathbreaker' }, sideboard: 0, deckSize: 60 },
+  { code: 'duel', name: 'Duel Commander', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0, deckSize: 100 },
+  { code: 'paupercommander', name: 'Pauper Commander', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0, deckSize: 100 },
+  { code: 'predh', name: 'PreDH', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: true }, sideboard: 0, deckSize: 100 },
   // Tiny Leaders: 50 cards with the commander, one copy of each, every card
   // (the commander too) with a mana value of 3 or less, a sideboard of up to 10
-  { code: 'tlr', name: 'Tiny Leaders: Reborn', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: false }, sideboard: 10, maxManaValue: 3 },
+  { code: 'tlr', name: 'Tiny Leaders: Reborn', kind: 'commander', copyLimit: 1, command: { kind: 'commander', pairs: false }, sideboard: 10, maxManaValue: 3, deckSize: 50 },
   { code: 'standard', name: 'Standard', kind: 'main', copyLimit: 4, sideboard: 15 },
   { code: 'pioneer', name: 'Pioneer', kind: 'main', copyLimit: 4, sideboard: 15 },
   { code: 'modern', name: 'Modern', kind: 'main', copyLimit: 4, sideboard: 15 },

@@ -76,6 +76,8 @@ type Props = {
   // scrolled to and highlighted for a moment, and a short note for the line above
   flashKey?: string | null;
   note?: string | null;
+  // A deck that is not legal: why ("101 cards, at most 100"). It ends the line of totals in red as "Not legal: ..."
+  warn?: string;
   // Which group a card falls under for the sort in use (see "headerFor" in
   // lib/binderSort.ts). A header bar goes in wherever the group changes.
   // Leave it out (or give back null) for no header bars.
@@ -102,7 +104,7 @@ const CARD_RATIO = 88 / 63;
 // The space between grid pictures
 const GRID_GAP = 10;
 
-export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, headerOf, missing, banned }: Props) {
+export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, headerOf, missing, banned }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
@@ -282,7 +284,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
       ListEmptyComponent={empty}
       ListHeaderComponent={entries.length > 0
         ? <View onLayout={(event) => { summary.current = { y: event.nativeEvent.layout.y, height: event.nativeEvent.layout.height }; }}>
-            <Summary entries={entries} prices={prices} searchOf={searchOf} hint={hint} note={note ?? undefined} />
+            <Summary entries={entries} prices={prices} searchOf={searchOf} hint={hint} note={note ?? undefined} warn={warn} />
           </View>
         : undefined}
       renderItem={({ item: row }) => {
@@ -340,7 +342,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
    (also shown above the pockets in the Binder view: the binder screen uses it,
    and the lists use it too)
    --------------------------------------------------------------------- */
-export function Summary({ entries, prices, searchOf, hint, note }: { entries: CardEntry[]; prices: BinderPrices; searchOf?: number; hint?: string; note?: string }) {
+export function Summary({ entries, prices, searchOf, hint, note, warn }: { entries: CardEntry[]; prices: BinderPrices; searchOf?: number; hint?: string; note?: string; warn?: string }) {
   const colors = useColors();
   const cards = entries.reduce((sum, { card }) => sum + cardCount(card), 0);
   // What the cards showing are worth (all of them, or just those matching a search)
@@ -352,7 +354,13 @@ export function Summary({ entries, prices, searchOf, hint, note }: { entries: Ca
   const parts = searchOf !== undefined
     ? [`${entries.length} of ${searchOf} ${searchOf === 1 ? 'card' : 'cards'} match`, worth, hint, note].filter(Boolean)
     : [`${cards} ${cards === 1 ? 'card' : 'cards'}`, `${entries.length} different`, `${sameNameCount(entries.map((entry) => entry.card)).toLocaleString()} distinct`, worth, note].filter(Boolean);
-  return <Text style={[styles.summary, { color: colors.muted }]} accessibilityLiveRegion="polite">{parts.join(' · ')}</Text>;
+  // A deck that is not legal ends the line with the reason, in red
+  return (
+    <Text style={[styles.summary, { color: colors.muted }]} accessibilityLiveRegion="polite">
+      {parts.join(' · ')}
+      {warn ? <Text style={{ color: colors.error, fontWeight: '700' }}>{` · Not legal: ${warn}`}</Text> : null}
+    </Text>
+  );
 }
 
 /* ---------------------------------------------------------------------
