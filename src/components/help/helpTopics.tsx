@@ -1509,7 +1509,9 @@ export const helpTopics: HelpTopic[] = [
               card used by one is <Strong>CORE</Strong>. Each card shows a colored square (with its slot number) for every
               deck that uses it, how many you own, and a red border when you own too few (solid: none; dashed: some).
               The line above says how many copies are needed, how many carry two or more marks, how many fewer you have to
-              buy, and about what that's worth at your price store. Tap a card to go and mark it.
+              buy, and about what that's worth at your price store. The search box and the buttons <Strong>All</Strong>,{' '}
+              <Strong>Pool</Strong>, <Strong>Core</Strong> and <Strong>To Buy</Strong> narrow the list (To Buy shows the cards
+              you own too few of). Tap a card to go and mark it.
             </P>
           </>
         ),

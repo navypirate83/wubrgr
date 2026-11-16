@@ -7,7 +7,7 @@
    The picture has a red border when you don't own enough copies: solid when
    you own none, dashed when you own some. A check mark says every copy is
    painted. Tap a card to go and mark it.
-   A search box and four buttons narrow the list: All, Shared, One deck, To buy.
+   A search box and four buttons narrow the list: All, Pool (shared by two or more decks), Core (one deck), To Buy.
    (What's typed and the button chosen are kept by the screen, so they're still
    there when you come back to this tab with the back arrow.) The rows are
    laid out all at once, not in a scrolling list of their own, so the page can
@@ -40,9 +40,9 @@ type Props = {
 
 const FILTERS = [
   { id: 'all', label: 'All' },
-  { id: 'shared', label: 'Shared' },
-  { id: 'single', label: 'One deck' },
-  { id: 'buy', label: 'To buy' },
+  { id: 'shared', label: 'Pool' },
+  { id: 'single', label: 'Core' },
+  { id: 'buy', label: 'To Buy' },
 ] as const;
 export type FilterId = (typeof FILTERS)[number]['id'];
 
