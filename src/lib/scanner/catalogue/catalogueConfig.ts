@@ -6,7 +6,8 @@
    "/catalogue.db.gz" (the database, gzipped). Set it with the
    EXPO_PUBLIC_CATALOGUE_URL setting when the app is built or run; with
    nothing set, the scanner says there's nowhere to download from.
-   (To try a catalogue you built yourself, run scripts/catalogue/serve.mjs
+   (Settings → Card catalogue is where it's downloaded.
+   To try a catalogue you built yourself, run scripts/catalogue/serve.mjs
    and use http://localhost:4200.)
    ===================================================================== */
 

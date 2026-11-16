@@ -3,8 +3,8 @@
    When the window is wide enough (see lib/layoutSize.ts), this replaces
    the tabs along the bottom. It has two sizes:
      - "full": the app's name in its five colors, then Home, a "Shelf"
-       group with Binders, Lists and Decks under it, Card Finder, Settings,
-       Help, and your account at the bottom
+       group with Binders, Lists and Decks under it, Card Finder, Scan,
+       Settings, Help, and your account at the bottom
      - "slim": the same, but icons only, in a narrow strip
    The Binders, Lists and Decks lines go to the last place in that section
    (the binder you had open, say), and "The Shelf" is a button that goes
@@ -100,6 +100,7 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
   const onPrism = PRISM_ADDRESS.test(path);
   const onBinders = path.startsWith('/binders') && !onLists && !onDecks && !onPrism;
   const onSearch = path === '/search';
+  const onScan = path === '/scan';
   const onSettings = path === '/settings';
   // The main page of the part of the shelf you're in (the shelf of binders,
   // the lists page or the decks page), or null when you're not in the shelf
@@ -176,6 +177,7 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
       </View>
 
       <MenuItem slim={slim} label="Card Finder" icon="search-outline" activeIcon="search" active={onSearch} onPress={() => router.navigate('/search')} />
+      <MenuItem slim={slim} label="Scan" icon="camera-outline" activeIcon="camera" active={onScan} onPress={() => router.navigate('/scan')} />
       <MenuItem slim={slim} label="Settings" icon="settings-outline" activeIcon="settings" active={onSettings} onPress={() => router.navigate('/settings')} />
 
       {/* Pushes everything below to the bottom of the menu */}

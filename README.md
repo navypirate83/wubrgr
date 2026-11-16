@@ -149,8 +149,8 @@ node serve.mjs                   # shares ./out at http://localhost:4200 for try
 
 To make the app use a catalogue, set `EXPO_PUBLIC_CATALOGUE_URL` to the address that
 serves `catalogue.json` and `catalogue.db.gz` (for example `http://localhost:4200`)
-when running or building. Settings → Card scanner catalogue opens the page that
-downloads it and tries lookups.
+when running or building. Settings → Card catalogue downloads it (and shows what's on the
+device, checks for a newer one and removes it).
 
 **Running each platform**
 - Website: `npm run dev` (development) or `npm run build` (the finished site in `dist/`).

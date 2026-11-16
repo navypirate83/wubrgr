@@ -485,7 +485,7 @@ export const helpTopics: HelpTopic[] = [
         title: 'Getting around',
         body: (
           <>
-            <P>The four <Strong>icons</Strong> along the bottom of the screen take you to the main parts of the app, from left to right:</P>
+            <P>The five <Strong>icons</Strong> along the bottom of the screen take you to the main parts of the app, from left to right:</P>
             <Bullet>
               <Strong>Home</Strong> (the house): the welcome screen. When you're signed in (or using the app
               locally), it has no sign-in buttons, just a <Strong>Go to your binders</Strong> button.
@@ -502,6 +502,11 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet><Strong>Card Finder</Strong> (the magnifying glass): the MTG Card Finder, to look up any card.</Bullet>
             <Bullet>
+              <Strong>Scan</Strong> (the camera): the card scanner, to point your camera at a card and add it to a binder.
+              It's still being built, one part at a time. It will identify cards from the{' '}
+              <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, so it works with no internet.
+            </Bullet>
+            <Bullet>
               <Strong>Settings</Strong> (the gear): the theme (light or dark) and more
               (see <HelpLink to="settings">Settings</HelpLink>).
             </Bullet>
@@ -512,7 +517,7 @@ export const helpTopics: HelpTopic[] = [
               <Strong>On a tablet, an opened foldable phone, or the website in a wide window</Strong>, the
               tabs move from the bottom to a <Strong>menu down the left side</Strong>. It has Home, a{' '}
               <Strong>The Shelf</Strong> heading (tap it to go back to where you were in the shelf, or, if you're inside a binder or list, up to its main page) with <Strong>Binders</Strong>, <Strong>Lists</Strong> and <Strong>Decks</Strong> under
-              it (each opens the last place you were in that part; the one for the part you're inside goes up to its main page), Card Finder, Settings and Help. At the bottom is your account: tap it for Account
+              it (each opens the last place you were in that part; the one for the part you're inside goes up to its main page), Card Finder, Scan, Settings and Help. At the bottom is your account: tap it for Account
               settings, Sync now and <Strong>Log out</Strong> (which asks "Are you sure?" first); click or tap anywhere outside that small menu (or press Esc) to close it. Logged
               out, it has Log in and Create account buttons. On a narrower window, or a phone held
               sideways, the menu is just the icons on its own; if they don't all fit on the screen (a phone held sideways), swipe the menu up and down to reach the rest, down to your account at the end. On a wide window, the small round arrow button at the top of the menu collapses
@@ -1284,6 +1289,22 @@ export const helpTopics: HelpTopic[] = [
               Only paper formats are listed. Brawl (all kinds), Alchemy, Historic, Timeless and
               Gladiator are Arena-only, so they never show anywhere in the app. A new paper format
               added to Magic later shows up turned on, so you won't miss it.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'settings-catalogue',
+        title: 'Card catalogue',
+        body: (
+          <>
+            <P>
+              The <Strong>Card catalogue</Strong> section is for the card scanner. The scanner works out which card (and which
+              printing) you're holding from a catalogue of every printing, taken from Scryfall and kept on this device, so
+              scanning works with no internet. The section says what's on the device (how many printings, sets and art
+              fingerprints, and when it was built) and has <Strong>Check for a newer one</Strong>, <Strong>Download</Strong> (or{' '}
+              <Strong>Update</Strong>, with its progress) and <Strong>Remove</Strong>. On the phone app, downloading asks first, since
+              the file is large (Wi-Fi is wise). A catalogue a week or more old is marked as time to refresh.
             </P>
           </>
         ),

@@ -1,7 +1,8 @@
 /* =====================================================================
    THE TABS ALONG THE BOTTOM
-   The app's four main screens, one tab each: Home, The Shelf (your
-   binders), Card Finder (searching Scryfall) and Settings. Tapping a
+   The app's five main screens, one tab each: Home, The Shelf (your
+   binders), Card Finder (searching Scryfall), Scan (the card scanner) and
+   Settings. Tapping a
    tab switches screens; each screen stays as you left it (scrolled
    down, a search typed in) when you switch back. The Shelf tab takes you
    back to the last place you were in the shelf, or, if you're already inside
@@ -97,6 +98,14 @@ export default function TabsLayout() {
           title: 'Card Finder',
           tabBarIcon: tabIcon('search-outline', 'search'),
           headerRight: () => <HelpButton topic="finder" />,
+        }}
+      />
+      {/* Scan: the card scanner (a camera drawn as an outline, like the other icons) */}
+      <Tabs.Screen
+        name="scan"
+        options={{
+          title: 'Scan',
+          tabBarIcon: tabIcon('camera-outline', 'camera'),
         }}
       />
       {/* Settings */}
