@@ -38,6 +38,7 @@ import { changedSinceSync, syncQuietly } from '@/lib/serverSync';
 import { setMenuCollapsed } from '@/lib/menuPreference';
 import { sectionHref, shelfHref, shelfRootHref, type ShelfSection } from '@/lib/shelfMemory';
 import { signOut as serverSignOut } from '@/lib/session';
+import { askToClearDevice, clearDeviceData } from '@/lib/clearOnLogout';
 import { FULL_MENU_WIDTH, SLIM_MENU_WIDTH } from '@/lib/layoutSize';
 import { RADIUS, SPACE } from '@/theme/colors';
 
@@ -343,9 +344,16 @@ function AccountPopup({ open, setOpen, setBusy, bottom }: { open: boolean; setOp
     setBusy('Logging out…');
     try {
       await syncQuietly();
-      await serverSignOut();
+      // Then ask whether to clear what's saved on this device too
       setBusy(null);
-      router.navigate({ pathname: '/', params: { message: 'You\'re logged out. Your binders and lists are still on this device.' } });
+      const clear = await askToClearDevice();
+      setBusy('Logging out…');
+      await serverSignOut();
+      if (clear) await clearDeviceData();
+      setBusy(null);
+      router.navigate({ pathname: '/', params: { message: clear
+        ? 'You\'re logged out, and this device\'s saved binders, lists and decks were cleared.'
+        : 'You\'re logged out. Your binders and lists are still on this device.' } });
     } catch (err) {
       setBusy(null);
       showMessage('Couldn\'t log out', (err as Error).message);

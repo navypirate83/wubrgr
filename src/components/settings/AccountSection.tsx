@@ -24,6 +24,7 @@ import {
 } from '@/lib/googleDrive';
 import { reconcileWithDrive } from '@/lib/driveSync';
 import { deleteAccount, signOut as serverSignOut, signOutEverywhere } from '@/lib/session';
+import { askToClearDevice, clearDeviceData } from '@/lib/clearOnLogout';
 import { forgetServerLinks, syncQuietly } from '@/lib/serverSync';
 import { askYesNo } from '@/lib/dialogs';
 import { syncSettings } from '@/lib/settings';
@@ -108,9 +109,16 @@ export default function AccountSection() {
     setBusyText('Logging out…');
     try {
       await syncQuietly();
-      await serverSignOut();
+      // Then ask whether to clear what's saved on this device too
       setBusyText(null);
-      router.navigate({ pathname: '/', params: { message: 'You\'re logged out. Your binders and lists are still on this device.' } });
+      const clear = await askToClearDevice();
+      setBusyText('Logging out…');
+      await serverSignOut();
+      if (clear) await clearDeviceData();
+      setBusyText(null);
+      router.navigate({ pathname: '/', params: { message: clear
+        ? 'You\'re logged out, and this device\'s saved binders, lists and decks were cleared.'
+        : 'You\'re logged out. Your binders and lists are still on this device.' } });
     } catch (err) {
       setBusyText(null);
       showMessage('Couldn\'t log out',(err as Error).message);
@@ -124,9 +132,16 @@ export default function AccountSection() {
     setBusyText('Logging out…');
     try {
       await syncQuietly();
-      await signOutEverywhere();
+      // Then ask whether to clear what's saved on this device too
       setBusyText(null);
-      router.navigate({ pathname: '/', params: { message: 'You\'re logged out everywhere. Your binders and lists are still on this device.' } });
+      const clear = await askToClearDevice();
+      setBusyText('Logging out…');
+      await signOutEverywhere();
+      if (clear) await clearDeviceData();
+      setBusyText(null);
+      router.navigate({ pathname: '/', params: { message: clear
+        ? 'You\'re logged out everywhere, and this device\'s saved binders, lists and decks were cleared.'
+        : 'You\'re logged out everywhere. Your binders and lists are still on this device.' } });
     } catch (err) {
       setBusyText(null);
       showMessage('Couldn\'t log out everywhere',(err as Error).message);

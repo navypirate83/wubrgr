@@ -608,8 +608,12 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <Bullet>
               <Strong>Logged in</Strong>: Settings → Account shows your name and email, a <Strong>Log out</Strong> button
-              and <Strong>Log out everywhere</Strong>. Logging out leaves your binders and lists on this device:
-              only <Strong>Reset device memory</Strong> removes them.
+              and <Strong>Log out everywhere</Strong>. When you log out by hand (from either of those, or the account
+              menu), the app asks <Strong>Clear what's saved on this device?</Strong> It says whether your account already
+              has everything (if your latest changes haven't been sent, clearing would lose them, and it warns you).
+              <Strong> Keep it</Strong> leaves your binders, lists and decks on this device; <Strong>Clear this device</Strong>
+              removes them (your account keeps them, and they come back when you log in; your settings stay).
+              <Strong> Reset device memory</Strong> does the same any time.
             </Bullet>
             <Bullet>
               <Strong>Forgot your username or password?</Strong> On the login screen, tap{' '}
