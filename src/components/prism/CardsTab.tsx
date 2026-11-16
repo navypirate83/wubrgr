@@ -8,10 +8,14 @@
    you own none, dashed when you own some. A check mark says every copy is
    painted. Tap a card to go and mark it.
    A search box and four buttons narrow the list: All, Shared, One deck, To buy.
+   (What's typed and the button chosen are kept by the screen, so they're still
+   there when you come back to this tab with the back arrow.) The rows are
+   laid out all at once, not in a scrolling list of their own, so the page can
+   return to exactly where you were scrolled.
    ===================================================================== */
 
-import { memo, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import TextField from '@/components/TextField';
 import DeckSquare from './DeckSquare';
@@ -27,6 +31,10 @@ type Props = {
   plan: PlanCard[];
   owned: OwnedMap;
   header: string;                       // the totals line shown above the cards
+  text: string;                         // what's typed in the search box
+  onText: (text: string) => void;
+  filter: FilterId;                     // which button is chosen
+  onFilter: (filter: FilterId) => void;
   onOpenCard: (key: string) => void;    // a card was tapped: go and mark it
 };
 
@@ -36,17 +44,15 @@ const FILTERS = [
   { id: 'single', label: 'One deck' },
   { id: 'buy', label: 'To buy' },
 ] as const;
-type FilterId = (typeof FILTERS)[number]['id'];
+export type FilterId = (typeof FILTERS)[number]['id'];
 
 // How many of this card you own (any printing)
 export function ownedTotal(owned: OwnedMap, key: string): number {
   return (owned.get(key) ?? []).reduce((sum, print) => sum + print.count, 0);
 }
 
-export default function CardsTab({ set, plan, owned, header, onOpenCard }: Props) {
+export default function CardsTab({ set, plan, owned, header, text, onText, filter, onFilter, onOpenCard }: Props) {
   const colors = useColors();
-  const [text, setText] = useState('');
-  const [filter, setFilter] = useState<FilterId>('all');
 
   const shown = useMemo(() => {
     const typed = text.trim().toLowerCase();
@@ -66,14 +72,14 @@ export default function CardsTab({ set, plan, owned, header, onOpenCard }: Props
         accessibilityLabel="Search these cards"
         placeholder="Search these cards…"
         value={text}
-        onChangeText={setText}
+        onChangeText={onText}
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
       />
       <View style={styles.filters}>
         {FILTERS.map((f) => (
-          <Pressable key={f.id} accessibilityRole="radio" accessibilityState={{ selected: filter === f.id }} onPress={() => setFilter(f.id)}
+          <Pressable key={f.id} accessibilityRole="radio" accessibilityState={{ selected: filter === f.id }} onPress={() => onFilter(f.id)}
                      style={[styles.chip, { borderColor: filter === f.id ? colors.accent : colors.border, backgroundColor: filter === f.id ? colors.accent : 'transparent' }]}>
             <Text style={[styles.chipText, { color: filter === f.id ? colors.bg : colors.text }]}>{f.label}</Text>
           </Pressable>
@@ -85,15 +91,11 @@ export default function CardsTab({ set, plan, owned, header, onOpenCard }: Props
       ) : shown.length === 0 ? (
         <Text style={[styles.empty, { color: colors.muted }]}>No cards match.</Text>
       ) : (
-        <FlatList
-          scrollEnabled={false}
-          data={shown}
-          keyExtractor={(card) => card.key}
-          initialNumToRender={20}
-          renderItem={({ item }) => (
-            <CardRow set={set} card={item} have={ownedTotal(owned, item.key)} onOpen={onOpenCard} />
-          )}
-        />
+        <View>
+          {shown.map((card) => (
+            <CardRow key={card.key} set={set} card={card} have={ownedTotal(owned, card.key)} onOpen={onOpenCard} />
+          ))}
+        </View>
       )}
     </View>
   );

@@ -11,12 +11,16 @@
    The line above the cards adds it up: the physical copies needed, how many
    are shared by two or more decks, and what PRISM saves (the copies you
    don't have to buy, at your price store's prices).
+   Each tab has its own address (".../prismset/<id>?tab=mark", and "&card=" for
+   the card being marked), so the back arrow steps back through the tabs you
+   visited, like pages in a browser. How far down each tab was scrolled is
+   remembered, so going back to the Cards tab puts you where you were.
    Only for accounts with the PRISM role: anyone else is sent to the shelf.
    ===================================================================== */
 
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Redirect, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useColors } from '@/hooks/useTheme';
 import { useAccount } from '@/hooks/useAccount';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
@@ -24,7 +28,7 @@ import HelpButton from '@/components/HelpButton';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import type { CardEntry } from '@/components/binder/CardList';
 import DecksTab from '@/components/prism/DecksTab';
-import CardsTab from '@/components/prism/CardsTab';
+import CardsTab, { type FilterId } from '@/components/prism/CardsTab';
 import MarkTab from '@/components/prism/MarkTab';
 import ChangesTab from '@/components/prism/ChangesTab';
 import { loadDecks } from '@/lib/deckStorage';
@@ -48,7 +52,7 @@ type TabId = (typeof TABS)[number]['id'];
 export default function PrismSetScreen() {
   const colors = useColors();
   const navigation = useNavigation();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: tabParam, card: cardParam } = useLocalSearchParams<{ id: string; tab?: string; card?: string }>();
   const { hasPrism, usingBinders } = useAccount();
 
   // The set, your decks and what you own, read again every time the page
@@ -59,9 +63,35 @@ export default function PrismSetScreen() {
   const refresh = useCallback(() => { setSet(findPrismSet(id)); setDecks(loadDecks()); setOwned(loadOwned()); }, [id]);
   useFocusEffect(refresh);
 
-  const [tab, setTab] = useState<TabId>('cards');
-  // A card opened from the Cards tab, to mark it
-  const [selected, setSelected] = useState<{ key: string; copy: number } | null>(null);
+  // The tab showing, and the card being marked, are in the page's address (so
+  // the back arrow steps through them). A set just opened shows the Cards tab.
+  const tab: TabId = TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : 'cards';
+  const selected = cardParam && tab === 'mark' ? { key: cardParam, copy: 0 } : null;
+  // Go to a tab (and, for Mark, a card): a new step for the back arrow
+  const goTab = (next: TabId, card?: string) => router.setParams({ tab: next, card });
+  // What's typed in the Cards tab's search box and the button chosen there
+  // (kept here so they're still there when you come back to it)
+  const [cardText, setCardText] = useState('');
+  const [cardFilter, setCardFilter] = useState<FilterId>('all');
+
+  // How far down each tab was scrolled, so going back to it puts you there
+  // again. While the tab changes the page's height changes too, which makes
+  // the scroll position jump; those jumps aren't remembered ("settling").
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const offsets = useRef<Partial<Record<TabId, number>>>({});
+  const settling = useRef(false);
+  const shownTab = useRef<TabId>(tab);
+  if (shownTab.current !== tab) { shownTab.current = tab; settling.current = true; }
+  useEffect(() => {
+    // After the new tab is drawn: scroll to where it was (the top for a tab not seen yet)
+    const wanted = offsets.current[tab] ?? 0;
+    const move = () => scrollRef.current?.scrollTo({ y: wanted, animated: false });
+    const timers = [setTimeout(move, 0), setTimeout(move, 120), setTimeout(() => { settling.current = false; }, 250)];
+    return () => timers.forEach(clearTimeout);
+  }, [tab]);
+  function rememberScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (!settling.current) offsets.current[tab] = event.nativeEvent.contentOffset.y;
+  }
 
   // The cards the decks need, what's changed, and the totals
   const plan = useMemo(() => (set ? planFor(set, decks) : []), [set, decks]);
@@ -103,7 +133,8 @@ export default function PrismSetScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} onScroll={rememberScroll} scrollEventThrottle={32}
+                  contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* The four tabs */}
         <View style={styles.tabs}>
           {TABS.map((t) => {
@@ -111,7 +142,7 @@ export default function PrismSetScreen() {
             const count = t.id === 'changes' ? changes.length : 0;
             return (
               <Pressable key={t.id} accessibilityRole="tab" accessibilityState={{ selected: on }}
-                         onPress={() => { setTab(t.id); if (t.id !== 'mark') setSelected(null); }}
+                         onPress={() => { if (!on) goTab(t.id); }}
                          style={[styles.tab, { borderColor: on ? colors.accent : colors.border, backgroundColor: on ? colors.accent : 'transparent' }]}>
                 <Text style={[styles.tabText, { color: on ? colors.bg : colors.text }]}>
                   {t.label}{count > 0 ? ` ${count}` : ''}
@@ -124,11 +155,12 @@ export default function PrismSetScreen() {
         {tab === 'decks' && <DecksTab set={set} decks={decks} onChange={refresh} />}
         {tab === 'cards' && (
           <CardsTab set={set} plan={plan} owned={owned} header={header}
-                    onOpenCard={(key) => { setSelected({ key, copy: 0 }); setTab('mark'); }} />
+                    text={cardText} onText={setCardText} filter={cardFilter} onFilter={setCardFilter}
+                    onOpenCard={(key) => goTab('mark', key)} />
         )}
         {tab === 'mark' && (
           <MarkTab set={set} plan={plan} decks={decks} changes={changes} selected={selected}
-                   onChanged={() => { refresh(); setSelected(null); }} />
+                   onChanged={() => { refresh(); if (cardParam) router.setParams({ card: undefined }); }} />
         )}
         {tab === 'changes' && <ChangesTab set={set} decks={decks} changes={changes} onChanged={refresh} />}
       </ScrollView>
