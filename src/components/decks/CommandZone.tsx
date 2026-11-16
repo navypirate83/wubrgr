@@ -4,7 +4,8 @@
    main deck: a commander (and, only if its abilities call for it, a
    partner or a Background), or an Oathbreaker and its signature spell
    (see lib/deckZones.ts for which cards each takes).
-   - A spot with a card shows its picture, name and what it is, with
+   - A spot with a card shows its picture, name, what it is and its rules text (no
+     flavor text; it scrolls if it's long, so the spot never grows), with
      "Change" (pick another card for the spot) and "Move to deck" (the card
      goes back into the main deck). Tap the card for its window.
    - An empty spot is a dashed outline that says what it needs; tap it to
@@ -12,10 +13,12 @@
    The deck screen opens the search window and does the changing.
    ===================================================================== */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useTheme';
 import ManaCost from '@/components/lists/ManaCost';
+import SymbolText from '@/components/SymbolText';
 import FoilFrame from '@/components/binder/FoilFrame';
 import MissingOutline from './MissingOutline';
 import BannedSlash from './BannedSlash';
@@ -24,6 +27,7 @@ import { commandCard, type Deck, type DeckCard } from '@/lib/deckStorage';
 import { deckFormat } from '@/lib/deckFormats';
 import { secondSpotShows, slotHint, slotName } from '@/lib/deckZones';
 import { pictureSource } from '@/lib/http';
+import { loadRulesText } from '@/lib/scryfall';
 
 type Props = {
   deck: Deck;
@@ -82,10 +86,15 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
                   {missing?.(card) && <MissingOutline radius={6} width={3} dashed={missing(card) === 'printing'} inset={gameChanger?.(card.name) ? 3 : 0} />}
                   {gameChanger?.(card.name) && <GameChangerBadge size={8} />}
                 </View>
-                <View style={styles.what}>
-                  <Text style={[styles.role, { color: colors.text }]} numberOfLines={2}>{card.name}</Text>
-                  <Text style={[styles.hint, { color: colors.muted }]} numberOfLines={1}>{name}</Text>
-                  {card.manaCost ? <ManaCost cost={card.manaCost} size={13} /> : null}
+                {/* The name, the role and cost on one line, then the card's rules text (no flavor text) in
+                    what's left of the picture's height (it scrolls if it's longer), so the spot stays the same size */}
+                <View style={[styles.what, styles.whatFilled]}>
+                  <Text style={[styles.role, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
+                  <View style={styles.roleRow}>
+                    <Text style={[styles.hint, { color: colors.muted }]} numberOfLines={1}>{name}</Text>
+                    {card.manaCost ? <ManaCost cost={card.manaCost} size={13} /> : null}
+                  </View>
+                  <RulesText card={card} />
                 </View>
               </Pressable>
               <View style={styles.buttons}>
@@ -106,6 +115,25 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
   );
 }
 
+// A card's rules text (the words on it, without the flavor text), in a small box that
+// fills the room under its name and scrolls when the text is longer. A card with no
+// text (or while it's being looked up) leaves the box empty.
+function RulesText({ card }: { card: DeckCard }) {
+  const colors = useColors();
+  const rules = useQuery({
+    queryKey: ['rules', card.set, card.number],
+    queryFn: () => loadRulesText(card.set, card.number),
+    staleTime: Infinity,
+  });
+  const text = (rules.data ?? []).map((face) => (face.name ? `${face.name}: ${face.text}` : face.text)).join('\n\n');
+  if (!text) return <View style={styles.rulesBox} />;
+  return (
+    <ScrollView style={styles.rulesBox} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+      <SymbolText inline style={[styles.rules, { color: colors.text }]}>{text}</SymbolText>
+    </ScrollView>
+  );
+}
+
 // The look: a small heading, then the spots side by side (wrapping on a narrow screen)
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 12, paddingBottom: 6, gap: 6 },
@@ -120,6 +148,11 @@ const styles = StyleSheet.create({
   plus: { fontSize: 28, fontWeight: '300' },
   thumb: { width: '100%', height: '100%' },
   what: { flex: 1, minWidth: 0, gap: 1 },
+  // With a card in the spot: exactly as tall as the picture, so the spot doesn't grow
+  whatFilled: { height: 76, alignSelf: 'flex-start' },
+  roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rulesBox: { flex: 1, minHeight: 0 },
+  rules: { fontSize: 11, lineHeight: 13 },
   role: { fontSize: 15, fontWeight: '700' },
   hint: { fontSize: 12.5 },
   buttons: { flexDirection: 'row', gap: 6 },

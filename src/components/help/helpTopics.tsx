@@ -338,6 +338,9 @@ export const helpTopics: HelpTopic[] = [
               stay, the app asks before moving it back.
             </P>
             <P>
+              Each filled spot shows the card's <Strong>rules text</Strong> beside its picture (never the flavor text). The spot stays the same size, so a long text scrolls inside its small box.
+            </P>
+            <P>
               <Strong>Sideboard.</Strong> Formats with a sideboard (the 60-card formats hold up to 15, Tiny Leaders up to 10) show
               <Strong> Main deck</Strong> and <Strong>Sideboard</Strong> buttons under the search bar. The + and a dragged picture add to
               the one showing, and a card's window has <Strong>Move to sideboard</Strong> and <Strong>Move to main deck</Strong>.
