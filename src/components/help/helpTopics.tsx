@@ -1484,7 +1484,7 @@ export const helpTopics: HelpTopic[] = [
           <>
             <P>
               A <Strong>PRISM set</Strong> is a group of Commander decks that share cards. On the PRISM page (the prism
-              button beside Binders, Lists and Decks), tap <Strong>Add set</Strong>, name it, then open it. Hold a set for{' '}
+              button beside Binders, Lists and Decks), tap <Strong>Make a Prism</Strong>, name it, then open it. Hold a set for{' '}
               <Strong>Rename</Strong> and <Strong>Delete</Strong> (deleting a set never touches your decks). Sets are kept on
               this device for now.
             </P>

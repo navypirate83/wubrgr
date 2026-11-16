@@ -7,7 +7,7 @@
    PRISM shares one physical card between several Commander decks, by
    painting a small mark on its inner sleeve for each deck (see
    docs/prism-plan.md). This page lists your PRISM SETS: each is a group of
-   decks that share cards. "Add set" makes one; tap a set to open it; hold
+   decks that share cards. "Make a Prism" makes one; tap a set to open it; hold
    one for Rename and Delete (deleting a set never touches your decks).
    ===================================================================== */
 
@@ -93,7 +93,7 @@ export default function PrismScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={[styles.lead, { color: colors.muted }]}>Share one physical copy of a card between your Commander decks.</Text>
-            <Button label="Add set" icon="add" onPress={() => setNaming(nextPrismSetName())} />
+            <Button label="Make a Prism" icon="add" onPress={() => setNaming(nextPrismSetName())} />
           </View>
         }
         // No sets yet: an intentional empty page, not a blank screen
@@ -101,7 +101,7 @@ export default function PrismScreen() {
           <View style={[styles.empty, { borderColor: colors.border }]}>
             <Image source={require('../../../../assets/images/prism-icon.png') as number} style={styles.emptyPicture} contentFit="contain" accessible={false} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No PRISM sets yet</Text>
-            <Text style={[styles.emptyText, { color: colors.muted }]}>Tap Add set above, then choose the Commander decks that share cards.</Text>
+            <Text style={[styles.emptyText, { color: colors.muted }]}>Tap Make a Prism above, then choose the Commander decks that share cards.</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -135,7 +135,7 @@ export default function PrismScreen() {
         }}
       />
 
-      {/* Add set: a name */}
+      {/* Make a Prism: a name */}
       {naming !== null && (
         <PopupWindow title="New PRISM set" onClose={() => setNaming(null)}
                      buttons={[
