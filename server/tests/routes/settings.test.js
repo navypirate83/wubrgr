@@ -131,6 +131,8 @@ test("card lists, decks and PRISM each have their own sort, saved and read back,
   const byDecks = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine, prismSort: 'decks', prismSortReversed: false });
   expect(byDecks.status).toBe(200);
   expect(byDecks.body.settings.prismSort).toBe('decks');
+  // (back to "shared" for the check below)
+  await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine, prismSort: 'shared', prismSortReversed: false });
   // An older app saves again without them: the chosen ones stay
   const older = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, theme: 'light' });
   expect(older.status).toBe(200);
