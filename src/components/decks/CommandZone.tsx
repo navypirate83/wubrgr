@@ -80,7 +80,7 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
                   {banned?.(card.name) && <BannedSlash radius={6} />}
                   {gameChanger?.(card.name) && <MissingOutline radius={6} width={3} yellow />}
                   {missing?.(card) && <MissingOutline radius={6} width={3} dashed={missing(card) === 'printing'} inset={gameChanger?.(card.name) ? 3 : 0} />}
-                  {gameChanger?.(card.name) && <GameChangerBadge size={16} />}
+                  {gameChanger?.(card.name) && <GameChangerBadge size={8} />}
                 </View>
                 <View style={styles.what}>
                   <Text style={[styles.role, { color: colors.text }]} numberOfLines={2}>{card.name}</Text>

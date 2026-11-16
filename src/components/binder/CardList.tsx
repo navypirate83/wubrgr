@@ -404,7 +404,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
           {banned && <BannedSlash radius={4} />}
           {gold && <MissingOutline radius={4} width={2} yellow />}
           {missing && <MissingOutline radius={4} width={2} dashed={missing === 'printing'} inset={gold ? 2 : 0} />}
-          {gold && <GameChangerBadge size={14} />}
+          {gold && <GameChangerBadge size={7} />}
         </View>
         <View style={styles.rowText}>
           {/* The name, with a small gold "GC" tag after it for a Game Changer */}
@@ -459,7 +459,7 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
         {banned && <BannedSlash radius={6} />}
         {gold && <MissingOutline radius={6} width={3} yellow />}
         {missing && <MissingOutline radius={6} width={3} dashed={missing === 'printing'} inset={gold ? 3 : 0} />}
-        {gold && <GameChangerBadge size={Math.max(16, Math.round(size * 0.2))} />}
+        {gold && <GameChangerBadge size={Math.max(8, Math.round(size * 0.1))} lift={26} />}
       </Pressable>
 
       {/* The "− 3 +" bar along the bottom of the card: how many copies you

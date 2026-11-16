@@ -1,6 +1,6 @@
 /* =====================================================================
    THE GAME CHANGER BADGE
-   A small gold circle with a star in it, laid over the top right corner of
+   A small gold circle with a star in it, laid over the lower left corner of
    a Game Changer card's picture (a Commander deck). It goes with the yellow
    border, and it's still easy to see where the border isn't: on a tiny
    picture, on a card with a light frame, or for someone who can't tell the
@@ -13,20 +13,21 @@ import { StyleSheet, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColors } from '@/hooks/useTheme';
 
-export default function GameChangerBadge({ size = 16 }: { size?: number }) {
+// "lift" raises it off the bottom edge (the grid's copies bar sits along the bottom of a picture)
+export default function GameChangerBadge({ size = 8, lift = 0 }: { size?: number; lift?: number }) {
   const colors = useColors();
   return (
     <View
       pointerEvents="none"
       accessible={false}
-      style={[styles.badge, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.gameChanger }]}
+      style={[styles.badge, { width: size, height: size, borderRadius: size / 2, bottom: 2 + lift, backgroundColor: colors.gameChanger }]}
     >
       <Ionicons name="star" size={Math.round(size * 0.66)} color="#1a1206" />
     </View>
   );
 }
 
-// Over the picture's top right corner, with a thin dark ring so it shows on any picture
+// Over the picture's lower left corner, with a thin dark ring so it shows on any picture
 const styles = StyleSheet.create({
-  badge: { position: 'absolute', top: 2, right: 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.55)' },
+  badge: { position: 'absolute', left: 2, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.55)' },
 });
