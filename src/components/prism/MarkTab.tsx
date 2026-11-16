@@ -2,8 +2,9 @@
    A PRISM SET: THE MARK TAB
    Marking the sleeves, one copy of a card at a time. The copies still to
    paint come in order (shared cards first), and the one showing says what to
-   paint: a drawing of the sleeve edge with the slots filled in each deck's
-   color, and the list of marks. "Marked" notes that it's painted (and moves
+   paint: a large picture of the card with the marks drawn along its edge
+   (CardMarks), the "Marked" button right under it, the list of marks, and
+   the flat drawing of the sleeve edge. "Marked" notes that it's painted (and moves
    on); "Skip" puts it at the back of the line. A card that's already painted
    (opened from the Cards tab) can be noted as not painted.
    "Copy the undone list" puts the copies still to paint on the clipboard, as
@@ -13,13 +14,12 @@
 
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
 import Button from '@/components/Button';
 import DeckSquare from './DeckSquare';
 import SleeveEdge from './SleeveEdge';
+import CardMarks from './CardMarks';
 import { useColors } from '@/hooks/useTheme';
-import { pictureSource } from '@/lib/http';
 import { RADIUS } from '@/theme/colors';
 import { copyIsDone, sleeveTipFor, undoneCopies, undoneText, type Change, type PlanCard } from '@/lib/prismPlan';
 import { setPainted, type PrismSet } from '@/lib/prismStorage';
@@ -109,17 +109,26 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
       ) : (
         <View style={[styles.current, { backgroundColor: colors.surface }]}>
           <View style={styles.head}>
-            <Image source={pictureSource(current.card.sample.image)} style={styles.thumb} contentFit="cover" />
-            <View style={styles.headText}>
-              <Text style={[styles.name, { color: colors.text }]}>{current.card.name}</Text>
-              <Text style={[styles.line, { color: colors.muted }]}>
-                {current.card.copies > 1 ? `Copy ${current.copy + 1} of ${current.card.copies} · ` : ''}
-                {isDone ? 'painted ✓' : `paint ${slots.length} ${slots.length === 1 ? 'mark' : 'marks'} on its inner sleeve`}
-              </Text>
-            </View>
+            <Text style={[styles.name, { color: colors.text }]}>{current.card.name}</Text>
+            <Text style={[styles.line, { color: colors.muted }]}>
+              {current.card.copies > 1 ? `Copy ${current.copy + 1} of ${current.card.copies} · ` : ''}
+              {isDone ? 'painted ✓' : `paint ${slots.length} ${slots.length === 1 ? 'mark' : 'marks'} on its inner sleeve`}
+            </Text>
           </View>
 
-          <SleeveEdge slots={slots} corner={set.corner} />
+          {/* The big card with its marks, and the button right under it */}
+          <CardMarks image={current.card.sample.image} cardId={`${current.card.key}#${current.copy}`} slots={slots} corner={set.corner} />
+
+          <View style={styles.buttons}>
+            {isDone ? (
+              <Button label="Not painted" kind="secondary" onPress={() => note(false)} />
+            ) : (
+              <>
+                {undone.length > 1 && <Button label="Skip" kind="secondary" onPress={skip} />}
+                <Button label="Marked ✓" onPress={() => note(true)} />
+              </>
+            )}
+          </View>
 
           <View style={styles.marks}>
             {required.map((deckId) => {
@@ -135,18 +144,9 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
             })}
           </View>
 
-          {tip && <Text style={[styles.tip, { backgroundColor: `${colors.accent}22`, color: colors.text }]}>{tip}</Text>}
+          <SleeveEdge slots={slots} corner={set.corner} />
 
-          <View style={styles.buttons}>
-            {isDone ? (
-              <Button label="Not painted" kind="secondary" onPress={() => note(false)} />
-            ) : (
-              <>
-                {undone.length > 1 && <Button label="Skip" kind="secondary" onPress={skip} />}
-                <Button label="Marked ✓" onPress={() => note(true)} />
-              </>
-            )}
-          </View>
+          {tip && <Text style={[styles.tip, { backgroundColor: `${colors.accent}22`, color: colors.text }]}>{tip}</Text>}
         </View>
       )}
 
@@ -165,14 +165,12 @@ const styles = StyleSheet.create({
   done: { alignItems: 'center', gap: 6, padding: 24, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: RADIUS * 1.4 },
   doneTitle: { fontSize: 18, fontWeight: '700' },
   current: { borderRadius: RADIUS * 1.2, padding: 12, gap: 12 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  thumb: { width: 46, height: 64, borderRadius: 4 },
-  headText: { flex: 1, gap: 2 },
+  head: { gap: 2 },
   name: { fontSize: 17, fontWeight: '800' },
   marks: { gap: 6 },
   mark: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   markName: { flex: 1, fontSize: 14 },
   markSlot: { fontSize: 12 },
   tip: { fontSize: 13, borderRadius: 8, padding: 8, overflow: 'hidden' },
-  buttons: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
+  buttons: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
 });
