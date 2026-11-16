@@ -176,6 +176,12 @@ built site (service worker included) with no internet: `npm run build` with
 open the Scan tab once, then stop the servers and reload. The phone app's camera and text
 reading are built after the website's.
 
+**Track card** (a button on the website's camera) finds the card without lining it up:
+`src/lib/scanner/core/cardFinder.ts` finds the card's four corners in a small copy of each
+frame (by how different it is from the surface under it), `core/perspective.ts` straightens it
+into a flat upright picture, and the reading code then works as usual. Android can reuse both
+files unchanged.
+
 ## Card data
 
 Card information and images are provided by [Scryfall](https://scryfall.com).

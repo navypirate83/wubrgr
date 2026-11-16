@@ -13,6 +13,15 @@
    The torch button only shows if the camera has one (many don't, or the browser
    hides it); tap-to-focus and zoom are left to the browser.
    A very dark picture is noticed and the hint says to light the card better.
+   TWO WAYS TO AIM (the "Track card" button at the top switches between them):
+     Guide: line the card up inside the four corners, tap the round button.
+     Track: no lining up. Several times a second a small copy of the live picture goes
+       to the card finder (lib/scanner/core/cardFinder.ts), which says where the card's
+       four corners are, and an outline is drawn around the card. When the outline has
+       held still for a moment the card is straightened into a flat upright picture
+       (core/perspective.ts) and read exactly like a lined-up card. The round button
+       does the same at once. After a scan, the card has to leave (or move) before it is
+       scanned again, so one card isn't read over and over.
    Nothing native is imported here (Android's is ScannerCamera.native.tsx).
    ===================================================================== */
 
@@ -22,6 +31,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColors } from '@/hooks/useTheme';
 import { readCard, cardOcr } from '@/lib/scanner/ocr/ocr.web';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
+import { blendQuads, findCard, quadCentre, quadShift } from '@/lib/scanner/core/cardFinder';
+import { longestSide, warpCard, type Point, type Quad } from '@/lib/scanner/core/perspective';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
@@ -30,7 +41,22 @@ const GUIDE_HEIGHT = 0.96;
 const BOTTOM_ROOM = 150;
 const GUIDE_WIDTH = 0.82;
 
+// Tracking: how wide the small copy of each frame is, how often it is looked at, how long a card must
+// hold still before it is scanned, how far a corner may drift (as a share of the picture) and still count as
+// holding still, and how many looks with no card it takes to count the card as taken away
+const LOOK_WIDTH = 320;
+const LOOK_EVERY_MS = 140;
+const HOLD_STILL_MS = 700;
+const STILL_DRIFT = 0.015;
+const GONE_LOOKS = 8;
+// Whether the person left Track on, remembered on this device (the browser may not allow saving; then it starts off)
+const TRACK_KEY = 'wubrgr.scanner.track';
+const savedTrack = () => { try { return globalThis.localStorage?.getItem(TRACK_KEY) === '1'; } catch { return false; } };
+
 type Rect = { x: number; y: number; w: number; h: number };
+// What the tracker currently sees: the card's corners (as fractions of the video picture), how far
+// through the hold-still wait it is (0 to 1), and whether it will scan when the wait is over
+type Found = { quad: Quad; hold: number; armed: boolean };
 
 export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName }: ScannerCameraProps) {
   const colors = useColors();
@@ -44,6 +70,14 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   const [torchOn, setTorchOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState('');
+  // Track mode: on or off, and what it sees right now
+  const [tracking, setTracking] = useState(savedTrack);
+  const [found, setFound] = useState<Found | null>(null);
+  // The tracking loop runs on a timer, so it reads the newest values through these notes-to-self
+  const live = useRef({ busy, paused: !!paused, found: null as Found | null, armed: true, scannedAt: null as Point | null });
+  live.current.busy = busy;
+  live.current.paused = !!paused;
+  live.current.found = found;
 
   /* ----- the camera, started when the screen opens and stopped when it closes ----- */
   useEffect(() => {
@@ -139,9 +173,16 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   }
 
   // The round button: a still of the whole picture, then the card cut out of it
+  // (in Track mode: the card the tracker is looking at, straightened)
   async function takePicture() {
     const video = videoRef.current;
     if (!video || !video.videoWidth || busy) return;
+    if (tracking) {
+      const seen = live.current.found;
+      if (!seen) { setHint('Can\'t see the whole card. Put it on a plain, different-coloured surface, or switch to Guide.'); return; }
+      await scanTracked(seen.quad);
+      return;
+    }
     const still = document.createElement('canvas');
     still.width = video.videoWidth;
     still.height = video.videoHeight;
@@ -149,11 +190,118 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     await scan(still, guideInVideo(video));
   }
 
+  /* ----- Track mode ----- */
+
+  // The card cut out of the picture and made flat and upright. "quad" is the card's corners as
+  // fractions of the picture; only the box around the card is copied, so a big camera picture isn't copied whole.
+  function straighten(source: CanvasImageSource, sourceWidth: number, sourceHeight: number, quad: Quad): HTMLCanvasElement {
+    const corners = quad.map((p) => ({ x: p.x * sourceWidth, y: p.y * sourceHeight })) as Quad;
+    const left = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.x))) - 2);
+    const top = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.y))) - 2);
+    const right = Math.min(sourceWidth, Math.ceil(Math.max(...corners.map((p) => p.x))) + 2);
+    const bottom = Math.min(sourceHeight, Math.ceil(Math.max(...corners.map((p) => p.y))) + 2);
+    const crop = document.createElement('canvas');
+    crop.width = right - left;
+    crop.height = bottom - top;
+    const cropContext = crop.getContext('2d', { willReadFrequently: true })!;
+    cropContext.drawImage(source, left, top, crop.width, crop.height, 0, 0, crop.width, crop.height);
+    const picture = cropContext.getImageData(0, 0, crop.width, crop.height);
+    const shifted = corners.map((p) => ({ x: p.x - left, y: p.y - top })) as Quad;
+    // The flat picture is about as tall as the card looked, but never tiny or enormous
+    const flatHeight = Math.max(700, Math.min(1500, Math.round(longestSide(shifted))));
+    const flatWidth = Math.round(flatHeight * CARD_ASPECT);
+    const flat = document.createElement('canvas');
+    flat.width = flatWidth;
+    flat.height = flatHeight;
+    flat.getContext('2d')!.putImageData(new ImageData(warpCard(picture, shifted, flatWidth, flatHeight) as unknown as ImageDataArray, flatWidth, flatHeight), 0, 0);
+    return flat;
+  }
+
+  // Scan the card the tracker found, in the live picture
+  async function scanTracked(quad: Quad) {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    // Until the card leaves or moves, don't scan it again
+    live.current.armed = false;
+    live.current.scannedAt = quadCentre(quad);
+    const flat = straighten(video, video.videoWidth, video.videoHeight, quad);
+    await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height });
+  }
+
+  // The newest version of scanTracked (the timer below lives on past renders, and the scan screen
+  // changes what it does with a reading as its mode and list change)
+  const scanTrackedNow = useRef(scanTracked);
+  scanTrackedNow.current = scanTracked;
+
+  // The loop: look at the live picture a few times a second while Track is on
+  useEffect(() => {
+    if (!tracking || problem) { setFound(null); return; }
+    const small = document.createElement('canvas');
+    const context = small.getContext('2d', { willReadFrequently: true })!;
+    let last: Quad | null = null;       // where the card was last time (smoothed)
+    let stillSince = 0;                 // when it last stopped moving
+    let missing = 0;                    // how many looks in a row found no card
+    const timer = setInterval(() => {
+      const video = videoRef.current;
+      const state = live.current;
+      if (!video || !video.videoWidth || state.busy || state.paused) return;
+      // A small copy of the frame, for the finder
+      const lookHeight = Math.round((LOOK_WIDTH * video.videoHeight) / video.videoWidth);
+      if (small.width !== LOOK_WIDTH || small.height !== lookHeight) { small.width = LOOK_WIDTH; small.height = lookHeight; }
+      context.drawImage(video, 0, 0, LOOK_WIDTH, lookHeight);
+      const quad = findCard(context.getImageData(0, 0, LOOK_WIDTH, lookHeight));
+      const now = Date.now();
+      if (!quad) {
+        // No card: only believe it after a second look (one bad frame shouldn't make the outline blink)
+        missing++;
+        if (missing >= 2) { last = null; stillSince = 0; setFound(null); }
+        if (missing >= GONE_LOOKS) state.armed = true;
+        return;
+      }
+      missing = 0;
+      // Moving a lot: the hold-still wait starts again (and a card moved well away from where it was scanned counts as a new card)
+      const moved = last ? quadShift(last, quad) : 1;
+      if (!stillSince || moved > STILL_DRIFT) stillSince = now;
+      const centre = quadCentre(quad);
+      if (state.scannedAt && Math.hypot(centre.x - state.scannedAt.x, centre.y - state.scannedAt.y) > 0.2) state.armed = true;
+      const smooth = last ? blendQuads(last, quad, 0.4) : quad;
+      last = smooth;
+      const hold = Math.min(1, (now - stillSince) / HOLD_STILL_MS);
+      setFound({ quad: smooth, hold, armed: state.armed });
+      if (hold >= 1 && state.armed) scanTrackedNow.current(smooth);
+    }, LOOK_EVERY_MS);
+    return () => clearInterval(timer);
+  }, [tracking, problem]);
+
+  // The Track button: switch, and remember the choice
+  function toggleTracking() {
+    const next = !tracking;
+    setTracking(next);
+    setHint('');
+    live.current.armed = true;
+    live.current.scannedAt = null;
+    try { globalThis.localStorage?.setItem(TRACK_KEY, next ? '1' : '0'); } catch { /* not remembered, that's all */ }
+  }
+
   // A photo picked from the device: the card is the whole picture if it's card-shaped, else the middle of it
+  // (in Track mode the card is looked for first, so a tilted card on a table works too)
   async function readPhoto(file: File) {
     setBusy(true);
     try {
       const bitmap = await createImageBitmap(file);
+      if (tracking) {
+        const small = document.createElement('canvas');
+        small.width = LOOK_WIDTH;
+        small.height = Math.max(1, Math.round((LOOK_WIDTH * bitmap.height) / bitmap.width));
+        const smallContext = small.getContext('2d', { willReadFrequently: true })!;
+        smallContext.drawImage(bitmap, 0, 0, small.width, small.height);
+        const quad = findCard(smallContext.getImageData(0, 0, small.width, small.height));
+        if (quad) {
+          const flat = straighten(bitmap, bitmap.width, bitmap.height, quad);
+          await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height });
+          return;
+        }
+      }
       const still = document.createElement('canvas');
       still.width = bitmap.width;
       still.height = bitmap.height;
@@ -183,8 +331,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', backgroundColor: '#000' }}
       />
 
-      {/* The card-shaped guide, with its four corners */}
-      {!problem && area.w > 0 && (
+      {/* Guide mode: the card-shaped guide, with its four corners */}
+      {!tracking && !problem && area.w > 0 && (
         <View pointerEvents="none" style={{ position: 'absolute', left: guide.x, top: guide.y, width: guide.w, height: guide.h }}>
           <View style={[styles.corner, styles.topLeft]} />
           <View style={[styles.corner, styles.topRight]} />
@@ -193,10 +341,40 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         </View>
       )}
 
+      {/* Track mode: an outline drawn around the card the tracker found. White while it moves, the accent
+          colour once it has held still long enough to scan, faded after a scan until the card moves away. */}
+      {tracking && !problem && found && area.w > 0 && videoRef.current && (() => {
+        const video = videoRef.current!;
+        const scale = Math.max(area.w / video.videoWidth, area.h / video.videoHeight);
+        const offsetX = (area.w - video.videoWidth * scale) / 2;
+        const offsetY = (area.h - video.videoHeight * scale) / 2;
+        const points = found.quad.map((p) => `${offsetX + p.x * video.videoWidth * scale},${offsetY + p.y * video.videoHeight * scale}`).join(' ');
+        const colour = !found.armed ? 'rgba(255,255,255,0.4)' : found.hold >= 1 ? colors.accent : '#ffffff';
+        return (
+          <svg width={area.w} height={area.h} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}>
+            <polygon points={points} fill={found.armed ? 'rgba(255,255,255,0.08)' : 'none'} stroke={colour} strokeWidth={found.armed ? 2 + 3 * found.hold : 2} strokeLinejoin="round" />
+          </svg>
+        );
+      })()}
+
       {/* One line of words: why there's no camera, what just happened, a hint, or how to start */}
       <Text style={[styles.hint, { color: '#ffffff' }]} pointerEvents="none">
-        {busy ? 'Reading the card…' : problem || message || hint || 'Line the card up in the corners'}
+        {busy ? 'Reading the card…' : problem || message || hint || (tracking
+          ? (found ? (found.armed ? 'Hold still…' : 'Move the card to scan another') : 'Show the whole card on a plain surface')
+          : 'Line the card up in the corners')}
       </Text>
+
+      {/* The button that switches between lining the card up (Guide) and letting the scanner find it (Track) */}
+      <View pointerEvents="box-none" style={styles.topMiddle}>
+        <Pressable
+          accessibilityRole="switch" accessibilityLabel="Track card" accessibilityState={{ checked: tracking }}
+          onPress={toggleTracking}
+          style={[styles.trackButton, { backgroundColor: tracking ? colors.accent : 'rgba(0,0,0,0.45)', borderColor: tracking ? colors.accent : 'rgba(255,255,255,0.45)' }]}
+        >
+          <Ionicons name="scan-outline" size={18} color={tracking ? colors.accentText : '#ffffff'} />
+          <Text style={[styles.trackText, { color: tracking ? colors.accentText : '#ffffff' }]}>Track card</Text>
+        </Pressable>
+      </View>
 
       {/* The photo and torch buttons, in the top corners */}
       <Pressable
@@ -259,6 +437,10 @@ const styles = StyleSheet.create({
   side: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' },
   topLeftButton: { position: 'absolute', top: 10, left: 12 },
   topRightButton: { position: 'absolute', top: 10, right: 12 },
+  // The Track button sits in the middle of the top edge, between the photo and torch buttons
+  topMiddle: { position: 'absolute', top: 10, left: 64, right: 64, height: 44, alignItems: 'center', justifyContent: 'center' },
+  trackButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, borderWidth: 1.5 },
+  trackText: { fontSize: 13, fontWeight: '700' },
   barSide: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
   barRight: { justifyContent: 'flex-end' },
   shutter: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },

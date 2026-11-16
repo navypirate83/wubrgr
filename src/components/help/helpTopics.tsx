@@ -505,7 +505,10 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Scan</Strong> (the camera): the card scanner, to point your camera at a card and add it to a binder.
               It's still being built: the website's scanner works first, then the phone app's camera. On the website it shows the
               camera with a card-shaped guide: line a card up in the corners and tap the round button (or tap the picture button
-              to choose a photo of a card). It reads the card's name and the small print at the bottom left, finds the exact
+              to choose a photo of a card). The <Strong>Track card</Strong> button at the top switches to a mode with no lining up:
+              hold the card at any angle on a plain surface that isn't the same colour as the card, an outline appears around it,
+              and when it holds still for a moment it is straightened and scanned by itself (the round button scans it at once).
+              Move the card away, or to a new spot, to scan another. Tap Track card again to go back to the guide. It reads the card's name and the small print at the bottom left, finds the exact
               printing in the <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, and
               slides up a sheet with the card's picture, set and number, how many (− 1 +), the finish button (foil, like in the Card
               Finder), the language (just its letters; the list has the full names) and <Strong>Add to binder</Strong>, which asks
