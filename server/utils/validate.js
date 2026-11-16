@@ -228,7 +228,7 @@ export function validateDeckCard(card) {
   return result;
 }
 
-// Checks a deck's name (1 to 100 characters) and, when sent, its format
+// Checks a deck's name (1 to 100 characters) and, when sent, its format and power bracket
 export function validateDeck(body) {
   const input = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
   const problem = checkText(input.name, 'Name', { min: 1, max: 100 });
@@ -237,6 +237,14 @@ export function validateDeck(body) {
   if (input.format !== undefined) {
     if (!DECK_FORMAT_CODES.includes(input.format)) return { error: `Format must be one of: ${DECK_FORMAT_CODES.join(', ')}` };
     value.format = input.format;
+  }
+  // The Commander power bracket: a whole number 1 to 5, or null to say "not rated"
+  // (left out: an older app, so whatever is saved stays)
+  if (input.bracket !== undefined) {
+    if (input.bracket !== null && !(Number.isInteger(input.bracket) && input.bracket >= 1 && input.bracket <= 5)) {
+      return { error: 'Bracket must be a whole number from 1 to 5, or null' };
+    }
+    value.bracket = input.bracket;
   }
   return { value };
 }

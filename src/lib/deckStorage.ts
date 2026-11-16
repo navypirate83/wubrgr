@@ -19,6 +19,7 @@ import { MAX_COPIES, samePrinting } from './binderStorage';
 import { needsDetails, withDetails } from './cardDetails';
 import type { ScryfallCard } from './scryfall';
 import { cleanDeckFormat, DEFAULT_DECK_FORMAT } from './deckFormats';
+import { cleanBracket } from './deckBrackets';
 import type { ListCard } from './listStorage';
 import { movedBy } from './shelfSort';
 
@@ -35,7 +36,8 @@ export type DeckCard = ListCard & { zone?: 'side' | 'command'; slot?: 0 | 1 };
 export const zoneOf = (card: DeckCard): Zone => card.zone ?? 'main';
 
 // One deck: its id, name, format code and cards
-export type Deck = { id: string; name: string; format: string; cards: DeckCard[] };
+// ("bracket" is a Commander deck's power bracket, 1 to 5: see deckBrackets.ts. None: not rated.)
+export type Deck = { id: string; name: string; format: string; bracket?: number; cards: DeckCard[] };
 
 // Where the decks are kept on this device
 const DECKS_KEY = 'decks';
@@ -52,7 +54,7 @@ export function loadDecks(): Deck[] {
     if (!Array.isArray(saved)) return [];
     return saved
       .filter((d) => d && typeof d.id === 'string' && typeof d.name === 'string')
-      .map((d) => ({ id: d.id, name: d.name, format: cleanDeckFormat(d.format), cards: Array.isArray(d.cards) ? d.cards : [] }));
+      .map((d) => ({ id: d.id, name: d.name, format: cleanDeckFormat(d.format), ...(cleanBracket(d.bracket) !== undefined && { bracket: cleanBracket(d.bracket) }), cards: Array.isArray(d.cards) ? d.cards : [] }));
   } catch {
     return [];
   }
@@ -113,6 +115,15 @@ export function addDeck(name: string, format: string = DEFAULT_DECK_FORMAT): str
 export function renameDeck(id: string, name: string) {
   const trimmed = name.trim();
   if (trimmed) changeDeck(id, (d) => ({ ...d, name: trimmed }));
+}
+
+// Change a deck's Commander power bracket (1 to 5), or clear it (undefined: not rated)
+export function setDeckBracket(id: string, bracket: number | undefined) {
+  changeDeck(id, (d) => {
+    const { bracket: _was, ...others } = d;
+    const clean = cleanBracket(bracket);
+    return clean === undefined ? others : { ...others, bracket: clean };
+  });
 }
 
 // Change a deck's format

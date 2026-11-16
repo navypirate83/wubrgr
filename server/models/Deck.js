@@ -21,6 +21,8 @@ const deckSchema = new mongoose.Schema(
     owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     name: { type: String, required: true, trim: true, minlength: 1, maxlength: 100 },
     format: { type: String, enum: DECK_FORMAT_CODES, default: 'commander' },
+    // Commander power bracket, 1 (Exhibition) to 5 (cEDH); none means not rated
+    bracket: { type: Number, min: 1, max: 5 },
   },
   { timestamps: true },
 );

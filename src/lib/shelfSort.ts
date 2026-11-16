@@ -29,6 +29,7 @@ export type ShelfItem = {
   format?: string;      // a deck's format, as a name
   legal?: boolean;      // a deck that is legal (false: it has a problem)
   missing?: number;     // cards a deck uses that you don't own
+  bracket?: number;     // a Commander deck's power bracket, 1 to 5 (none: not rated)
   decks?: number;       // decks in a PRISM set
   work?: number;        // marks still to paint or scrape in a PRISM set
   used?: number;        // when it was last opened (milliseconds; 0 if never)
@@ -60,6 +61,7 @@ export const SHELF_SORTS: Record<ShelfArea, ShelfSortChoice[]> = {
     MINE, NAME, USED, MADE, CARDS,
     { value: 'format', name: 'By format', short: 'Format', reversedName: 'By format, Z to A', reversedShort: 'Format Z-A' },
     { value: 'legal', name: 'Not legal first', short: 'Legal', reversedName: 'Legal first', reversedShort: 'Legal first' },
+    { value: 'bracket', name: 'Highest bracket first', short: 'Bracket', reversedName: 'Lowest bracket first', reversedShort: 'Low bracket' },
     { value: 'missing', name: 'Most cards missing', short: 'Missing', reversedName: 'Fewest cards missing', reversedShort: 'Fewest missing' },
   ],
   prisms: [
@@ -121,6 +123,7 @@ function compare(area: ShelfArea, sort: string, a: ShelfItem, b: ShelfItem): num
     case 'decks': return num(b.decks) - num(a.decks);
     case 'work': return num(b.work) - num(a.work);
     case 'missing': return num(b.missing) - num(a.missing);
+    case 'bracket': return num(b.bracket) - num(a.bracket);
     case 'format': return (a.format ?? '').localeCompare(b.format ?? '');
     case 'legal': return Number(a.legal !== false) - Number(b.legal !== false);   // not legal first
     default: return 0;
@@ -131,6 +134,12 @@ function compare(area: ShelfArea, sort: string, a: ShelfItem, b: ShelfItem): num
 export function sortShelf<T extends ShelfItem>(area: ShelfArea, items: T[], saved: unknown): T[] {
   const { sort, reversed } = parseShelfSort(area, saved);
   if (sort === DEFAULT_SHELF_SORT) return items;
+  // Decks with no bracket always go last, whichever way round it is
+  if (sort === 'bracket') {
+    const rated = items.filter((i) => i.bracket).sort((a, b) => compare(area, sort, a, b) || byName(a, b));
+    const unrated = items.filter((i) => !i.bracket).sort(byName);
+    return [...(reversed ? rated.reverse() : rated), ...unrated];
+  }
   const sorted = [...items].sort((a, b) => compare(area, sort, a, b) || byName(a, b));
   return reversed ? sorted.reverse() : sorted;
 }
@@ -146,6 +155,7 @@ export function shelfGroup(area: ShelfArea, saved: unknown, item: ShelfItem): st
     }
     case 'format': return item.format ?? 'No format';
     case 'legal': return item.legal === false ? 'Not legal' : 'Legal';
+    case 'bracket': return item.bracket ? `Bracket ${item.bracket}` : 'Not rated';
     case 'work': return (item.work ?? 0) > 0 ? 'Marks waiting' : 'All marked';
     default: return null;
   }

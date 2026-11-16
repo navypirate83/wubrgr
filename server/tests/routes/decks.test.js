@@ -47,6 +47,24 @@ test('make, rename and delete a deck; the same name twice and a bad format are r
   expect(await Deck.countDocuments()).toBe(0);
 });
 
+test('a Commander power bracket is saved, kept when an older app leaves it out, cleared with null, and bad ones refused', async () => {
+  const me = await setup();
+  const made = await me.post('/decks', { name: 'Bracketed', format: 'commander', bracket: 3 });
+  expect(made.status).toBe(201);
+  expect(made.body.bracket).toBe(3);
+  // An older app renames without sending a bracket: it stays
+  const renamed = await me.put(`/decks/${made.body._id}`, { name: 'Bracketed too', format: 'commander' });
+  expect(renamed.body.bracket).toBe(3);
+  expect((await me.put(`/decks/${made.body._id}`, { name: 'Bracketed too', format: 'commander', bracket: 5 })).body.bracket).toBe(5);
+  // null means "not rated"
+  const cleared = await me.put(`/decks/${made.body._id}`, { name: 'Bracketed too', format: 'commander', bracket: null });
+  expect(cleared.status).toBe(200);
+  expect(cleared.body.bracket ?? null).toBeNull();
+  for (const bad of [0, 6, 2.5, '3', true]) {
+    expect((await me.put(`/decks/${made.body._id}`, { name: 'Bracketed too', bracket: bad })).status).toBe(400);
+  }
+});
+
 test('a deck made with no format is a Commander deck', async () => {
   const me = await setup();
   expect((await me.post('/decks', { name: 'Plain' })).body.format).toBe('commander');

@@ -255,6 +255,13 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Rename or delete it</Strong>: hold it for a moment, then tap <Strong>Rename</Strong> or <Strong>Delete</Strong> (it asks first).
             </Bullet>
             <Bullet>
+              <Strong>Power bracket</Strong> (Commander decks only): open the deck and tap the button under the sort bar
+              ("Set power bracket"). Choose one of the five Commander Brackets: <Strong>1 Exhibition</Strong>, <Strong>2 Core</Strong>,
+              <Strong> 3 Upgraded</Strong>, <Strong>4 Optimized</Strong> or <Strong>5 cEDH</Strong>, or <Strong>Not rated</Strong>. You
+              choose it yourself (the app doesn't work it out from the cards). It then shows on the deck's row on the Decks page
+              ("Bracket 3 · Upgraded"), is saved with the deck in your account, and the Decks page's Sort button can put the highest bracket first.
+            </Bullet>
+            <Bullet>
               <Strong>Search</Strong>: the search bar on the Decks page looks through your decks' names <Strong>and</Strong> the
               cards inside them (small typos are fine). Tap a match to open that deck.
             </Bullet>
@@ -358,7 +365,7 @@ export const helpTopics: HelpTopic[] = [
             <Bullet><Strong>My own order</Strong> is where every page starts: the order you set yourself. Only here can binders be dragged, and a held list, deck or PRISM set has <Strong>Move up</Strong> and <Strong>Move down</Strong>.</Bullet>
             <Bullet><Strong>Name A to Z</Strong>, <Strong>Recently opened</Strong> and <Strong>Newest first</Strong> are on every page. "Recently opened" and "Newest first" are noted on each device separately: they start counting from when a device first sees the item.</Bullet>
             <Bullet><Strong>Most cards</Strong> (binders, lists and decks).</Bullet>
-            <Bullet><Strong>Decks</Strong> also have <Strong>By format</Strong>, <Strong>Not legal first</Strong> (decks over the card limit or holding banned cards) and <Strong>Most cards missing</Strong> (cards you don't own in any binder).</Bullet>
+            <Bullet><Strong>Decks</Strong> also have <Strong>By format</Strong>, <Strong>Highest bracket first</Strong> (decks with no bracket always last), <Strong>Not legal first</Strong> (decks over the card limit or holding banned cards) and <Strong>Most cards missing</Strong> (cards you don't own in any binder).</Bullet>
             <Bullet><Strong>PRISM sets</Strong> also have <Strong>Most work waiting</Strong> (marks still to paint or scrape off) and <Strong>Most decks</Strong>.</Bullet>
           </>
         ),

@@ -62,6 +62,7 @@ import {
   forgetDeck, loadDecks, newLocalDeckId, saveDecks, type Deck, type DeckCard,
 } from './deckStorage';
 import { cleanDeckFormat } from './deckFormats';
+import { bracketPart, cleanBracket } from './deckBrackets';
 import { storageGet, storageKeys, storageRemove, storageSet } from './storage';
 import { mergeBinderCards, mergeDeckCards, mergeListCards } from './mergeCards';
 import { askMergeChoice, type MergeChoice } from './mergeChoice';
@@ -144,7 +145,7 @@ function fingerprintOf(value: unknown): string {
 /* ---------- turning cards into what the server wants, and back ---------- */
 
 // What the server sends for a binder or list
-type ServerItem = { _id: string; name: string; color?: string | null; cover?: string; pages?: number; format?: string; updatedAt: string };
+type ServerItem = { _id: string; name: string; color?: string | null; cover?: string; pages?: number; format?: string; bracket?: number | null; updatedAt: string };
 type ServerCard = BinderCard & { page: number; pocket: number; manaCost?: string; typeLine?: string; zone?: 'side' | 'command'; slot?: 0 | 1 };
 
 // This device's cards in the account's layout (what the server stores),
@@ -608,7 +609,7 @@ async function syncDecks(memory: Memory): Promise<void> {
 
   // 1. Every deck on this device
   for (const deck of [...decks]) {
-    const fingerprint = fingerprintOf([deck.name, deck.format, deck.cards]);
+    const fingerprint = fingerprintOf([deck.name, deck.format, deck.cards, ...bracketPart(deck.bracket)]);
     const link = memory.decks[deck.id];
     const remote = link ? serverById.get(link.serverId) : undefined;
 
@@ -676,9 +677,10 @@ async function syncDecks(memory: Memory): Promise<void> {
     if (known.has(remote._id) || heldBack.has(remote._id)) continue;
     const cards = await apiRequest<ServerCard[]>(`/decks/${remote._id}/cards`);
     const id = newLocalDeckId();
-    const added: Deck = { id, name: uniqueDeckName(remote.name), format: cleanDeckFormat(remote.format), cards: cards.map(deckCardFromServer) };
+    const bracket = cleanBracket(remote.bracket);
+    const added: Deck = { id, name: uniqueDeckName(remote.name), format: cleanDeckFormat(remote.format), ...(bracket !== undefined && { bracket }), cards: cards.map(deckCardFromServer) };
     saveDecks([...loadDecks(), added]);
-    memory.decks[id] = { serverId: remote._id, fingerprint: fingerprintOf([added.name, added.format, added.cards]), version: remote.updatedAt };
+    memory.decks[id] = { serverId: remote._id, fingerprint: fingerprintOf([added.name, added.format, added.cards, ...bracketPart(bracket)]), version: remote.updatedAt };
     writeMemory(memory);
   }
 
@@ -719,7 +721,7 @@ function sameDeckCards(mine: DeckCard[], theirs: DeckCard[]): boolean {
 // Make a deck on the server (a number is added to the name if it's taken)
 async function createDeckOnServer(deck: Deck): Promise<ServerItem> {
   try {
-    return await apiRequest<ServerItem>('/decks', { method: 'POST', body: { name: deck.name, format: deck.format } });
+    return await apiRequest<ServerItem>('/decks', { method: 'POST', body: { name: deck.name, format: deck.format, bracket: deck.bracket ?? null } });
   } catch (err) {
     if ((err as { status?: number }).status !== 409) throw err;
     const taken = new Set((await getAll<ServerItem>('/decks')).map((item) => item.name.toLowerCase()));
@@ -727,25 +729,26 @@ async function createDeckOnServer(deck: Deck): Promise<ServerItem> {
     let name = deck.name;
     while (taken.has(name.toLowerCase())) name = `${deck.name} ${n++}`;
     saveDecks(loadDecks().map((d) => (d.id === deck.id ? { ...d, name } : d)));
-    return apiRequest<ServerItem>('/decks', { method: 'POST', body: { name, format: deck.format } });
+    return apiRequest<ServerItem>('/decks', { method: 'POST', body: { name, format: deck.format, bracket: deck.bracket ?? null } });
   }
 }
 
 async function pushDeck(deck: Deck, serverId: string, memory: Memory): Promise<void> {
   const current = loadDecks().find((d) => d.id === deck.id) ?? deck;
-  await apiRequest(`/decks/${serverId}`, { method: 'PUT', body: { name: current.name, format: current.format } });
+  await apiRequest(`/decks/${serverId}`, { method: 'PUT', body: { name: current.name, format: current.format, bracket: current.bracket ?? null } });
   await apiRequest(`/decks/${serverId}/cards`, { method: 'PUT', body: { cards: current.cards } });
   const after = await apiRequest<ServerItem>(`/decks/${serverId}`);
-  memory.decks[deck.id] = { serverId, fingerprint: fingerprintOf([current.name, current.format, current.cards]), version: after.updatedAt };
+  memory.decks[deck.id] = { serverId, fingerprint: fingerprintOf([current.name, current.format, current.cards, ...bracketPart(current.bracket)]), version: after.updatedAt };
   writeMemory(memory);
 }
 
 async function pullDeck(localId: string, remote: ServerItem, memory: Memory): Promise<void> {
   const cards = (await apiRequest<ServerCard[]>(`/decks/${remote._id}/cards`)).map(deckCardFromServer);
   const format = cleanDeckFormat(remote.format);
-  const decks = loadDecks().map((d) => (d.id === localId ? { ...d, name: remote.name, format, cards } : d));
+  const bracket = cleanBracket(remote.bracket);
+  const decks = loadDecks().map((d) => (d.id === localId ? { ...d, name: remote.name, format, bracket, cards } : d));
   saveDecks(decks);
-  memory.decks[localId] = { serverId: remote._id, fingerprint: fingerprintOf([remote.name, format, cards]), version: remote.updatedAt };
+  memory.decks[localId] = { serverId: remote._id, fingerprint: fingerprintOf([remote.name, format, cards, ...bracketPart(bracket)]), version: remote.updatedAt };
   writeMemory(memory);
 }
 
@@ -806,7 +809,7 @@ export function changedSinceSync(): boolean {
   }
   for (const deck of loadDecks()) {
     const link = memory.decks[deck.id];
-    if (!link || link.fingerprint !== fingerprintOf([deck.name, deck.format, deck.cards])) return true;
+    if (!link || link.fingerprint !== fingerprintOf([deck.name, deck.format, deck.cards, ...bracketPart(deck.bracket)])) return true;
   }
   const hereBinders = new Set(loadBinderList().map((b) => b.id));
   const hereLists = new Set(loadLists().map((l) => l.id));

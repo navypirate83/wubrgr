@@ -13,7 +13,7 @@
    - press and HOLD a row for its options: Rename and Delete (it asks first)
    - the Sort button (under Add deck) puts the decks in order: My own order
      (the start), name, recently opened, newest, most cards, format, not legal
-     first or most cards missing (see shelfSort.ts). In My own order, a held
+     first, highest bracket or most cards missing (see shelfSort.ts). In My own order, a held
      deck also has Move up and Move down.
    Each row is plain, like the Lists page: the deck's name in bold, its
    format and how many cards it has under that, and an arrow.
@@ -43,6 +43,7 @@ import { deckProblems } from '@/lib/deckLegality';
 import { useBannedIn } from '@/lib/bannedCards';
 import type { ImportedDeck } from '@/lib/deckImport';
 import { deckFormat } from '@/lib/deckFormats';
+import { bracketText, cleanBracket, hasBrackets } from '@/lib/deckBrackets';
 import { cardCountText } from '@/lib/binderStorage';
 import { askYesNo, showMessage } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
@@ -143,6 +144,8 @@ export default function DecksScreen() {
       deck,
       cards: cardsIn(deck),
       format: deckFormat(deck.format).name,
+      // A Commander deck's power bracket (none for other formats, or one not rated)
+      bracket: hasBrackets(deck.format) ? cleanBracket(deck.bracket) : undefined,
       legal: deckProblems(deck, deckFormat(deck.format), (name) => bannedIn(deck.format, name)).length === 0,
       // Cards in the deck that you don't have in any binder (every copy counted)
       missing: owned ? marksFor(deck.cards, owned).reduce((sum, mark, i) => sum + (mark === false ? (deck.cards[i].count ?? 1) : 0), 0) : 0,
@@ -201,7 +204,7 @@ export default function DecksScreen() {
           // One deck: tap to open, hold for its options
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}, ${cardCountText(cardsIn(item))}${deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0 ? ', not legal' : ''}`}
+            accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}${hasBrackets(item.format) && cleanBracket(item.bracket) ? `, ${bracketText(item.bracket)}` : ''}, ${cardCountText(cardsIn(item))}${deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0 ? ', not legal' : ''}`}
             accessibilityHint="Opens the deck. Hold for Rename and Delete."
             onPress={() => openDeck(item.id)}
             onLongPress={() => { hapticTap(); setMenuId(item.id); }}
@@ -212,6 +215,8 @@ export default function DecksScreen() {
               <SymbolText style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{item.name}</SymbolText>
               <Text style={[styles.rowCount, { color: colors.muted }]}>
                 {deckFormat(item.format).name} · {cardCountText(cardsIn(item))}
+                {/* A Commander deck with a power bracket says which (Bracket 3 · Upgraded) */}
+                {hasBrackets(item.format) && cleanBracket(item.bracket) ? <Text style={{ color: colors.accent, fontWeight: '700' }}> · {bracketText(item.bracket)}</Text> : null}
                 {/* A deck that isn't legal says so, in red (too many cards, or a banned card in it) */}
                 {deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0
                   ? <Text style={{ color: colors.error, fontWeight: '700' }}> · Not legal</Text> : null}

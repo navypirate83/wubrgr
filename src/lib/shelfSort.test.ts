@@ -52,6 +52,14 @@ test('format groups together, A to Z by name inside each format', () => {
   assert.deepEqual(ids(sortShelf('decks', items, 'format')), ['2', '3', '1']);
 });
 
+test('highest bracket first; decks with no bracket always last, even reversed', () => {
+  const items = [item('a', 'A', { bracket: 2 }), item('b', 'B'), item('c', 'C', { bracket: 5 }), item('d', 'D', { bracket: 3 })];
+  assert.deepEqual(ids(sortShelf('decks', items, 'bracket')), ['c', 'd', 'a', 'b']);
+  assert.deepEqual(ids(sortShelf('decks', items, 'bracket:r')), ['a', 'd', 'c', 'b']);
+  assert.equal(shelfGroup('decks', 'bracket', item('c', 'C', { bracket: 5 })), 'Bracket 5');
+  assert.equal(shelfGroup('decks', 'bracket', item('b', 'B')), 'Not rated');
+});
+
 test('PRISM sets: most work waiting first', () => {
   const items = [item('a', 'A', { work: 0 }), item('b', 'B', { work: 31 }), item('c', 'C', { work: 14 })];
   assert.deepEqual(ids(sortShelf('prisms', items, 'work')), ['b', 'c', 'a']);

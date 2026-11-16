@@ -26,6 +26,11 @@
    format allows (1 in Commander-style formats, 4 in the others) shows a
    window about it, with "Add anyway" because some cards break the limit.
    Basic lands, snow-covered basic lands and Wastes never ask.
+   POWER BRACKET (Commander decks only): a button under the sort bar shows the
+   deck's Commander Bracket ("Bracket 3 · Upgraded", or "Set power bracket"). Tap
+   it to choose one of the five, or "Not rated" (see deckBrackets.ts). It also
+   shows on the deck's row on the Decks page.
+
    COMMAND ZONE (Commander-style formats): above the cards, one or two spots
    for the cards kept outside the deck: a commander (and a partner or a
    Background only if its abilities call for one), or an Oathbreaker and its
@@ -42,6 +47,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useColors } from '@/hooks/useTheme';
 import { useAccount } from '@/hooks/useAccount';
@@ -57,11 +63,12 @@ import CardRules from '@/components/binder/CardRules';
 import AddToCollectionDialog from '@/components/decks/AddToCollectionDialog';
 import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
-import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckCardCount, setDeckCards, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
+import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckBracket, setDeckCardCount, setDeckCards, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
 import CommandZone from '@/components/decks/CommandZone';
 import SlotSearchDialog from '@/components/decks/SlotSearchDialog';
 import { allowedInSlot, deckCardFromPrint, secondSpotShows, slotHint, slotName, slotQuery, zoneExtraOf } from '@/lib/deckZones';
 import { deckFormat, skipsCopyWarning } from '@/lib/deckFormats';
+import { BRACKETS, bracketText, cleanBracket, hasBrackets } from '@/lib/deckBrackets';
 import { isBanned, useBanned } from '@/lib/bannedCards';
 import { deckProblems } from '@/lib/deckLegality';
 import { assignPrinting, choicesFor, loadOwned, marksFor, normalizeOwnership, type Mark, type OwnedPrint } from '@/lib/deckOwnership';
@@ -130,6 +137,8 @@ export default function DeckScreen() {
   // The import window (the upload button) and the download window (the download button)
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // Is the power bracket window open?
+  const [picking, setPicking] = useState(false);
 
   /* ----- The cards as the list and grid show them (the same as a list) ----- */
 
@@ -589,6 +598,18 @@ export default function DeckScreen() {
             </>
           )}
         />
+        {/* Commander decks: the power bracket. Tap to choose one (or to say it isn't rated). */}
+        {hasBrackets(format.code) && (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Power bracket: ${cleanBracket(deck.bracket) ? bracketText(deck.bracket) : 'not rated'}. Tap to change.`}
+                     onPress={() => setPicking(true)}
+                     style={[styles.bracketChip, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+            <Ionicons name="flame-outline" size={16} color={cleanBracket(deck.bracket) ? colors.accent : colors.muted} />
+            <Text style={[styles.bracketText, { color: cleanBracket(deck.bracket) ? colors.text : colors.muted }]}>
+              {cleanBracket(deck.bracket) ? bracketText(deck.bracket) : 'Set power bracket'}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.muted} />
+          </Pressable>
+        )}
         {/* Formats with a sideboard: switch between the main deck and the sideboard */}
         {format.sideboard > 0 && (
           <View style={styles.tabs}>
@@ -721,6 +742,28 @@ export default function DeckScreen() {
         </PopupWindow>
       )}
 
+      {/* THE POWER BRACKET WINDOW: the five brackets, and "Not rated". Tapping one saves it and closes the window. */}
+      {picking && (
+        <PopupWindow title="Power bracket" onClose={() => setPicking(false)}
+                     buttons={[{ label: 'Close', onPress: () => setPicking(false), kind: 'secondary' }]}>
+          <View style={styles.bracketList}>
+            {BRACKETS.map((b) => {
+              const chosen = cleanBracket(deck.bracket) === b.n;
+              return (
+                <Pressable key={b.n} accessibilityRole="button" accessibilityState={{ selected: chosen }}
+                           accessibilityLabel={`Bracket ${b.n}, ${b.name}. ${b.about}`}
+                           onPress={() => { setDeckBracket(id, b.n); setDeck(findDeck(id)); setPicking(false); }}
+                           style={[styles.bracketOption, { borderColor: chosen ? colors.accent : colors.border, backgroundColor: chosen ? colors.accent : 'transparent' }]}>
+                  <Text style={[styles.bracketOptionName, { color: chosen ? colors.accentText : colors.text }]}>{b.n} · {b.name}</Text>
+                  <Text style={{ color: chosen ? colors.accentText : colors.muted, fontSize: 13 }}>{b.about}</Text>
+                </Pressable>
+              );
+            })}
+            <Button label="Not rated" kind="secondary" onPress={() => { setDeckBracket(id, undefined); setDeck(findDeck(id)); setPicking(false); }} />
+          </View>
+        </PopupWindow>
+      )}
+
       {/* The upload button: a pasted list, a link, or a file, added to this deck */}
       {importing && (
         <ImportCardsDialog
@@ -773,6 +816,12 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', gap: 8 },
   tab: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 7, alignItems: 'center' },
   tabText: { fontSize: 14, fontWeight: '600' },
+  // The power bracket button, and the window's choices
+  bracketChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10 },
+  bracketText: { fontSize: 14, fontWeight: '600' },
+  bracketList: { gap: 8 },
+  bracketOption: { borderWidth: 1.5, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, gap: 2 },
+  bracketOptionName: { fontSize: 16, fontWeight: '700' },
   dropOutline: { position: 'absolute', top: 4, left: 8, right: 8, bottom: 4, borderWidth: 2, borderStyle: 'dashed', borderRadius: 12, zIndex: 25 },
   // The invisible cover: it sits above the cards but below the search bar (which has zIndex 10)
   cover: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 5 },

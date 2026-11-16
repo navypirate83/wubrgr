@@ -47,7 +47,7 @@ const withReversed = (names, fixed) => [...fixed, ...names, ...names.map((n) => 
 const SHELF_SORTS = {
   shelfBinders: withReversed(['name', 'used', 'made', 'cards'], ['mine']),
   shelfLists: withReversed(['name', 'used', 'made', 'cards'], ['mine']),
-  shelfDecks: withReversed(['name', 'used', 'made', 'cards', 'format', 'legal', 'missing'], ['mine']),
+  shelfDecks: withReversed(['name', 'used', 'made', 'cards', 'format', 'legal', 'bracket', 'missing'], ['mine']),
   shelfPrisms: withReversed(['work', 'name', 'used', 'decks'], ['mine']),
 };
 const DEFAULT_VIEW = 'binder';
