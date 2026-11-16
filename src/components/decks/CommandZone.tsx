@@ -5,7 +5,8 @@
    partner or a Background), or an Oathbreaker and its signature spell
    (see lib/deckZones.ts for which cards each takes).
    - A spot with a card shows its picture, name, what it is and its rules text (no
-     flavor text; it scrolls if it's long, so the spot never grows), with
+     flavor text; in a box three lines taller than the picture that scrolls if the
+     text is longer), with
      "Change" (pick another card for the spot) and "Move to deck" (the card
      goes back into the main deck). Tap the card for its window.
    - An empty spot is a dashed outline that says what it needs; tap it to
@@ -87,7 +88,7 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
                   {gameChanger?.(card.name) && <GameChangerBadge size={8} />}
                 </View>
                 {/* The name, the role and cost on one line, then the card's rules text (no flavor text) in
-                    what's left of the picture's height (it scrolls if it's longer), so the spot stays the same size */}
+                    a box that is three lines taller than the picture (it scrolls if the text is longer) */}
                 <View style={[styles.what, styles.whatFilled]}>
                   <Text style={[styles.role, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
                   <View style={styles.roleRow}>
@@ -115,7 +116,7 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
   );
 }
 
-// A card's rules text (the words on it, without the flavor text), in a small box that
+// A card's rules text (the words on it, without the flavor text), in a box that
 // fills the room under its name and scrolls when the text is longer. A card with no
 // text (or while it's being looked up) leaves the box empty.
 function RulesText({ card }: { card: DeckCard }) {
@@ -142,14 +143,15 @@ const styles = StyleSheet.create({
   slots: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   slot: { flex: 1, minWidth: 200, borderWidth: 1, borderRadius: 12, padding: 8, gap: 6 },
   empty: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 2, borderStyle: 'dashed' },
-  cardPress: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  // (the picture stays at the top while the text beside it runs a little taller)
+  cardPress: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   picture: { width: 54, height: 76, borderRadius: 6 },
   plusPicture: { borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   plus: { fontSize: 28, fontWeight: '300' },
   thumb: { width: '100%', height: '100%' },
   what: { flex: 1, minWidth: 0, gap: 1 },
-  // With a card in the spot: exactly as tall as the picture, so the spot doesn't grow
-  whatFilled: { height: 76, alignSelf: 'flex-start' },
+  // With a card in the spot: as tall as the picture plus three more lines of rules text (13 points each)
+  whatFilled: { height: 76 + 3 * 13, alignSelf: 'flex-start' },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rulesBox: { flex: 1, minHeight: 0 },
   rules: { fontSize: 11, lineHeight: 13 },

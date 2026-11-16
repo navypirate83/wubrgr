@@ -338,7 +338,7 @@ export const helpTopics: HelpTopic[] = [
               stay, the app asks before moving it back.
             </P>
             <P>
-              Each filled spot shows the card's <Strong>rules text</Strong> beside its picture (never the flavor text). The spot stays the same size, so a long text scrolls inside its small box.
+              Each filled spot shows the card's <Strong>rules text</Strong> beside its picture (never the flavor text). The box is a little taller than the picture, and a long text scrolls inside it.
             </P>
             <P>
               <Strong>Sideboard.</Strong> Formats with a sideboard (the 60-card formats hold up to 15, Tiny Leaders up to 10) show
