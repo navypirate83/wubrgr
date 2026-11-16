@@ -7,6 +7,10 @@
    the flat drawing of the sleeve edge. "Marked" notes that it's painted (and moves
    on); "Skip" puts it at the back of the line. A card that's already painted
    (opened from the Cards tab) can be noted as not painted.
+   A card opened from the Cards tab stays the one being marked: "Marked" moves to
+   that card's next copy that still needs marks (not to the general line), and when
+   its last copy is done the screen goes straight back to the Cards tab (where the
+   search and filter are still as they were).
    "Copy the undone list" puts the copies still to paint on the clipboard, as
    text, to take to the table. What's noted is saved on the device as you go,
    so you can stop and come back.
@@ -33,9 +37,10 @@ type Props = {
   changes: Change[];
   selected: { key: string; copy: number } | null;    // a card opened from the Cards tab
   onChanged: () => void;                              // something was noted: read the set again
+  onCardFinished?: () => void;                        // the card opened from the Cards tab has no copies left to mark: go back there
 };
 
-export default function MarkTab({ set, plan, decks, changes, selected, onChanged }: Props) {
+export default function MarkTab({ set, plan, decks, changes, selected, onChanged, onCardFinished }: Props) {
   const colors = useColors();
   // Copies put at the back of the line for now (not remembered)
   const [skipped, setSkipped] = useState<string[]>([]);
@@ -77,9 +82,13 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
 
   function note(painted: boolean) {
     if (!current) return;
+    // A card opened from the Cards tab, and this was its last copy that needed marks?
+    const finishing = painted && !!selected
+      && !undoneCopies(set, plan).some((u) => u.card.key === current.card.key && u.copy !== current.copy);
     setPainted(set.id, current.card.key, current.card.name, current.copy, painted ? required : []);
     setSkipped((s) => s.filter((id) => id !== `${current.card.key}#${current.copy}`));
     onChanged();
+    if (finishing) onCardFinished?.();
   }
   function skip() {
     if (current) setSkipped((s) => [...s, `${current.card.key}#${current.copy}`]);

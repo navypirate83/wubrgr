@@ -85,12 +85,17 @@ export default function PrismSetScreen() {
   const settling = useRef(false);
   const shownTab = useRef<TabId>(tab);
   if (shownTab.current !== tab) { shownTab.current = tab; settling.current = true; }
+  // Where a tab is waiting to be scrolled to (null: nothing waiting). A long tab, like the Cards list,
+  // may not be fully drawn yet, so the scroll is tried again as the page grows (see onContentSizeChange below).
+  const waitingFor = useRef<number | null>(null);
   useEffect(() => {
-    // After the new tab is drawn: scroll to where it was (the top for a tab not seen yet)
-    const wanted = offsets.current[tab] ?? 0;
+    // After the new tab is drawn: scroll to where it was (the top for a tab not seen yet, and always
+    // the top for Mark, which shows one card at a time)
+    const wanted = tab === 'mark' ? 0 : offsets.current[tab] ?? 0;
     const move = () => scrollRef.current?.scrollTo({ y: wanted, animated: false });
-    const timers = [setTimeout(move, 0), setTimeout(move, 120), setTimeout(() => { settling.current = false; }, 250)];
-    return () => timers.forEach(clearTimeout);
+    waitingFor.current = wanted > 0 ? wanted : null;
+    const timers = [setTimeout(move, 0), setTimeout(move, 120), setTimeout(() => { settling.current = false; waitingFor.current = null; }, 600)];
+    return () => { timers.forEach(clearTimeout); waitingFor.current = null; };
   }, [tab]);
   function rememberScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (!settling.current) offsets.current[tab] = event.nativeEvent.contentOffset.y;
@@ -137,6 +142,7 @@ export default function PrismSetScreen() {
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       <ScrollView ref={scrollRef} onScroll={rememberScroll} scrollEventThrottle={32}
+                  onContentSizeChange={() => { if (waitingFor.current !== null) scrollRef.current?.scrollTo({ y: waitingFor.current, animated: false }); }}
                   contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* The four tabs */}
         <View style={styles.tabs}>
@@ -163,7 +169,9 @@ export default function PrismSetScreen() {
         )}
         {tab === 'mark' && (
           <MarkTab set={set} plan={plan} decks={decks} changes={changes} selected={selected}
-                   onChanged={() => { refresh(); if (cardParam) router.setParams({ card: undefined }); }} />
+                   onChanged={refresh}
+                   // A card opened from the Cards tab stays the one marked until its last copy is done, then back to the Cards tab
+                   onCardFinished={() => goTab('cards')} />
         )}
         {tab === 'changes' && <ChangesTab set={set} plan={plan} decks={decks} changes={changes} onChanged={refresh} />}
       </ScrollView>

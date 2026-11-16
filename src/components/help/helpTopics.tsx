@@ -1590,7 +1590,9 @@ export const helpTopics: HelpTopic[] = [
               slots to paint are filled in the deck's color with their number beside them. Side A (slots 1 to 24) is on one
               edge and Side B (25 to 48) on the opposite one, both showing at once. The <Strong>Marked ✓</Strong> button is right under the card. Below it are the list of
               marks and a flat drawing of the sleeve edge. Paint them on the <Strong>inner</Strong> sleeve (never the card), let the paint dry, then
-              tap <Strong>Marked ✓</Strong>. <Strong>Skip</Strong> puts it at the back. <Strong>Copy the undone list</Strong> puts
+              tap <Strong>Marked ✓</Strong>. <Strong>Skip</Strong> puts it at the back. If you opened the card from the Cards tab, Marked
+              moves to that card's next copy that needs marking, and after its last copy it takes you straight back to the Cards tab,
+              scrolled to where you were, with your search still there. <Strong>Copy the undone list</Strong> puts
               what's left on your clipboard as text, to take to the table. What you've marked is remembered on this device.
             </P>
           </>
