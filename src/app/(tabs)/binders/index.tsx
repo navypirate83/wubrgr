@@ -327,7 +327,7 @@ export default function ShelfScreen() {
         addUploadedBinder(uploaded);
         return;
       }
-      const { cards: found, notFound } = await cardsForCollection(await readImportSource(text, false));
+      const { cards: found, notFound } = await cardsForCollection(await readImportSource(text));
       const placed = placeInBinder({}, DEFAULT_PAGES, found);
       setNewOpen(false);
       const count = found.reduce((sum, card) => sum + (card.count ?? 1), 0);

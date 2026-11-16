@@ -2,7 +2,7 @@
    IMPORTING CARDS INTO BINDERS AND LISTS
    The same decklist reader as for decks (see deckImport.ts and
    deckImportRun.ts) fills binders and lists: pasted text, a .csv or a .json
-   file. (Links to Archidekt or Moxfield decks are only for decks.) A binder
+   file. (A link to an Archidekt or Moxfield deck works too.) A binder
    or list has no sideboard or command zone, so every card is just a card.
      - cardsForCollection: each line looked up on Scryfall, as plain cards
      - addCardsToList / importIntoList: into a list (a printing already

@@ -133,13 +133,14 @@ export const helpTopics: HelpTopic[] = [
               To bring back a binder you saved as a file, or make one from a ManaBox card list,
               use <Strong>Upload .CSV</Strong> in the same window (see <HelpLink to="my-binders-backup">Binder files</HelpLink>).
               The same window also has <Strong>+ Import cards (optional)</Strong>: paste a list of cards (like
-              <Strong> 2 Sol Ring</Strong> or <Strong>1x Arcane Signet (CMM) 400</Strong>) or choose a .csv, .json or .txt
+              <Strong> 2 Sol Ring</Strong> or <Strong>1x Arcane Signet (CMM) 400</Strong>), paste a link to a deck on Archidekt or
+              Moxfield (you need to be signed in), or choose a .csv, .json or .txt
               file (from this app, ManaBox, Archidekt, Moxfield or Deckbox) and the new binder is made with the cards in its
               first pockets. To add cards to a binder you already have, open it and tap the <Strong>up arrow</Strong> button
               beside its download button: a card already in the binder gets more copies, the rest fill the first empty
               pockets (a page is added when they're all full). On the Lists page, <Strong>Import a list</Strong> makes a new
               list the same way, and a list has the same <Strong>up arrow</Strong> button. A card that can't be found is
-              skipped, and listed afterwards just so you know. The <Strong>down arrow</Strong> button on a binder or list
+              skipped, and listed afterwards just so you know. A link to a deck works in every one of these import windows, not just for decks: the deck's cards (sideboard and commander too) are added to the binder or list. The <Strong>down arrow</Strong> button on a binder or list
               now offers a <Strong>.CSV</Strong> file, a <Strong>.TXT</Strong> file (a plain list) or <Strong>Copy the list</Strong>.
             </P>
           </>

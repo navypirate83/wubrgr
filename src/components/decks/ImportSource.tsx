@@ -20,10 +20,9 @@ type Props = {
   value: string;
   onChange: (text: string) => void;
   disabled?: boolean;
-  noLinks?: boolean;   // binders and lists: no links (only decks can read a link)
 };
 
-export default function ImportSource({ value, onChange, disabled, noLinks }: Props) {
+export default function ImportSource({ value, onChange, disabled }: Props) {
   const colors = useColors();
   // The name of the file whose text is in the box (shown under it)
   const [fileName, setFileName] = useState<string | null>(null);
@@ -43,13 +42,13 @@ export default function ImportSource({ value, onChange, disabled, noLinks }: Pro
   return (
     <View style={styles.wrap}>
       <TextField
-        label={noLinks ? 'List of cards' : 'Decklist or link'}
+        label="Decklist or link"
         value={value}
         onChangeText={(text) => { onChange(text); setFileName(null); }}
         editable={!disabled}
         multiline
         numberOfLines={6}
-        placeholder={`Paste a list, like\n1 Sol Ring\n1x Arcane Signet (CMM) 400${noLinks ? '' : '\n\nor a link to a deck on Archidekt or Moxfield'}`}
+        placeholder={`Paste a list, like\n1 Sol Ring\n1x Arcane Signet (CMM) 400\n\nor a link to a deck on Archidekt or Moxfield`}
         autoCapitalize="none"
         autoCorrect={false}
         style={styles.box}

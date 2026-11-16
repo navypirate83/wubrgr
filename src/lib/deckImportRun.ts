@@ -1,5 +1,5 @@
 /* =====================================================================
-   IMPORTING A DECKLIST INTO A DECK
+   IMPORTING A DECKLIST (INTO A DECK, A BINDER OR A LIST)
    The steps after a decklist has been given (see deckImport.ts for how
    the list itself is read):
      1. readImportSource: what was typed, pasted or chosen becomes a list
@@ -23,16 +23,13 @@ import { deckCardFromPrint, secondSpotShows, zoneExtraOf } from './deckZones';
 import { looksLikeDeckLink, parseDeckData, parseDeckSource, type ImportLine, type ImportedDeck } from './deckImport';
 
 // What was typed, pasted or chosen, as a list of cards. Throws a plain
-// message if nothing could be read. Links (to a deck on Archidekt or
-// Moxfield) only work for decks: "allowLinks" is false for binders and lists.
-export async function readImportSource(source: string, allowLinks = true): Promise<ImportedDeck> {
+// message if nothing could be read. A link to a deck on Archidekt or Moxfield
+// works for a deck, a binder or a list: it is turned into the same list of cards.
+export async function readImportSource(source: string): Promise<ImportedDeck> {
   const trimmed = source.trim();
   if (!trimmed) throw new Error('Paste a list, or choose a file, first.');
   let deck: ImportedDeck | null;
   if (looksLikeDeckLink(trimmed)) {
-    if (!allowLinks) {
-      throw new Error('A link can only be imported into a deck. Here, paste a list of cards or choose a file.');
-    }
     if (!serverUsable()) {
       throw new Error('Importing from a link needs you to be signed in. You can also copy the deck\'s text list from its site and paste that here.');
     }

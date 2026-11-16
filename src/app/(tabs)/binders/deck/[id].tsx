@@ -720,7 +720,6 @@ export default function DeckScreen() {
       {importing && (
         <ImportCardsDialog
           title="Import a decklist"
-          allowLinks
           run={(imported) => importIntoDeck(id, imported)}
           onCancel={() => setImporting(false)}
           onDone={(summary: ImportSummary) => {

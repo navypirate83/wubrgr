@@ -110,7 +110,7 @@ export default function NewBinderDialog({ onCreate, onCancel, onUpload, onImport
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: importOpen }} onPress={() => setImportOpen(!importOpen)} style={styles.importToggle}>
             <Text style={[styles.importToggleText, { color: colors.accent }]}>{importOpen ? "− Don't import cards" : '+ Import cards (optional)'}</Text>
           </Pressable>
-          {importOpen && <ImportSource value={source} onChange={setSource} disabled={reading} noLinks />}
+          {importOpen && <ImportSource value={source} onChange={setSource} disabled={reading} />}
         </>
       )}
     </PopupWindow>
