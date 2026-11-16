@@ -517,7 +517,7 @@ export const helpTopics: HelpTopic[] = [
               which binder: the card goes into the first empty pocket, and pages are added if the binder is full.
               <Strong>Wrong printing?</Strong> lets you pick another printing. A card with no readable small print (older cards)
               is found from its name, narrowed down by its border, copyright year, set symbol and artwork, and you pick from
-              what's left (it's never added by itself). <Strong>Stack</Strong> mode scans one card after another into a list
+              what's left (it's never added by itself); the printings that fit come first, then an <Strong>Other printings</Strong> divider and the card's remaining printings, in case a clue was misread. <Strong>Stack</Strong> mode scans one card after another into a list
               (a card scanned again adds a copy); ones it wasn't sure of are marked PICK or FIX to sort out at the end, and the
               list's <Strong>Add N to binder</Strong> adds them all. Once the catalogue is on the device, and you've opened the
               scanner once with a connection, it works with no internet.

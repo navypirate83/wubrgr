@@ -43,13 +43,13 @@ const STAGE_WORDS: Record<DownloadStage, string> = { downloading: 'Downloading',
 // a card already in the stack list being changed, and the scan it came from
 type SheetState = { item: ScanItem; likely: boolean; fromList: boolean };
 // The picker: what it's choosing for, and what to do with the choice
-type PickerState = { name: string; candidates: Printing[]; chosen: Printing | null; artPreview?: string; reason?: string; apply: (printing: Printing) => void };
+type PickerState = { name: string; candidates: Printing[]; matched?: number; chosen: Printing | null; artPreview?: string; reason?: string; apply: (printing: Printing) => void };
 
 // An item for a printing, with the language read from the card (or the printing's own)
 function itemFor(outcome: ScanOutcome, printing: Printing, flag: ScanItem['flag']): ScanItem {
   return {
     id: newScanId(), printing, lang: outcome.lang ?? printing.lang ?? 'en', finish: startingFinish(printing), count: 1,
-    flag, candidates: outcome.candidates, reading: outcome.reading,
+    flag, candidates: outcome.candidates, matched: outcome.matched, reading: outcome.reading,
   };
 }
 
@@ -121,7 +121,7 @@ export default function ScanScreen() {
         setSheet({ item: itemFor(outcome, outcome.printing!, null), likely: outcome.status === 'likely', fromList: false });
       } else {
         setPicker({
-          name: outcome.candidates[0]?.name ?? outcome.name ?? 'This card', candidates: outcome.candidates, chosen: null, artPreview: art, reason: outcome.reason,
+          name: outcome.candidates[0]?.name ?? outcome.name ?? 'This card', candidates: outcome.candidates, matched: outcome.matched, chosen: null, artPreview: art, reason: outcome.reason,
           apply: (printing) => { setPicker(null); setSheet({ item: itemFor(outcome, printing, null), likely: false, fromList: false }); },
         });
       }
@@ -145,7 +145,7 @@ export default function ScanScreen() {
     const all = item.candidates.length > 1 ? item.candidates : await printingsNamed(item.printing.name);
     closeFirst?.();
     setPicker({
-      name: item.printing.name, candidates: all, chosen: item.printing, artPreview: item.reading?.extras?.artPreview,
+      name: item.printing.name, candidates: all, matched: all === item.candidates ? item.matched : undefined, chosen: item.printing, artPreview: item.reading?.extras?.artPreview,
       apply: (printing) => {
         setPicker(null);
         update({ ...item, printing, flag: null, candidates: all, finish: finishesOf(printing).includes(item.finish) ? item.finish : startingFinish(printing) });
@@ -211,7 +211,7 @@ export default function ScanScreen() {
 
       {picker && (
         <PrintingPicker
-          name={picker.name} candidates={picker.candidates} chosen={picker.chosen} artPreview={picker.artPreview} reason={picker.reason}
+          name={picker.name} candidates={picker.candidates} matched={picker.matched} chosen={picker.chosen} artPreview={picker.artPreview} reason={picker.reason}
           onPick={picker.apply} onClose={() => setPicker(null)}
         />
       )}

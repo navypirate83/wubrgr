@@ -34,6 +34,7 @@ export type ScanOutcome = {
   reading: ScanReading;
   printing: Printing | null;      // the printing for "sure" and "likely"
   candidates: Printing[];         // the ones to choose from ("pick"), or every printing of the card (to fix a wrong one)
+  matched?: number;               // when the list came from the name: how many of the first candidates fit the clues (the rest are "other printings")
   reason: string;                 // in plain words
   info: InfoLine;
   lang: string | null;            // the language read from the card (Scryfall's code), if any
@@ -94,8 +95,8 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   const left = narrowed.remaining.map((c) => byId.get(c.id)!).sort((a, b) => (artDistances.get(a.id) ?? 999) - (artDistances.get(b.id) ?? 999));
   const rest = printings.filter((p) => !left.includes(p));
   const why = narrowed.steps.length ? narrowed.steps.join('; ') : 'No clue could narrow it';
-  if (narrowed.likely) return { ...base, status: 'likely', printing: left[0], candidates: [...left, ...rest], reason: `Likely (${why})` };
-  return { ...base, status: 'pick', printing: null, candidates: [...left, ...rest], reason: `${left.length} printings are left (${why})` };
+  if (narrowed.likely) return { ...base, status: 'likely', printing: left[0], candidates: [...left, ...rest], matched: left.length, reason: `Likely (${why})` };
+  return { ...base, status: 'pick', printing: null, candidates: [...left, ...rest], matched: left.length, reason: `${left.length} printings are left (${why})` };
 }
 
 export async function resolveReading(reading: ScanReading): Promise<ScanOutcome> {

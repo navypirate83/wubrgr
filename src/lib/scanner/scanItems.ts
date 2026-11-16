@@ -32,6 +32,7 @@ export type ScanItem = {
   count: number;
   flag: 'pick' | 'fix' | null;          // a printing still to choose ("pick"), or a card that couldn't be read ("fix")
   candidates: Printing[];               // the other printings it could be (for fixing it)
+  matched?: number;                     // how many of the first candidates fit the clues (the rest are listed as "other printings")
   reading: ScanReading | null;
 };
 

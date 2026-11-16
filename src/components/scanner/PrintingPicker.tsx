@@ -4,8 +4,10 @@
    with no info line, say), or when "Wrong printing?" is tapped. At the top is
    the artwork as the camera saw it (when there is a photo), then the printings it
    could be, as card pictures with their set, number and year, the scanner's
-   best guess first. Tap the one in your hand, then "Use ...". It never adds
-   a card by itself from here.
+   best guess first. When the scanner narrowed the list down, the printings that
+   fit are shown first and a divider labelled "Other printings" separates them from
+   the rest of the card's printings (kept in case a clue was misread).
+   Tap the one in your hand, then "Use ...". It never adds a card by itself from here.
    ===================================================================== */
 
 import { useState } from 'react';
@@ -20,6 +22,7 @@ import type { Printing } from '@/lib/scanner/core/catalogueTypes';
 type Props = {
   name: string;                      // the card's name, for the heading
   candidates: Printing[];            // the printings to choose from, best guess first
+  matched?: number;                  // how many of the first ones fit the clues; the rest go under the "Other printings" divider
   chosen: Printing | null;           // the one picked now (starts on this)
   artPreview?: string;               // the artwork as the camera saw it
   reason?: string;                   // how the list was narrowed (a small line)
@@ -27,9 +30,32 @@ type Props = {
   onClose: () => void;
 };
 
-export default function PrintingPicker({ name, candidates, chosen, artPreview, reason, onPick, onClose }: Props) {
+export default function PrintingPicker({ name, candidates, matched, chosen, artPreview, reason, onPick, onClose }: Props) {
   const colors = useColors();
   const [selected, setSelected] = useState<Printing | null>(chosen ?? candidates[0] ?? null);
+  // Where the divider goes: after the printings that fit (no divider if the list wasn't narrowed, or everything fit)
+  const split = matched !== undefined && matched > 0 && matched < candidates.length ? matched : candidates.length;
+
+  // One printing: its picture, set, number and year (the first one gets a LIKELY tag)
+  function cell(p: Printing, index: number) {
+    const on = selected?.id === p.id;
+    return (
+      <Pressable
+        key={p.id}
+        accessibilityRole="radio"
+        accessibilityState={{ selected: on }}
+        accessibilityLabel={`${p.setName}, number ${p.collectorNumber}, ${p.year}`}
+        onPress={() => setSelected(p)}
+        style={[styles.cell, { borderColor: on ? colors.accent : 'transparent' }]}
+      >
+        {p.image ? <Image source={{ uri: p.image }} style={styles.picture} contentFit="cover" /> : <View style={styles.picture} />}
+        {index === 0 && candidates.length > 1 && <Text style={[styles.likely, { color: colors.accent, backgroundColor: `${colors.accent}33` }]}>LIKELY</Text>}
+        <Text style={[styles.label, { color: on ? colors.text : colors.muted }]} numberOfLines={2}>
+          {p.setCode.toUpperCase()} #{p.collectorNumber}{'\n'}{p.year || ''}
+        </Text>
+      </Pressable>
+    );
+  }
   return (
     <View style={[styles.page, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -50,27 +76,18 @@ export default function PrintingPicker({ name, candidates, chosen, artPreview, r
         </View>
         {reason ? <Text style={[styles.line, { color: colors.muted }]}>{reason}</Text> : null}
 
-        <View style={styles.grid}>
-          {candidates.map((p, index) => {
-            const on = selected?.id === p.id;
-            return (
-              <Pressable
-                key={p.id}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={`${p.setName}, number ${p.collectorNumber}, ${p.year}`}
-                onPress={() => setSelected(p)}
-                style={[styles.cell, { borderColor: on ? colors.accent : 'transparent' }]}
-              >
-                {p.image ? <Image source={{ uri: p.image }} style={styles.picture} contentFit="cover" /> : <View style={styles.picture} />}
-                {index === 0 && candidates.length > 1 && <Text style={[styles.likely, { color: colors.accent, backgroundColor: `${colors.accent}33` }]}>LIKELY</Text>}
-                <Text style={[styles.label, { color: on ? colors.text : colors.muted }]} numberOfLines={2}>
-                  {p.setCode.toUpperCase()} #{p.collectorNumber}{'\n'}{p.year || ''}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* The printings that fit the clues, then (if the list was narrowed) a divider and the rest */}
+        <View style={styles.grid}>{candidates.slice(0, split).map((p, index) => cell(p, index))}</View>
+        {split < candidates.length && (
+          <>
+            <View style={styles.divider} accessibilityRole="header">
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.muted }]}>Other printings</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            </View>
+            <View style={styles.grid}>{candidates.slice(split).map((p, index) => cell(p, split + index))}</View>
+          </>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
@@ -96,6 +113,10 @@ const styles = StyleSheet.create({
   name: { fontSize: 16, fontWeight: '800' },
   line: { fontSize: 13 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // The "Other printings" divider: a line, the words, a line
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  dividerText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   cell: { width: '31.5%', alignItems: 'center', gap: 4, borderWidth: 2, borderRadius: 10, padding: 4 },
   picture: { width: '100%', aspectRatio: 63 / 88, borderRadius: 6 },
   likely: { position: 'absolute', top: 8, left: 8, fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, overflow: 'hidden' },
