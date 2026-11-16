@@ -48,6 +48,17 @@ jobs:
       - run: npm run build
         env:
           EXPO_PUBLIC_API_URL: ${{ vars.API_URL }}
+      # Put the card scanner's catalogue into the site. It's two files kept in the
+      # repository's "catalogue" release (built by scripts/catalogue/build-catalogue.mjs
+      # and uploaded with "gh release upload catalogue ... --clobber"), copied into
+      # dist/catalogue so the app downloads them from the site itself. (No catalogue
+      # release yet: the site is published without one.)
+      - name: Add the card catalogue to the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/catalogue
+          gh release download catalogue --repo "${{ github.repository }}" --dir dist/catalogue --pattern 'catalogue.json' --pattern 'catalogue.db.gz' || echo "No catalogue release yet"
       # Get GitHub Pages ready, then hand it the "dist" folder
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

@@ -91,6 +91,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || !url.pathname.startsWith(BASE)) return;
   const path = url.pathname.slice(BASE.length);
+  // The scanner's catalogue is large and is kept in the browser's own storage, so it's never saved here
+  if (path.startsWith('catalogue/')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(pageOrSaved(request));
