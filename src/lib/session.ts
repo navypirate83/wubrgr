@@ -67,6 +67,10 @@ export function getServerUser(): ServerUser | null {
 export function hasPrismAccess(who: ServerUser | null = user): boolean {
   return who?.role === 'prism' || who?.role === 'admin';
 }
+// Is this an admin? (Only admins see the Admin page; the server checks it again on every request.)
+export function isAdminUser(who: ServerUser | null = user): boolean {
+  return who?.role === 'admin';
+}
 export function isServerSignedIn(): boolean {
   return user !== null;
 }

@@ -40,10 +40,11 @@ import PhoneMemorySection from '@/components/settings/PhoneMemorySection';
 import PicturesSection from '@/components/settings/PicturesSection';
 import AboutSection from '@/components/settings/AboutSection';
 import ScannerCatalogueSection from '@/components/settings/ScannerCatalogueSection';
+import AdminSection from '@/components/settings/AdminSection';
 
 export default function SettingsScreen() {
   const colors = useColors();
-  const { usingBinders, signedIn, localMode, serverSignedIn } = useAccount();
+  const { usingBinders, signedIn, localMode, serverSignedIn, isAdmin } = useAccount();
   // The settings as they are now (redrawn when one changes)
   const settings = useSettings();
   // The theme choice as it is now. It's followed on its own, because it
@@ -174,6 +175,9 @@ export default function SettingsScreen() {
 
         {/* ABOUT: version, links and the fan content notice */}
         <ScannerCatalogueSection />
+
+        {/* ADMIN: the way in to the People page (admins only) */}
+        {isAdmin && <AdminSection />}
         <AboutSection />
       </View>
     </ScrollView>

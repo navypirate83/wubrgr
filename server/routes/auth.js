@@ -18,18 +18,12 @@ import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import User, { USERNAME_PATTERN } from '../models/User.js';
 import RefreshToken from '../models/RefreshToken.js';
-import Binder from '../models/Binder.js';
-import Card from '../models/Card.js';
-import List from '../models/List.js';
-import ListCard from '../models/ListCard.js';
-import Deck from '../models/Deck.js';
-import DeckCard from '../models/DeckCard.js';
-import PrismSet from '../models/PrismSet.js';
 import PasswordReset from '../models/PasswordReset.js';
 import { mailIsConfigured, sendMail, sendWelcomeEmail } from '../utils/mail.js';
 import { requireAuth } from '../middleware/auth.js';
 import { handleDbError } from '../middleware/errorHandler.js';
 import { checkText } from '../utils/validate.js';
+import { deleteAccountAndData } from '../utils/deleteAccount.js';
 import { hashToken, issueSession } from '../utils/tokens.js';
 import { checkGoogleAccessToken, googleIsConfigured } from '../utils/google.js';
 
@@ -338,19 +332,7 @@ router.delete('/account', requireAuth, async (req, res) => {
     } else if (confirm !== true) {
       return res.status(400).json({ error: 'Please confirm that you want to delete the account' });
     }
-    const owner = user._id;
-    await Promise.all([
-      Card.deleteMany({ owner }),
-      ListCard.deleteMany({ owner }),
-      Binder.deleteMany({ owner }),
-      List.deleteMany({ owner }),
-      DeckCard.deleteMany({ owner }),
-      Deck.deleteMany({ owner }),
-      PrismSet.deleteMany({ owner }),
-      RefreshToken.deleteMany({ user: owner }),
-      PasswordReset.deleteMany({ user: owner }),
-    ]);
-    await User.deleteOne({ _id: owner });
+    await deleteAccountAndData(user._id);
     return res.status(204).end();
   } catch (err) {
     return handleDbError(err, res);

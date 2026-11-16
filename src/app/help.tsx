@@ -45,8 +45,9 @@ export default function HelpScreen() {
   // corners) take at the bottom, so the last line isn't hidden behind it
   const insets = useSafeAreaInsets();
   // The PRISM topic is only for accounts with the PRISM role: nobody else sees it listed
-  const { hasPrism } = useAccount();
-  const helpTopics = allHelpTopics.filter((t) => t.id !== 'prism' || hasPrism);
+  // The Admin topic is only for admins
+  const { hasPrism, isAdmin } = useAccount();
+  const helpTopics = allHelpTopics.filter((t) => (t.id !== 'prism' || hasPrism) && (t.id !== 'admin' || isAdmin));
 
   // The topic or section asked for when Help was opened (like "finder")
   const { topic: askedFor } = useLocalSearchParams<{ topic?: string }>();
@@ -55,7 +56,7 @@ export default function HelpScreen() {
   // section asked for), or the first one
   const [topicId, setTopicId] = useState(() => {
     const asked = topicFor(askedFor ?? '')?.id;
-    return asked && (asked !== 'prism' || hasPrism) ? asked : helpTopics[0].id;
+    return asked && (asked !== 'prism' || hasPrism) && (asked !== 'admin' || isAdmin) ? asked : helpTopics[0].id;
   });
   const topic = helpTopics.find((t) => t.id === topicId) ?? helpTopics[0];
   // Its sections, without the keyboard ones in the phone app (or on a

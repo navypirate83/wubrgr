@@ -1620,6 +1620,55 @@ export const helpTopics: HelpTopic[] = [
       },
     ],
   },
+
+  /* ===================== ADMIN (only for accounts with the Admin right) ===================== */
+  {
+    id: 'admin',
+    title: 'Admin',
+    lead: (
+      <>
+        The <Strong>Admin</Strong> page is where you give people rights and, if you have to, delete an account. It only
+        shows for accounts with the Admin right: <Strong>Settings → Admin → Manage people</Strong>.
+      </>
+    ),
+    sections: [
+      {
+        id: 'admin-people',
+        title: 'People and their rights',
+        body: (
+          <>
+            <P>
+              The page lists everyone with an account, with a pill for what they can do. <Strong>No extra rights</Strong> is the
+              normal app. <Strong>PRISM</Strong> also shows the PRISM section. <Strong>Admin</Strong> is everything, PRISM
+              included, and this page. Search by name or email, or use the buttons (All, Admin, PRISM, No extra rights, each with a
+              count) to narrow the list.
+            </P>
+            <P>
+              Tap a person to open their window. Pick a level and tap <Strong>Save</Strong>. Giving Admin shows a warning first,
+              because an Admin can change everyone's rights. A new level reaches the person within about 15 minutes, or when
+              they sign in again. <Strong>You can't change your own rights</Strong> (so you can't lock yourself out), and
+              <Strong> the last Admin can't be taken down</Strong>.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'admin-delete',
+        title: 'Deleting a person',
+        body: (
+          <>
+            <P>
+              The red <Strong>Delete this person and all their data…</Strong> button at the bottom of a person's window deletes
+              their account, every sign-in, all their binders, lists and decks (and the cards in them), their PRISM sets and
+              their settings. It can't be undone. It asks twice: a window lists what goes, and the red
+              <Strong> Yes, delete everything</Strong> button stays off until you have typed the person's name. Files in
+              their own Google Drive are not touched. You can't delete your own account here, or the last Admin.
+            </P>
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
 // Find the topic an id belongs to: the topic itself, or the topic
