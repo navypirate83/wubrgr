@@ -20,6 +20,7 @@ import { needsDetails, withDetails } from './cardDetails';
 import type { ScryfallCard } from './scryfall';
 import { cleanDeckFormat, DEFAULT_DECK_FORMAT } from './deckFormats';
 import type { ListCard } from './listStorage';
+import { movedBy } from './shelfSort';
 
 // Where a card is kept: in the main deck (the start), in the sideboard, or in
 // the command zone (a commander, a partner, an Oathbreaker...). A command zone
@@ -61,6 +62,11 @@ export function loadDecks(): Deck[] {
 // wouldn't save. (The server sync uses this too: see serverSync.ts.)
 export function saveDecks(decks: Deck[]): boolean {
   return storageSet(DECKS_KEY, JSON.stringify(decks));
+}
+
+// Move a deck up or down a spot in "My own order"
+export function moveDeck(id: string, by: -1 | 1): void {
+  saveDecks(movedBy(loadDecks(), id, by));
 }
 
 // One deck, by its id (undefined if there's no such deck)

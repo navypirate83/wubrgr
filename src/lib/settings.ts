@@ -17,6 +17,8 @@
      and PRISM's Cards tab each remember their OWN sort the same way
      (listSort, deckSort, prismSort, each with its "Reversed"), so choosing a
      sort in one never changes another
+   - shelfBinders, shelfLists, shelfDecks and shelfPrisms: how the Binders, Lists,
+     Decks and PRISM pages sort their own items (see shelfSort.ts)
    - phoneLayout and wideLayout: pockets across and down each binder page
      on a narrow window (a phone) and on a wide one (see pageLayout.ts).
      Changing the one in use moves every binder's cards to match.
@@ -58,6 +60,7 @@ import {
 } from './binderViewTypes';
 import { DEFAULT_BINDER_SORT, DEFAULT_PRISM_SORT, cleanBinderSort, cleanPrismSort, type BinderSort, type PrismSort } from './binderSort';
 import { isServerSignedIn, SETTINGS_UNSENT_KEY } from './session';
+import { parseShelfSort, shelfSortText, type ShelfArea } from './shelfSort';
 import {
   DEFAULT_LAYOUT, cleanLayout, currentSizeClass, layoutFor, pageLayout, pocketsPerPage,
   sameLayout, savedLayouts, saveLayouts, setSizeClass, sizeClassFor, type PageLayout,
@@ -81,6 +84,12 @@ export type Settings = {
   deckSortReversed: boolean;
   prismSort: PrismSort;             // PRISM's Cards tab
   prismSortReversed: boolean;
+  // How the Binders, Lists, Decks and PRISM pages list their own items (see shelfSort.ts):
+  // each is a sort's name, with ":r" after it when it's the other way round
+  shelfBinders: string;
+  shelfLists: string;
+  shelfDecks: string;
+  shelfPrisms: string;
   sortHeaders: boolean;            // header bars between groups in the list and grid
   phoneLayout: PageLayout;
   wideLayout: PageLayout;
@@ -102,6 +111,10 @@ const DEFAULT_SETTINGS: Settings = {
   deckSortReversed: false,
   prismSort: DEFAULT_PRISM_SORT,
   prismSortReversed: false,
+  shelfBinders: 'mine',
+  shelfLists: 'mine',
+  shelfDecks: 'mine',
+  shelfPrisms: 'mine',
   sortHeaders: true,
   phoneLayout: DEFAULT_LAYOUT,
   wideLayout: DEFAULT_LAYOUT,
@@ -132,6 +145,8 @@ const DECK_SORT_KEY = 'deckSort';
 const DECK_SORT_REVERSED_KEY = 'deckSortReversed';
 const PRISM_SORT_KEY = 'prismSort';
 const PRISM_SORT_REVERSED_KEY = 'prismSortReversed';
+// The sort of each page's own items (Binders, Lists, Decks, PRISM): where each is kept on this device
+const SHELF_KEYS: Record<ShelfArea, string> = { binders: 'shelfBinders', lists: 'shelfLists', decks: 'shelfDecks', prisms: 'shelfPrisms' };
 // Header bars between groups: kept as "0" when turned off (anything else, or
 // nothing saved yet, means on)
 const SORT_HEADERS_KEY = 'sortHeaders';
@@ -186,6 +201,10 @@ export function currentSettings(): Settings {
     deckSortReversed: savedSortReversedFor('deck'),
     prismSort: savedPrismSort(),
     prismSortReversed: savedPrismSortReversed(),
+    shelfBinders: savedShelfSort('binders'),
+    shelfLists: savedShelfSort('lists'),
+    shelfDecks: savedShelfSort('decks'),
+    shelfPrisms: savedShelfSort('prisms'),
     sortHeaders: storageGet(SORT_HEADERS_KEY) !== '0',
     phoneLayout: layouts.phone,
     wideLayout: layouts.wide,
@@ -230,6 +249,12 @@ export function savedPrismSort(): PrismSort {
 export function savedPrismSortReversed(): boolean {
   return storageGet(PRISM_SORT_REVERSED_KEY) === '1';
 }
+// The sort of a page's own items (the Binders, Lists, Decks or PRISM page), as
+// its saved text. Starts as "My own order".
+export function savedShelfSort(area: ShelfArea): string {
+  const { sort, reversed } = parseShelfSort(area, storageGet(SHELF_KEYS[area]));
+  return shelfSortText(sort, reversed);
+}
 // Are the header bars between groups turned on? (They are, unless turned
 // off in Settings.)
 export function savedSortHeaders(): boolean {
@@ -258,6 +283,10 @@ function applySettings(settings: Settings): void {
   storageSet(DECK_SORT_REVERSED_KEY, settings.deckSortReversed ? '1' : '0');
   storageSet(PRISM_SORT_KEY, settings.prismSort);
   storageSet(PRISM_SORT_REVERSED_KEY, settings.prismSortReversed ? '1' : '0');
+  storageSet(SHELF_KEYS.binders, settings.shelfBinders);
+  storageSet(SHELF_KEYS.lists, settings.shelfLists);
+  storageSet(SHELF_KEYS.decks, settings.shelfDecks);
+  storageSet(SHELF_KEYS.prisms, settings.shelfPrisms);
   storageSet(SORT_HEADERS_KEY, settings.sortHeaders ? '1' : '0');
   const nowShowing = currentSizeClass() === 'phone' ? settings.phoneLayout : settings.wideLayout;
   if (!sameLayout(nowShowing, pageLayout())) {
@@ -313,6 +342,11 @@ function fromFile(data: Record<string, unknown>, from: 'server' | 'drive'): Sett
   if (typeof data.deckSortReversed === 'boolean') settings.deckSortReversed = data.deckSortReversed;
   if (data.prismSort !== undefined) settings.prismSort = cleanPrismSort(data.prismSort);
   if (typeof data.prismSortReversed === 'boolean') settings.prismSortReversed = data.prismSortReversed;
+  // Likewise the sorts of the Binders, Lists, Decks and PRISM pages (checked against what each page offers)
+  if (data.shelfBinders !== undefined) settings.shelfBinders = shelfSortText(parseShelfSort('binders', data.shelfBinders).sort, parseShelfSort('binders', data.shelfBinders).reversed);
+  if (data.shelfLists !== undefined) settings.shelfLists = shelfSortText(parseShelfSort('lists', data.shelfLists).sort, parseShelfSort('lists', data.shelfLists).reversed);
+  if (data.shelfDecks !== undefined) settings.shelfDecks = shelfSortText(parseShelfSort('decks', data.shelfDecks).sort, parseShelfSort('decks', data.shelfDecks).reversed);
+  if (data.shelfPrisms !== undefined) settings.shelfPrisms = shelfSortText(parseShelfSort('prisms', data.shelfPrisms).sort, parseShelfSort('prisms', data.shelfPrisms).reversed);
   // An older save has no header-bars choice: keep the one chosen here
   if (typeof data.sortHeaders === 'boolean') settings.sortHeaders = data.sortHeaders;
   const isObject = (v: unknown): v is object => !!v && typeof v === 'object';
@@ -357,15 +391,15 @@ function saveToDrive(): Promise<void> {
 
 // What the server sends back: the saved settings (null if none yet)
 type ServerSettings = {
-  settings: { theme?: unknown; hiddenFormats?: unknown; priceStore?: unknown; phoneView?: unknown; wideView?: unknown; phoneListView?: unknown; wideListView?: unknown; binderSort?: unknown; binderSortReversed?: unknown; listSort?: unknown; listSortReversed?: unknown; deckSort?: unknown; deckSortReversed?: unknown; prismSort?: unknown; prismSortReversed?: unknown; sortHeaders?: unknown; pageLayout?: unknown; phoneLayout?: unknown; wideLayout?: unknown } | null;
+  settings: { theme?: unknown; hiddenFormats?: unknown; priceStore?: unknown; phoneView?: unknown; wideView?: unknown; phoneListView?: unknown; wideListView?: unknown; binderSort?: unknown; binderSortReversed?: unknown; listSort?: unknown; listSortReversed?: unknown; deckSort?: unknown; deckSortReversed?: unknown; prismSort?: unknown; prismSortReversed?: unknown; shelfBinders?: unknown; shelfLists?: unknown; shelfDecks?: unknown; shelfPrisms?: unknown; sortHeaders?: unknown; pageLayout?: unknown; phoneLayout?: unknown; wideLayout?: unknown } | null;
 };
 
 // Send the settings as they are now to the account on the server
 async function saveToServer(): Promise<void> {
-  const { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, sortHeaders, phoneLayout, wideLayout, accountLayout: stored } = currentSettings();
+  const { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, shelfBinders, shelfLists, shelfDecks, shelfPrisms, sortHeaders, phoneLayout, wideLayout, accountLayout: stored } = currentSettings();
   await apiRequest('/settings', {
     method: 'PUT',
-    body: { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, sortHeaders, pageLayout: stored, phoneLayout, wideLayout },
+    body: { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, shelfBinders, shelfLists, shelfDecks, shelfPrisms, sortHeaders, pageLayout: stored, phoneLayout, wideLayout },
   });
   storageRemove(SERVER_DIRTY_KEY);
 }

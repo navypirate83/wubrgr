@@ -9,9 +9,12 @@
    docs/prism-plan.md). This page lists your PRISM SETS: each is a group of
    decks that share cards. "Make a Prism" makes one; tap a set to open it; hold
    one for Rename and Delete (deleting a set never touches your decks).
+   The Sort button (under Make a Prism) puts the sets in order: My own order (the
+   start), most work waiting, name, recently opened or most decks (see
+   shelfSort.ts). In My own order, a held set also has Move up and Move down.
    ===================================================================== */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Redirect, router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
@@ -24,8 +27,11 @@ import TextField from '@/components/TextField';
 import DeckSquare from '@/components/prism/DeckSquare';
 import SymbolText from '@/components/SymbolText';
 import { loadDecks } from '@/lib/deckStorage';
-import { addPrismSet, forgetPrismSet, loadPrismSets, nextPrismSetName, renamePrismSet, SET_NAME_LIMIT, type PrismSet } from '@/lib/prismStorage';
-import { planFor, totalsOf } from '@/lib/prismPlan';
+import { addPrismSet, forgetPrismSet, loadPrismSets, movePrismSet, nextPrismSetName, renamePrismSet, SET_NAME_LIMIT, type PrismSet } from '@/lib/prismStorage';
+import { changesFor, planFor, totalsOf } from '@/lib/prismPlan';
+import { ShelfHeaderBar, ShelfSortBar, isOwnOrder, useShelfSort } from '@/components/ShelfSort';
+import { sortShelf, withShelfHeaders } from '@/lib/shelfSort';
+import { markOpened, stampsFor } from '@/lib/shelfStamps';
 import { askYesNo } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import { RADIUS } from '@/theme/colors';
@@ -35,6 +41,7 @@ const PAGE_MAX_WIDTH = 1400;
 const PAGE_PADDING = 16;
 
 function openSet(id: string) {
+  markOpened(id);
   router.push(`/binders/prismset/${encodeURIComponent(id)}` as never);
 }
 
@@ -78,6 +85,32 @@ export default function PrismScreen() {
     setSets(loadPrismSets());
   }
 
+  // The sets in the order chosen with the Sort button, with a header bar before
+  // each group when the sort has groups (letters, marks waiting)
+  const { saved: sortSaved, headersOn } = useShelfSort('prisms');
+  const rows = useMemo(() => {
+    const stamps = stampsFor(sets.map((s) => s.id));
+    const items = sets.map((set) => ({
+      id: set.id,
+      name: set.name,
+      set,
+      decks: set.decks.filter((d) => decks.some((deck) => deck.id === d.deckId)).length,
+      // Marks still to paint or scrape off
+      work: changesFor(set, planFor(set, decks)).length,
+      // The last time it was opened or changed
+      used: Math.max(stamps[set.id].used, set.editedAt || 0),
+      made: stamps[set.id].made,
+    }));
+    return withShelfHeaders('prisms', sortShelf('prisms', items, sortSaved), sortSaved, headersOn);
+  }, [sets, decks, sortSaved, headersOn]);
+  const ownOrder = isOwnOrder('prisms', sortSaved);
+
+  // Move up / Move down in a held set's options
+  function move(id: string, by: -1 | 1) {
+    movePrismSet(id, by);
+    setSets(loadPrismSets());
+  }
+
   // No PRISM role (or not using the binders at all): back to the shelf
   if (!hasPrism || !usingBinders) return <Redirect href="/binders" />;
 
@@ -87,14 +120,15 @@ export default function PrismScreen() {
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       <FlatList
         showsVerticalScrollIndicator={false}
-        data={sets}
-        keyExtractor={(set) => set.id}
+        data={rows}
+        keyExtractor={(row) => (row.kind === 'header' ? row.id : row.item.id)}
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={[styles.lead, { color: colors.muted }]}>Share one physical copy of a card between your Commander decks.</Text>
             <Button label="Make a Prism" icon="add" onPress={() => setNaming(nextPrismSetName())} />
+            <ShelfSortBar area="prisms" />
           </View>
         }
         // No sets yet: an intentional empty page, not a blank screen
@@ -105,7 +139,10 @@ export default function PrismScreen() {
             <Text style={[styles.emptyText, { color: colors.muted }]}>Tap Make a Prism above, then choose the Commander decks that share cards.</Text>
           </View>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item: row }) => {
+          // A header bar between groups
+          if (row.kind === 'header') return <ShelfHeaderBar text={row.text} />;
+          const item = row.item.set;
           const totals = totalsOf(planFor(item, decks));
           const inSet = item.decks.filter((d) => decks.some((deck) => deck.id === d.deckId));
           return (
@@ -155,6 +192,13 @@ export default function PrismScreen() {
           <View style={styles.menu}>
             <Button label="Rename" icon="create-outline" kind="secondary"
                     onPress={() => { setMenuId(null); setRenaming({ id: menuSet.id, name: menuSet.name }); }} />
+            {/* Moving by hand only makes sense in "My own order" */}
+            {ownOrder && sets.findIndex((s) => s.id === menuSet.id) > 0 && (
+              <Button label="Move up" icon="arrow-up" kind="secondary" onPress={() => move(menuSet.id, -1)} />
+            )}
+            {ownOrder && sets.findIndex((s) => s.id === menuSet.id) < sets.length - 1 && (
+              <Button label="Move down" icon="arrow-down" kind="secondary" onPress={() => move(menuSet.id, 1)} />
+            )}
             <Button label="Delete" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuSet)} />
           </View>
         </PopupWindow>

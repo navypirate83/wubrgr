@@ -11,6 +11,9 @@
    - DRAG a binder to move it to another spot on the shelf (the others
      shift along to make room). With a finger: rest it on the binder for
      a moment, then slide. With a mouse: press the button and move.
+   - the Sort button (under Add binder) puts the binders in order: My own order
+     (the start, and the only one where dragging moves them), name, recently
+     opened, newest or most cards (see shelfSort.ts)
    - press and HOLD a binder still for its options: Edit, Copy and Delete
      (the phone gives a little buzz when they open). A right-click with a
      mouse shows them too.
@@ -49,6 +52,9 @@ import BinderSearch from '@/components/binders/BinderSearch';
 import ClosedBinder from '@/components/binders/ClosedBinder';
 import { BinderPropertiesDialog, DeleteBinderDialog, type BinderChanges } from '@/components/binders/BinderWindows';
 import PopupWindow from '@/components/PopupWindow';
+import { ShelfSortBar, isOwnOrder, useShelfSort } from '@/components/ShelfSort';
+import { sortShelf } from '@/lib/shelfSort';
+import { markOpened, stampsFor } from '@/lib/shelfStamps';
 import Button from '@/components/Button';
 import {
   DEFAULT_PAGES,
@@ -127,7 +133,7 @@ export default function ShelfScreen() {
   // then the list from Google Drive once it has loaded)
   const [binders, setBinders] = useState<Binder[]>(loadBinderList);
   // A number that goes up to redraw the card counts after cards change
-  const [, setCardsChanged] = useState(0);
+  const [cardsChanged, setCardsChanged] = useState(0);
   // The line above the shelf (only when the binders are kept on this
   // device; signed in, nothing is shown), and the message under the
   // shelf (red if an error)
@@ -203,6 +209,18 @@ export default function ShelfScreen() {
 
   // The card count of every binder, from this device's copy
   const counts = Object.fromEntries(binders.map((b) => [b.id, binderCardCount(b.id)]));
+
+  // The binders in the order chosen with the Sort button. In "My own order" (the
+  // start) this is the saved order itself, and binders can be moved by hand;
+  // with any other sort they can't be (the order isn't theirs to change).
+  const { saved: sortSaved } = useShelfSort('binders');
+  const ownOrder = isOwnOrder('binders', sortSaved);
+  const shown = useMemo(() => {
+    const stamps = stampsFor(binders.map((b) => b.id));
+    return sortShelf('binders', binders.map((b) => ({
+      ...b, cards: binderCardCount(b.id), used: stamps[b.id].used, made: stamps[b.id].made,
+    })), sortSaved);
+  }, [binders, sortSaved, cardsChanged]);
 
   // The shelf's layout: each binder's size, the gaps, and how many fit
   // across (at least one). The whole grid is centered, and its width
@@ -352,6 +370,8 @@ export default function ShelfScreen() {
   // position (0, 1, 2, ...) is saved as a label on its Drive file, so the
   // order is the same on every device.
   async function moveBinderTo(id: string, to: number) {
+    // Only in "My own order" (the other sorts aren't the order you set)
+    if (!ownOrder) { announce('Choose My own order in the Sort button to move binders by hand'); return; }
     const list = loadBinderList();
     const from = list.findIndex((b) => b.id === id);
     if (from < 0 || to < 0 || to >= list.length || to === from) return;
@@ -512,18 +532,18 @@ export default function ShelfScreen() {
   // binder. With "pick" (Shift held), the binder left and the one arrived at
   // are both picked. The shelf scrolls to show it.
   function moveCursor(by: number, pick: boolean) {
-    if (binders.length === 0) return;
-    const here = cursor ? binders.findIndex((b) => b.id === cursor) : -1;
+    if (shown.length === 0) return;
+    const here = cursor ? shown.findIndex((b) => b.id === cursor) : -1;
     let next = here < 0 ? 0 : here + by;
     // Off the end of the shelf: stay where we are
-    if (next < 0 || next >= binders.length) next = Math.max(here, 0);
-    const target = binders[next];
+    if (next < 0 || next >= shown.length) next = Math.max(here, 0);
+    const target = shown[next];
     setCursor(target.id);
     if (pick) {
-      const ids = [here >= 0 ? binders[here].id : target.id, target.id];
+      const ids = [here >= 0 ? shown[here].id : target.id, target.id];
       setSelected((now) => [...now, ...ids.filter((id, i) => !now.includes(id) && ids.indexOf(id) === i)]);
     }
-    announce(`${target.name}, binder ${next + 1} of ${binders.length}${selected.includes(target.id) ? ', picked' : ''}`);
+    announce(`${target.name}, binder ${next + 1} of ${shown.length}${selected.includes(target.id) ? ', picked' : ''}`);
     try {
       listRef.current?.scrollToIndex({ index: Math.floor(next / columns), viewPosition: 0.5, animated: true });
     } catch { /* the shelf scrolls to it once it has measured the rows (see onScrollToIndexFailed) */ }
@@ -632,7 +652,7 @@ export default function ShelfScreen() {
   // will land
   function shiftFor(index: number): { x: number; y: number } {
     // Nothing shifts while the binder is over Edit, Copy or Delete
-    if (!drag?.lifted || zoneAt(drag)) return { x: 0, y: 0 };
+    if (!ownOrder || !drag?.lifted || zoneAt(drag)) return { x: 0, y: 0 };
     const to = dropSpot(drag);
     let newIndex = index;
     if (index === drag.from) newIndex = to;
@@ -702,6 +722,7 @@ export default function ShelfScreen() {
   // counts as a tap on it)
   function openBinder(id: string) {
     if (dragRef.current || Date.now() - dragEnded.current < 400) return;
+    markOpened(id);
     router.push(`/binders/${encodeURIComponent(id)}`);
   }
 
@@ -721,6 +742,7 @@ export default function ShelfScreen() {
       {/* Add binder: opens the New binder window (name, cover symbol and
           color, or Upload .CSV) */}
       <Button label="Add binder" icon="add" onPress={() => setNewOpen(true)} disabled={adding} />
+      <ShelfSortBar area="binders" />
       {showKeyHints && (
         <Button label="Keyboard shortcuts" kind="plain" icon="keypad-outline" onPress={() => setShortcutsOpen(true)}
                 style={styles.moreButton} />
@@ -749,7 +771,7 @@ export default function ShelfScreen() {
         columnWrapperStyle={columns > 1 ? [styles.shelfRow, { width: gridWidth, gap: gapX }] : undefined}
         scrollEnabled={!drag}
         showsVerticalScrollIndicator={false}
-        data={binders}
+        data={shown}
         keyExtractor={(binder) => binder.id}
         ListHeaderComponent={header}
         // The header (with the search's drop-down list) is drawn on top of
@@ -778,7 +800,7 @@ export default function ShelfScreen() {
               binder={binder}
               count={counts[binder.id] ?? 0}
               width={tile}
-              position={`${index + 1} of ${binders.length}`}
+              position={`${index + 1} of ${shown.length}`}
               withMouse={withMouse}
               shiftX={shift.x}
               shiftY={shift.y}

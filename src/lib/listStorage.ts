@@ -23,6 +23,7 @@ import { storageGet, storageKeys, storageRemove, storageSet } from './storage';
 import { samePrinting, type BinderCard } from './binderStorage';
 import { needsDetails, withDetails } from './cardDetails';
 import type { ScryfallCard } from './scryfall';
+import { movedBy } from './shelfSort';
 
 // One card in a list: a binder card, plus its casting cost (like
 // "{1}{U}{U}") and type line (like "Creature — Elf Druid")
@@ -62,6 +63,11 @@ export function saveLists(lists: CardList[]): boolean {
 }
 
 // One list, by its id (undefined if there's no such list)
+// Move a list up or down a spot in "My own order"
+export function moveList(id: string, by: -1 | 1): void {
+  saveLists(movedBy(loadLists(), id, by));
+}
+
 export function findList(id: string): CardList | undefined {
   return loadLists().find((l) => l.id === id);
 }

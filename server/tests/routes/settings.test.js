@@ -139,6 +139,23 @@ test("card lists, decks and PRISM each have their own sort, saved and read back,
   expect(older.body.settings).toMatchObject({ ...mine, prismSort: 'shared', prismSortReversed: false });
 });
 
+test("the Binders, Lists, Decks and PRISM pages each save their own sort (and reversed)", async () => {
+  const user = await makeUser();
+  const auth = bearer(user);
+  const mine = { shelfBinders: 'name:r', shelfLists: 'cards', shelfDecks: 'legal', shelfPrisms: 'work:r' };
+  const saved = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine });
+  expect(saved.status).toBe(200);
+  expect(saved.body.settings).toMatchObject(mine);
+  // An older app saves again without them: they stay
+  const older = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, theme: 'light' });
+  expect(older.body.settings).toMatchObject(mine);
+  // A sort a page doesn't have is refused (binders have no format sort, "My own order" can't be reversed)
+  for (const bad of [{ shelfBinders: 'format' }, { shelfDecks: 'mine:r' }, { shelfLists: 'luck' }, { shelfPrisms: 5 }]) {
+    const refused = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...bad });
+    expect(refused.status).toBe(400);
+  }
+});
+
 test('an account that never saved the new sorts leaves them out of the answer', async () => {
   const user = await makeUser();
   const auth = bearer(user);

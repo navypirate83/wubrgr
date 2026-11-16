@@ -11,13 +11,17 @@
      opens the new deck
    - tap a row to open the deck
    - press and HOLD a row for its options: Rename and Delete (it asks first)
+   - the Sort button (under Add deck) puts the decks in order: My own order
+     (the start), name, recently opened, newest, most cards, format, not legal
+     first or most cards missing (see shelfSort.ts). In My own order, a held
+     deck also has Move up and Move down.
    Each row is plain, like the Lists page: the deck's name in bold, its
    format and how many cards it has under that, and an arrow.
    Decks are saved on this device and in your account (see deckStorage.ts
    and serverSync.ts).
    ===================================================================== */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Redirect, router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
@@ -29,7 +33,11 @@ import PopupWindow from '@/components/PopupWindow';
 import TextField from '@/components/TextField';
 import Button from '@/components/Button';
 import NewDeckDialog from '@/components/decks/NewDeckDialog';
-import { addDeck, forgetDeck, loadDecks, nextDeckName, renameDeck, type Deck } from '@/lib/deckStorage';
+import { addDeck, forgetDeck, loadDecks, moveDeck, nextDeckName, renameDeck, type Deck } from '@/lib/deckStorage';
+import { ShelfHeaderBar, ShelfSortBar, isOwnOrder, useShelfSort } from '@/components/ShelfSort';
+import { sortShelf, withShelfHeaders, parseShelfSort } from '@/lib/shelfSort';
+import { markOpened, stampsFor } from '@/lib/shelfStamps';
+import { loadOwned, marksFor } from '@/lib/deckOwnership';
 import { readImportSource, importIntoDeck, summaryText } from '@/lib/deckImportRun';
 import { deckProblems } from '@/lib/deckLegality';
 import { useBannedIn } from '@/lib/bannedCards';
@@ -54,6 +62,7 @@ const cardsIn = (deck: Deck) => deck.cards.reduce((sum, card) => sum + (card.cou
 
 // Opening a deck: its page slides in over this one
 function openDeck(id: string) {
+  markOpened(id);
   router.push(`/binders/deck/${encodeURIComponent(id)}` as never);
 }
 
@@ -121,6 +130,35 @@ export default function DecksScreen() {
     setDecks(loadDecks());
   }
 
+  // The decks in the order chosen with the Sort button, with a header bar before
+  // each group when the sort has groups (format, legal or not...)
+  const { saved: sortSaved, headersOn } = useShelfSort('decks');
+  const rows = useMemo(() => {
+    const stamps = stampsFor(decks.map((d) => d.id));
+    // What you own is only read when it's needed (for "Most cards missing")
+    const owned = parseShelfSort('decks', sortSaved).sort === 'missing' ? loadOwned() : null;
+    const items = decks.map((deck) => ({
+      id: deck.id,
+      name: deck.name,
+      deck,
+      cards: cardsIn(deck),
+      format: deckFormat(deck.format).name,
+      legal: deckProblems(deck, deckFormat(deck.format), (name) => bannedIn(deck.format, name)).length === 0,
+      // Cards in the deck that you don't have in any binder (every copy counted)
+      missing: owned ? marksFor(deck.cards, owned).reduce((sum, mark, i) => sum + (mark === false ? (deck.cards[i].count ?? 1) : 0), 0) : 0,
+      used: stamps[deck.id].used,
+      made: stamps[deck.id].made,
+    }));
+    return withShelfHeaders('decks', sortShelf('decks', items, sortSaved), sortSaved, headersOn);
+  }, [decks, sortSaved, headersOn, bannedIn]);
+  const ownOrder = isOwnOrder('decks', sortSaved);
+
+  // Move up / Move down in a held deck's options
+  function move(id: string, by: -1 | 1) {
+    moveDeck(id, by);
+    setDecks(loadDecks());
+  }
+
   // Not signed in and not using the app on this device: the shelf shows how to start
   if (!usingBinders) return <Redirect href="/binders" />;
 
@@ -132,8 +170,8 @@ export default function DecksScreen() {
                           keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       <FlatList
         showsVerticalScrollIndicator={false}
-        data={decks}
-        keyExtractor={(deck) => deck.id}
+        data={rows}
+        keyExtractor={(row) => (row.kind === 'header' ? row.id : row.item.id)}
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
         // At the top: the search bar (drawn over the decks below, so its
@@ -142,6 +180,7 @@ export default function DecksScreen() {
           <View style={styles.header}>
             <DeckSearch onPick={openDeck} />
             <Button label="Add deck" icon="add" onPress={() => setMaking(true)} />
+            <ShelfSortBar area="decks" />
           </View>
         }
         ListHeaderComponentStyle={styles.headerOnTop}
@@ -154,7 +193,11 @@ export default function DecksScreen() {
             <Text style={[styles.emptyText, { color: colors.muted }]}>Tap Add deck above to start one.</Text>
           </View>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item: row }) => {
+          // A header bar between groups
+          if (row.kind === 'header') return <ShelfHeaderBar text={row.text} />;
+          const item = row.item.deck;
+          return (
           // One deck: tap to open, hold for its options
           <Pressable
             accessibilityRole="button"
@@ -176,7 +219,8 @@ export default function DecksScreen() {
             </View>
             <Ionicons name="chevron-forward" size={22} color={colors.muted} />
           </Pressable>
-        )}
+          );
+        }}
       />
 
       {/* Add deck: a name, and the format to build it for */}
@@ -189,6 +233,13 @@ export default function DecksScreen() {
           <View style={styles.menu}>
             <Button label="Rename" icon="create-outline" kind="secondary"
                     onPress={() => { setMenuId(null); setRenaming({ id: menuDeck.id, name: menuDeck.name }); }} />
+            {/* Moving by hand only makes sense in "My own order" */}
+            {ownOrder && decks.findIndex((d) => d.id === menuDeck.id) > 0 && (
+              <Button label="Move up" icon="arrow-up" kind="secondary" onPress={() => move(menuDeck.id, -1)} />
+            )}
+            {ownOrder && decks.findIndex((d) => d.id === menuDeck.id) < decks.length - 1 && (
+              <Button label="Move down" icon="arrow-down" kind="secondary" onPress={() => move(menuDeck.id, 1)} />
+            )}
             <Button label="Delete" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuDeck)} />
           </View>
         </PopupWindow>

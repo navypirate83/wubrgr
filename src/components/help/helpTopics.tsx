@@ -344,6 +344,26 @@ export const helpTopics: HelpTopic[] = [
         ),
       },
       {
+        id: 'my-binders-sort',
+        title: 'Putting the shelf in order',
+        body: (
+          <>
+            <P>
+              The Binders, Lists, Decks and PRISM pages each have a small <Strong>Sort</Strong> button at the right, under
+              the Add buttons. It puts your binders, lists, decks or PRISM sets in order, and each page remembers its own
+              choice (saved with your account). This is different from the sort inside a binder, which orders the cards.
+              Tap the sort already in use to flip it the other way round, and the header bars between groups follow the
+              same switch in Settings as the card sorts.
+            </P>
+            <Bullet><Strong>My own order</Strong> is where every page starts: the order you set yourself. Only here can binders be dragged, and a held list, deck or PRISM set has <Strong>Move up</Strong> and <Strong>Move down</Strong>.</Bullet>
+            <Bullet><Strong>Name A to Z</Strong>, <Strong>Recently opened</Strong> and <Strong>Newest first</Strong> are on every page. "Recently opened" and "Newest first" are noted on each device separately: they start counting from when a device first sees the item.</Bullet>
+            <Bullet><Strong>Most cards</Strong> (binders, lists and decks).</Bullet>
+            <Bullet><Strong>Decks</Strong> also have <Strong>By format</Strong>, <Strong>Not legal first</Strong> (decks over the card limit or holding banned cards) and <Strong>Most cards missing</Strong> (cards you don't own in any binder).</Bullet>
+            <Bullet><Strong>PRISM sets</Strong> also have <Strong>Most work waiting</Strong> (marks still to paint or scrape off) and <Strong>Most decks</Strong>.</Bullet>
+          </>
+        ),
+      },
+      {
         id: 'my-binders-edit',
         title: 'Changing a binder',
         body: (

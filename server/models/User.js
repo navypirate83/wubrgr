@@ -81,6 +81,12 @@ const userSchema = new mongoose.Schema(
       deckSortReversed: { type: Boolean },
       prismSort: { type: String, enum: ['shared', 'decks', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'] },
       prismSortReversed: { type: Boolean },
+      // How the Binders, Lists, Decks and PRISM pages sort their own items: a
+      // sort's name, with ":r" after it when reversed (checked in routes/settings.js)
+      shelfBinders: { type: String, maxlength: 20 },
+      shelfLists: { type: String, maxlength: 20 },
+      shelfDecks: { type: String, maxlength: 20 },
+      shelfPrisms: { type: String, maxlength: 20 },
       // Whether header bars show between groups in the list and grid
       sortHeaders: { type: Boolean },
       // The layout the account's cards are stored in (see routes/settings.js)

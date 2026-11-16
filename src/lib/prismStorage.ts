@@ -20,6 +20,7 @@
 
 import { storageGet, storageRemove, storageSet } from './storage';
 import { clearScrape, moveSlot, takeSlot } from './prismSlots';
+import { movedBy } from './shelfSort';
 
 // A sleeve's edge holds this many slots (Side A: 1 to 24, Side B: 25 to 48)
 export const MAX_SLOTS = 48;
@@ -106,6 +107,11 @@ export function loadPrismSets(): PrismSet[] {
 // Keep every set, just as given. Returns false if the device wouldn't save.
 function saveSets(sets: PrismSet[]): boolean {
   return storageSet(KEY, JSON.stringify(sets));
+}
+
+// Move a set up or down a spot in "My own order" (this isn't an edit of the set, so its time stays)
+export function movePrismSet(id: string, by: -1 | 1): void {
+  saveSets(movedBy(loadPrismSets(), id, by));
 }
 
 export function findPrismSet(id: string): PrismSet | undefined {

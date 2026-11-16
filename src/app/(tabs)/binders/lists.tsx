@@ -6,6 +6,9 @@
    back to the shelf), the search bar (it searches your lists' names),
    the "Add list" button, then your lists, one row each, and a message
    line (only when something went wrong).
+   - the Sort button (under the Add buttons) puts the lists in order: My own
+     order (the start), name, recently opened, newest or most cards (see
+     shelfSort.ts). In My own order, a held list also has Move up and Move down.
    Each row is plain (no colors or icons): the list's name in bold, how
    many cards it has under that, and an arrow.
    - tap a row to open the list
@@ -18,7 +21,7 @@
    lists yet, the page says so, with a picture of a notebook.
    ===================================================================== */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Redirect, router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
@@ -30,8 +33,11 @@ import PopupWindow from '@/components/PopupWindow';
 import TextField from '@/components/TextField';
 import Button from '@/components/Button';
 import {
-  addListToDevice, forgetList, loadLists, nextListName, renameList, type CardList,
+  addListToDevice, forgetList, loadLists, moveList, nextListName, renameList, type CardList,
 } from '@/lib/listStorage';
+import { ShelfHeaderBar, ShelfSortBar, isOwnOrder, useShelfSort } from '@/components/ShelfSort';
+import { sortShelf, withShelfHeaders } from '@/lib/shelfSort';
+import { markOpened, stampsFor } from '@/lib/shelfStamps';
 import { DriveError, createListFile, syncList, trashListFile } from '@/lib/googleDrive';
 import { reconcileWithDrive } from '@/lib/driveSync';
 import { cardCountText } from '@/lib/binderStorage';
@@ -54,6 +60,7 @@ const NAME_LIMIT = 40;
 
 // Opening a list: its page slides in over this one
 function openList(id: string) {
+  markOpened(id);
   router.push(`/binders/list/${encodeURIComponent(id)}` as never);
 }
 
@@ -168,6 +175,24 @@ export default function ListsScreen() {
     }
   }
 
+  // The lists in the order chosen with the Sort button, with a header bar before
+  // each group when the sort has groups (letters)
+  const { saved: sortSaved, headersOn } = useShelfSort('lists');
+  const rows = useMemo(() => {
+    const stamps = stampsFor(lists.map((l) => l.id));
+    const items = lists.map((list) => ({
+      id: list.id, name: list.name, list, cards: list.cards.length, used: stamps[list.id].used, made: stamps[list.id].made,
+    }));
+    return withShelfHeaders('lists', sortShelf('lists', items, sortSaved), sortSaved, headersOn);
+  }, [lists, sortSaved, headersOn]);
+  const ownOrder = isOwnOrder('lists', sortSaved);
+
+  // Move up / Move down in a held list's options
+  function move(id: string, by: -1 | 1) {
+    moveList(id, by);
+    setLists(loadLists());
+  }
+
   // Not signed in and not using the app on this device: the shelf shows
   // how to start (lists are saved the same way as binders)
   if (!usingBinders) return <Redirect href="/binders" />;
@@ -180,8 +205,8 @@ export default function ListsScreen() {
                           keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       <FlatList
         showsVerticalScrollIndicator={false}
-        data={lists}
-        keyExtractor={(list) => list.id}
+        data={rows}
+        keyExtractor={(row) => (row.kind === 'header' ? row.id : row.item.id)}
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
         // Pull down to load the lists again
@@ -193,6 +218,7 @@ export default function ListsScreen() {
             <ListSearch onPick={openList} />
             <Button label="Add list" icon="add" onPress={add} disabled={adding} />
             <Button label="Import a list" icon="cloud-upload-outline" kind="secondary" onPress={() => setImporting(true)} disabled={adding} />
+            <ShelfSortBar area="lists" />
           </View>
         }
         ListHeaderComponentStyle={styles.headerOnTop}
@@ -207,7 +233,11 @@ export default function ListsScreen() {
         }
         // The message line, only when something went wrong
         ListFooterComponent={message ? <Text style={[styles.message, { color: colors.error }]}>{message}</Text> : undefined}
-        renderItem={({ item }) => (
+        renderItem={({ item: row }) => {
+          // A header bar between groups
+          if (row.kind === 'header') return <ShelfHeaderBar text={row.text} />;
+          const item = row.item.list;
+          return (
           // One list: tap to open, hold for its options
           <Pressable
             accessibilityRole="button"
@@ -224,7 +254,8 @@ export default function ListsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={22} color={colors.muted} />
           </Pressable>
-        )}
+          );
+        }}
       />
 
       {/* A held list's options: Rename and Delete */}
@@ -234,6 +265,13 @@ export default function ListsScreen() {
           <View style={styles.menu}>
             <Button label="Rename" icon="create-outline" kind="secondary"
                     onPress={() => { setMenuId(null); setRenaming({ id: menuList.id, name: menuList.name }); }} />
+            {/* Moving by hand only makes sense in "My own order" */}
+            {ownOrder && lists.findIndex((l) => l.id === menuList.id) > 0 && (
+              <Button label="Move up" icon="arrow-up" kind="secondary" onPress={() => move(menuList.id, -1)} />
+            )}
+            {ownOrder && lists.findIndex((l) => l.id === menuList.id) < lists.length - 1 && (
+              <Button label="Move down" icon="arrow-down" kind="secondary" onPress={() => move(menuList.id, 1)} />
+            )}
             <Button label="Delete" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuList)} />
           </View>
         </PopupWindow>

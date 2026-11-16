@@ -41,6 +41,15 @@ const LIST_VIEWS = ['list', 'grid'];
 const SORTS = ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'];
 // PRISM's Cards tab sorts without price, and has "shared" (shared cards first)
 const PRISM_SORTS = ['shared', 'decks', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'];
+// The sorts of the Binders, Lists, Decks and PRISM pages themselves (the sort's name,
+// with ":r" after it when reversed). The same lists as the app's shelfSort.ts.
+const withReversed = (names, fixed) => [...fixed, ...names, ...names.map((n) => `${n}:r`)];
+const SHELF_SORTS = {
+  shelfBinders: withReversed(['name', 'used', 'made', 'cards'], ['mine']),
+  shelfLists: withReversed(['name', 'used', 'made', 'cards'], ['mine']),
+  shelfDecks: withReversed(['name', 'used', 'made', 'cards', 'format', 'legal', 'missing'], ['mine']),
+  shelfPrisms: withReversed(['work', 'name', 'used', 'decks'], ['mine']),
+};
 const DEFAULT_VIEW = 'binder';
 const DEFAULT_LIST_VIEW = 'list';
 const DEFAULT_SORT = 'name';
@@ -50,6 +59,7 @@ const OPTIONAL = {
   priceStore: PRICE_STORES, phoneView: VIEWS, wideView: VIEWS, phoneListView: LIST_VIEWS, wideListView: LIST_VIEWS, binderSort: SORTS,
   // Card lists, decks and PRISM's Cards tab each have their own sort
   listSort: SORTS, deckSort: SORTS, prismSort: PRISM_SORTS,
+  ...SHELF_SORTS,
 };
 // Optional like the above, but yes or no instead of one of a list
 const OPTIONAL_FLAGS = ['binderSortReversed', 'listSortReversed', 'deckSortReversed', 'prismSortReversed', 'sortHeaders'];
@@ -129,6 +139,10 @@ function answer(user) {
       ...(saved.deckSortReversed !== undefined && { deckSortReversed: saved.deckSortReversed }),
       ...(saved.prismSort !== undefined && { prismSort: saved.prismSort }),
       ...(saved.prismSortReversed !== undefined && { prismSortReversed: saved.prismSortReversed }),
+      ...(saved.shelfBinders !== undefined && { shelfBinders: saved.shelfBinders }),
+      ...(saved.shelfLists !== undefined && { shelfLists: saved.shelfLists }),
+      ...(saved.shelfDecks !== undefined && { shelfDecks: saved.shelfDecks }),
+      ...(saved.shelfPrisms !== undefined && { shelfPrisms: saved.shelfPrisms }),
       sortHeaders: saved.sortHeaders ?? true,
       pageLayout: stored,
       // Settings saved before there were two layouts: both are the one layout
