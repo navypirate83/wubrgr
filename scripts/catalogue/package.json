@@ -1,0 +1,9 @@
+{
+  "name": "wubrgr-catalogue-build",
+  "private": true,
+  "description": "Builds the card catalogue (SQLite) for the WUBRG'r scanner. Its packages are kept apart from the app's so they never reach the phone or website bundles.",
+  "type": "module",
+  "dependencies": {
+    "sharp": "^0.34.0"
+  }
+}

@@ -39,6 +39,7 @@ import PinchZoomSwitch from '@/components/settings/PinchZoomSwitch';
 import PhoneMemorySection from '@/components/settings/PhoneMemorySection';
 import PicturesSection from '@/components/settings/PicturesSection';
 import AboutSection from '@/components/settings/AboutSection';
+import ScannerCatalogueSection from '@/components/settings/ScannerCatalogueSection';
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -172,6 +173,7 @@ export default function SettingsScreen() {
         {(usingBinders || signedIn || localMode) && <PhoneMemorySection />}
 
         {/* ABOUT: version, links and the fan content notice */}
+        <ScannerCatalogueSection />
         <AboutSection />
       </View>
     </ScrollView>

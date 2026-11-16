@@ -41,3 +41,9 @@ expo-env.d.ts
 
 # My private build instructions (they contain a sample admin password)
 weds.md
+
+# The card catalogue build script: downloaded files, fingerprints and the
+# finished database (big, and rebuilt by the script), and its own packages
+scripts/catalogue/cache/
+scripts/catalogue/out/
+scripts/catalogue/node_modules/

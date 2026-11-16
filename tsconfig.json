@@ -8,5 +8,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "legacy-web", "code-only", "server", "dist"]
+  "exclude": ["node_modules", "legacy-web", "code-only", "server", "dist", "src/**/*.test.ts", "scripts/catalogue"]
 }

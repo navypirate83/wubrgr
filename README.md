@@ -121,6 +121,46 @@ Check it is up at `/api/health` (answers `{"ok":true}`).
 - `legacy-web/`: the old Vite website's code, kept for reference while
   the move to Expo finishes.
 
+## Card scanner (being built)
+
+One Expo project, two scanners (Android and the website) sharing one core.
+Files ending in `.native.ts(x)` are bundled only for the phone apps, files ending
+in `.web.ts(x)` only for the website; `src/lib/scanner/core/` is plain
+TypeScript with no platform imports (the art fingerprint, text helpers and the
+catalogue's questions). Nothing browser-only (sql.js, later Tesseract.js) is
+imported from a shared or `.native` file, and nothing native (expo-sqlite, later
+the camera) from a shared or `.web` file.
+
+**The catalogue** is a SQLite database of every paper printing (with its set,
+number, language, border, frame, finishes, picture, colours, type and rarity), one
+256-bit art fingerprint for each illustration, and each set's symbol as a 64 x 64
+bitmap. The app downloads it once and keeps it on the device, so scanning needs no
+internet afterwards. It is built by a script with its own packages
+(`scripts/catalogue/`):
+
+```bash
+cd scripts/catalogue
+npm install                      # once
+node build-catalogue.mjs         # downloads Scryfall's bulk files, fingerprints the art,
+                                 # draws the set symbols, writes out/catalogue.db(.gz) + catalogue.json
+                                 # (the first run takes an hour or two; reruns only do what's new)
+node serve.mjs                   # shares ./out at http://localhost:4200 for trying it out
+```
+
+To make the app use a catalogue, set `EXPO_PUBLIC_CATALOGUE_URL` to the address that
+serves `catalogue.json` and `catalogue.db.gz` (for example `http://localhost:4200`)
+when running or building. Settings → Card scanner catalogue opens the page that
+downloads it and tries lookups.
+
+**Running each platform**
+- Website: `npm run dev` (development) or `npm run build` (the finished site in `dist/`).
+  The website reads the catalogue with sql.js, whose two files are in `public/sqljs/`.
+- Android: needs a development build (`npx eas build --profile development --platform
+  android`, or a local `npx expo prebuild` and run), because `expo-sqlite` (and
+  later the camera and text recognition) are native. Expo Go will not work.
+
+Tests for the shared core: `node --test src/lib/scanner/core/phash.test.ts`.
+
 ## Card data
 
 Card information and images are provided by [Scryfall](https://scryfall.com).
