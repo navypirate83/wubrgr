@@ -31,9 +31,10 @@ type Props = {
   onMoveToDeck: (slot: 0 | 1) => void;      // "Move to deck"
   missing?: (card: DeckCard) => false | 'card' | 'printing';   // not in your binders (solid red border) or not that printing (dashed)
   banned?: (name: string) => boolean;       // is this card banned in the format? (black "BANNED" slash)
+  gameChanger?: (name: string) => boolean;  // is this card a Game Changer? (yellow border)
 };
 
-export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, missing, banned }: Props) {
+export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, missing, banned, gameChanger }: Props) {
   const colors = useColors();
   const format = deckFormat(deck.format);
   if (!format.command) return null;
@@ -76,7 +77,8 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
                     <Image source={pictureSource(card.image)} style={styles.thumb} contentFit="cover" />
                   </FoilFrame>
                   {banned?.(card.name) && <BannedSlash radius={6} />}
-                  {missing?.(card) && <MissingOutline radius={6} width={3} dashed={missing(card) === 'printing'} />}
+                  {gameChanger?.(card.name) && <MissingOutline radius={6} width={3} yellow />}
+                  {missing?.(card) && <MissingOutline radius={6} width={3} dashed={missing(card) === 'printing'} inset={gameChanger?.(card.name) ? 3 : 0} />}
                 </View>
                 <View style={styles.what}>
                   <Text style={[styles.role, { color: colors.text }]} numberOfLines={2}>{card.name}</Text>

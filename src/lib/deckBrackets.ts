@@ -11,6 +11,10 @@
    You choose the bracket yourself (the app doesn't work it out from the
    cards). A deck with none chosen is "not rated". Only Commander decks have
    brackets (not Oathbreaker, Duel Commander or the other formats).
+   GAME CHANGERS (see gameChangers.ts) set a floor: a deck with 1 to 3 of them
+   is at least Bracket 3 (so 3, 4 or 5 may be chosen), and one with 4 or more is
+   at least Bracket 4 (4 or 5). A deck below its floor is shown at the floor
+   automatically, without changing what was chosen.
    Plain TypeScript with no React in it.
    ===================================================================== */
 
@@ -50,4 +54,28 @@ export function bracketText(n: number | undefined): string {
 export function bracketPart(n: unknown): number[] {
   const bracket = cleanBracket(n);
   return bracket === undefined ? [] : [bracket];
+}
+
+// How many Game Changers a deck holds (every copy counted; the sideboard doesn't count).
+// "isGameChanger" says whether a card name is one.
+export function countGameChangers(cards: { name: string; count?: number; zone?: string }[], isGameChanger: (name: string) => boolean): number {
+  return cards.reduce((sum, card) => (card.zone !== 'side' && isGameChanger(card.name) ? sum + (card.count ?? 1) : sum), 0);
+}
+
+// The lowest bracket a deck with this many Game Changers may have: 1 (none), 3 (one to three) or 4 (four or more)
+export function lowestBracket(gameChangers: number): number {
+  return gameChangers >= 4 ? 4 : gameChangers >= 1 ? 3 : 1;
+}
+
+// May a deck with this many Game Changers be marked with this bracket?
+export function bracketAllowed(n: number, gameChangers: number): boolean {
+  return n >= lowestBracket(gameChangers) && n <= 5;
+}
+
+// The bracket a deck counts as: the one chosen, raised to the lowest allowed when it has
+// Game Changers (a deck with some and none chosen counts as that lowest). undefined: not rated.
+export function effectiveBracket(chosen: unknown, gameChangers: number): number | undefined {
+  const bracket = cleanBracket(chosen);
+  if (gameChangers === 0) return bracket;
+  return Math.max(bracket ?? 0, lowestBracket(gameChangers));
 }

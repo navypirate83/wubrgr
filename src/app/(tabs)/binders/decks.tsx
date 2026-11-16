@@ -43,7 +43,8 @@ import { deckProblems } from '@/lib/deckLegality';
 import { useBannedIn } from '@/lib/bannedCards';
 import type { ImportedDeck } from '@/lib/deckImport';
 import { deckFormat } from '@/lib/deckFormats';
-import { bracketText, cleanBracket, hasBrackets } from '@/lib/deckBrackets';
+import { bracketText, countGameChangers, effectiveBracket, hasBrackets } from '@/lib/deckBrackets';
+import { gameChangersReady, useGameChangers } from '@/lib/gameChangers';
 import { cardCountText } from '@/lib/binderStorage';
 import { askYesNo, showMessage } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
@@ -75,6 +76,8 @@ export default function DecksScreen() {
   const [decks, setDecks] = useState<Deck[]>(loadDecks);
   // The banned lists of the formats your decks use (to mark a deck that has a banned card in it as not legal)
   const bannedIn = useBannedIn(decks.map((d) => d.format));
+  // The Game Changers list (they set the lowest power bracket a Commander deck may have)
+  const isGameChanger = useGameChangers();
   const [making, setMaking] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -134,6 +137,10 @@ export default function DecksScreen() {
   // The decks in the order chosen with the Sort button, with a header bar before
   // each group when the sort has groups (format, legal or not...)
   const { saved: sortSaved, headersOn } = useShelfSort('decks');
+  // A Commander deck's power bracket, raised to the lowest its Game Changers allow (none for other formats)
+  const bracketOf = (deck: Deck) => (hasBrackets(deck.format) ? effectiveBracket(deck.bracket, countGameChangers(deck.cards, isGameChanger)) : undefined);
+  // (the sorted list is made again when the Game Changers list arrives)
+  const gameChangersLoaded = gameChangersReady();
   const rows = useMemo(() => {
     const stamps = stampsFor(decks.map((d) => d.id));
     // What you own is only read when it's needed (for "Most cards missing")
@@ -145,7 +152,7 @@ export default function DecksScreen() {
       cards: cardsIn(deck),
       format: deckFormat(deck.format).name,
       // A Commander deck's power bracket (none for other formats, or one not rated)
-      bracket: hasBrackets(deck.format) ? cleanBracket(deck.bracket) : undefined,
+      bracket: bracketOf(deck),
       legal: deckProblems(deck, deckFormat(deck.format), (name) => bannedIn(deck.format, name)).length === 0,
       // Cards in the deck that you don't have in any binder (every copy counted)
       missing: owned ? marksFor(deck.cards, owned).reduce((sum, mark, i) => sum + (mark === false ? (deck.cards[i].count ?? 1) : 0), 0) : 0,
@@ -153,7 +160,7 @@ export default function DecksScreen() {
       made: stamps[deck.id].made,
     }));
     return withShelfHeaders('decks', sortShelf('decks', items, sortSaved), sortSaved, headersOn);
-  }, [decks, sortSaved, headersOn, bannedIn]);
+  }, [decks, sortSaved, headersOn, bannedIn, isGameChanger, gameChangersLoaded]);
   const ownOrder = isOwnOrder('decks', sortSaved);
 
   // Move up / Move down in a held deck's options
@@ -204,7 +211,7 @@ export default function DecksScreen() {
           // One deck: tap to open, hold for its options
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}${hasBrackets(item.format) && cleanBracket(item.bracket) ? `, ${bracketText(item.bracket)}` : ''}, ${cardCountText(cardsIn(item))}${deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0 ? ', not legal' : ''}`}
+            accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}${bracketOf(item) ? `, ${bracketText(bracketOf(item))}` : ''}, ${cardCountText(cardsIn(item))}${deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0 ? ', not legal' : ''}`}
             accessibilityHint="Opens the deck. Hold for Rename and Delete."
             onPress={() => openDeck(item.id)}
             onLongPress={() => { hapticTap(); setMenuId(item.id); }}
@@ -216,7 +223,7 @@ export default function DecksScreen() {
               <Text style={[styles.rowCount, { color: colors.muted }]}>
                 {deckFormat(item.format).name} · {cardCountText(cardsIn(item))}
                 {/* A Commander deck with a power bracket says which (Bracket 3 · Upgraded) */}
-                {hasBrackets(item.format) && cleanBracket(item.bracket) ? <Text style={{ color: colors.accent, fontWeight: '700' }}> · {bracketText(item.bracket)}</Text> : null}
+                {bracketOf(item) ? <Text style={{ color: colors.accent, fontWeight: '700' }}> · {bracketText(bracketOf(item))}</Text> : null}
                 {/* A deck that isn't legal says so, in red (too many cards, or a banned card in it) */}
                 {deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0
                   ? <Text style={{ color: colors.error, fontWeight: '700' }}> · Not legal</Text> : null}

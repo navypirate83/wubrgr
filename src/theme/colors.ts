@@ -20,6 +20,7 @@ const light = {
   accent: '#a8492a',          // the orange used for buttons and highlights
   accentText: '#ffffff',      // text on top of the accent color
   error: '#c0392b',           // error messages
+  gameChanger: '#e0a800',     // the yellow border on a Game Changer card in a deck
   switchTrack: '#e3dccf',     // an on/off switch's track
   switchThumb: '#ffffff',     // an on/off switch's knob
   googleBg: '#ffffff',        // Google's sign-in button
@@ -64,6 +65,7 @@ const dark: typeof light = {
   accent: '#e38a5c',
   accentText: '#1a1206',
   error: '#f07167',
+  gameChanger: '#ffd23f',
   switchTrack: '#2f323c',
   switchThumb: '#14151a',
   googleBg: '#131314',

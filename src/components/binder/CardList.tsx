@@ -90,6 +90,9 @@ type Props = {
   // Is this card banned in the deck's format? (A deck draws a black "BANNED"
   // slash across those pictures; leave it out for no slashes.)
   banned?: (card: BinderCard) => boolean;
+  // Is this card a Game Changer? (A Commander deck draws a yellow border around
+  // those pictures; leave it out for none.)
+  gameChanger?: (card: BinderCard) => boolean;
 };
 
 // What the FlatList draws, one item per screen row: a header bar, or a
@@ -104,7 +107,7 @@ const CARD_RATIO = 88 / 63;
 // The space between grid pictures
 const GRID_GAP = 10;
 
-export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, headerOf, missing, banned }: Props) {
+export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, headerOf, missing, banned, gameChanger }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
@@ -296,13 +299,13 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         if (mode === 'list') {
           const item = row.entries[0];
           return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.byKey.get(item.key)} currency={prices.currency}
-                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} />;
+                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />;
         }
         // The Grid view: a row of pictures side by side
         return (
           <View style={styles.gridRow}>
             {row.entries.map((item) => (
-              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} highlighted={item.key === flashKey} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} />
+              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} highlighted={item.key === flashKey} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />
             ))}
           </View>
         );
@@ -366,12 +369,13 @@ export function Summary({ entries, prices, searchOf, hint, note, warn }: { entri
 /* ---------------------------------------------------------------------
    ONE LINE OF THE LIST. "memo" redraws it only when its card changes.
    --------------------------------------------------------------------- */
-const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, setIcon, highlighted, missing, banned }: {
+const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, setIcon, highlighted, missing, banned, gold }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; border: string;
   setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
   highlighted: boolean;                // just added: tinted for a moment
   missing: false | 'card' | 'printing';   // a deck: not in your binders (solid red border) or not that printing (dashed)
   banned: boolean;                     // banned in the deck's format: black "BANNED" slash
+  gold: boolean;                       // a Game Changer: yellow border
   price: number | null | undefined;    // undefined: not loaded yet; null: the store has none
   currency: 'USD' | 'EUR';
 }) {
@@ -397,7 +401,8 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
             <Image source={pictureSource(card.image)} style={styles.thumbPicture} contentFit="cover" />
           </FoilFrame>
           {banned && <BannedSlash radius={4} />}
-          {missing && <MissingOutline radius={4} width={2} dashed={missing === 'printing'} />}
+          {gold && <MissingOutline radius={4} width={2} yellow />}
+          {missing && <MissingOutline radius={4} width={2} dashed={missing === 'printing'} inset={gold ? 2 : 0} />}
         </View>
         <View style={styles.rowText}>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
@@ -423,11 +428,12 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
 /* ---------------------------------------------------------------------
    ONE PICTURE IN THE GRID
    --------------------------------------------------------------------- */
-const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlighted, missing, banned }: {
+const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlighted, missing, banned, gold }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; size: number;
   highlighted: boolean;                // just added: outlined for a moment
   missing: false | 'card' | 'printing';   // a deck: not in your binders (solid red border) or not that printing (dashed)
   banned: boolean;                     // banned in the deck's format: black "BANNED" slash
+  gold: boolean;                       // a Game Changer: yellow border
 }) {
   const colors = useColors();
   const { card, key } = entry;
@@ -445,7 +451,8 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
           <Image source={pictureSource(card.image)} style={styles.thumbPicture} contentFit="cover" />
         </FoilFrame>
         {banned && <BannedSlash radius={6} />}
-        {missing && <MissingOutline radius={6} width={3} dashed={missing === 'printing'} />}
+        {gold && <MissingOutline radius={6} width={3} yellow />}
+        {missing && <MissingOutline radius={6} width={3} dashed={missing === 'printing'} inset={gold ? 3 : 0} />}
       </Pressable>
 
       {/* The "− 3 +" bar along the bottom of the card: how many copies you

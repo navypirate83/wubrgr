@@ -29,7 +29,10 @@
    POWER BRACKET (Commander decks only): a button under the sort bar shows the
    deck's Commander Bracket ("Bracket 3 · Upgraded", or "Set power bracket"). Tap
    it to choose one of the five, or "Not rated" (see deckBrackets.ts). It also
-   shows on the deck's row on the Decks page.
+   shows on the deck's row on the Decks page. The deck's Game Changer cards get
+   a yellow border; 1 to 3 of them make the deck at least Bracket 3 (3, 4 or 5
+   may be chosen) and 4 or more make it at least Bracket 4 (4 or 5), and the
+   other brackets are greyed out in the window.
 
    COMMAND ZONE (Commander-style formats): above the cards, one or two spots
    for the cards kept outside the deck: a commander (and a partner or a
@@ -68,7 +71,8 @@ import CommandZone from '@/components/decks/CommandZone';
 import SlotSearchDialog from '@/components/decks/SlotSearchDialog';
 import { allowedInSlot, deckCardFromPrint, secondSpotShows, slotHint, slotName, slotQuery, zoneExtraOf } from '@/lib/deckZones';
 import { deckFormat, skipsCopyWarning } from '@/lib/deckFormats';
-import { BRACKETS, bracketText, cleanBracket, hasBrackets } from '@/lib/deckBrackets';
+import { BRACKETS, bracketAllowed, bracketText, countGameChangers, effectiveBracket, hasBrackets, lowestBracket } from '@/lib/deckBrackets';
+import { useGameChangers } from '@/lib/gameChangers';
 import { isBanned, useBanned } from '@/lib/bannedCards';
 import { deckProblems } from '@/lib/deckLegality';
 import { assignPrinting, choicesFor, loadOwned, marksFor, normalizeOwnership, type Mark, type OwnedPrint } from '@/lib/deckOwnership';
@@ -214,6 +218,11 @@ export default function DeckScreen() {
   // The cards banned in this deck's format (asked from Scryfall once): they
   // get a black "BANNED" slash across their picture
   const isBannedHere = useBanned(format.code);
+  // Game Changers (Commander only): marked with a yellow border, and they set the lowest bracket the deck may have
+  const isGameChanger = useGameChangers();
+  const gameChangers = deck && hasBrackets(format.code) ? countGameChangers(deck.cards, isGameChanger) : 0;
+  // The bracket the deck counts as: the one chosen, raised to the lowest allowed if it has Game Changers
+  const bracket = deck && hasBrackets(format.code) ? effectiveBracket(deck.bracket, gameChangers) : undefined;
 
   // Every time this page comes into view: read the deck again (and what you own)
   useFocusEffect(useCallback(() => { setDeck(findDeck(id)); setOwned(loadOwned()); }, [id]));
@@ -600,12 +609,13 @@ export default function DeckScreen() {
         />
         {/* Commander decks: the power bracket. Tap to choose one (or to say it isn't rated). */}
         {hasBrackets(format.code) && (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Power bracket: ${cleanBracket(deck.bracket) ? bracketText(deck.bracket) : 'not rated'}. Tap to change.`}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Power bracket: ${bracket ? bracketText(bracket) : 'not rated'}${gameChangers > 0 ? `, ${gameChangers} Game Changers` : ''}. Tap to change.`}
                      onPress={() => setPicking(true)}
                      style={[styles.bracketChip, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-            <Ionicons name="flame-outline" size={16} color={cleanBracket(deck.bracket) ? colors.accent : colors.muted} />
-            <Text style={[styles.bracketText, { color: cleanBracket(deck.bracket) ? colors.text : colors.muted }]}>
-              {cleanBracket(deck.bracket) ? bracketText(deck.bracket) : 'Set power bracket'}
+            <Ionicons name="flame-outline" size={16} color={bracket ? colors.accent : colors.muted} />
+            <Text style={[styles.bracketText, { color: bracket ? colors.text : colors.muted }]}>
+              {bracket ? bracketText(bracket) : 'Set power bracket'}
+              {gameChangers > 0 ? ` · ${gameChangers} Game Changer${gameChangers === 1 ? '' : 's'}` : ''}
             </Text>
             <Ionicons name="chevron-down" size={14} color={colors.muted} />
           </Pressable>
@@ -632,7 +642,7 @@ export default function DeckScreen() {
 
       {/* THE COMMAND ZONE (formats that have one) */}
       {format.command && (
-        <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} />
+        <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} gameChanger={hasBrackets(format.code) ? isGameChanger : undefined} />
       )}
 
       {/* THE CARDS, with a picture dragged over them outlined */}
@@ -649,6 +659,7 @@ export default function DeckScreen() {
           headerOf={headerOf}
           missing={isMissing}
           banned={(card) => isBannedHere(card.name)}
+          gameChanger={hasBrackets(format.code) ? (card) => isGameChanger(card.name) : undefined}
           warn={problems.length > 0 ? problems.join(', ') : undefined}
           // The format, at the end of the line of totals (and how many cards aren't in your binders, and the card just dropped)
           note={[format.name, deck.cards.some((c) => c.zone === 'command') ? `${deck.cards.filter((c) => c.zone === 'command').length} in command zone` : '', deck.cards.some((c) => isMissing(c) === 'card') ? `${deck.cards.filter((c) => isMissing(c) === 'card').reduce((sum, c) => sum + cardCount(c), 0)} not in your binders` : '', addedNote].filter(Boolean).join(' · ')}
@@ -747,19 +758,27 @@ export default function DeckScreen() {
         <PopupWindow title="Power bracket" onClose={() => setPicking(false)}
                      buttons={[{ label: 'Close', onPress: () => setPicking(false), kind: 'secondary' }]}>
           <View style={styles.bracketList}>
+            {/* Game Changers in the deck limit the choices: the ones below the lowest allowed are greyed out */}
+            {gameChangers > 0 && (
+              <Text style={{ color: colors.muted, fontSize: 14 }}>
+                This deck has {gameChangers} Game Changer{gameChangers === 1 ? '' : 's'} (the cards with a yellow border), so it must be Bracket {lowestBracket(gameChangers)} or higher.
+              </Text>
+            )}
             {BRACKETS.map((b) => {
-              const chosen = cleanBracket(deck.bracket) === b.n;
+              const chosen = bracket === b.n;
+              const allowed = bracketAllowed(b.n, gameChangers);
               return (
-                <Pressable key={b.n} accessibilityRole="button" accessibilityState={{ selected: chosen }}
-                           accessibilityLabel={`Bracket ${b.n}, ${b.name}. ${b.about}`}
+                <Pressable key={b.n} accessibilityRole="button" accessibilityState={{ selected: chosen, disabled: !allowed }}
+                           accessibilityLabel={`Bracket ${b.n}, ${b.name}. ${b.about}${allowed ? '' : ' Not allowed with this deck\'s Game Changers.'}`}
+                           disabled={!allowed}
                            onPress={() => { setDeckBracket(id, b.n); setDeck(findDeck(id)); setPicking(false); }}
-                           style={[styles.bracketOption, { borderColor: chosen ? colors.accent : colors.border, backgroundColor: chosen ? colors.accent : 'transparent' }]}>
+                           style={[styles.bracketOption, { borderColor: chosen ? colors.accent : colors.border, backgroundColor: chosen ? colors.accent : 'transparent', opacity: allowed ? 1 : 0.4 }]}>
                   <Text style={[styles.bracketOptionName, { color: chosen ? colors.accentText : colors.text }]}>{b.n} · {b.name}</Text>
                   <Text style={{ color: chosen ? colors.accentText : colors.muted, fontSize: 13 }}>{b.about}</Text>
                 </Pressable>
               );
             })}
-            <Button label="Not rated" kind="secondary" onPress={() => { setDeckBracket(id, undefined); setDeck(findDeck(id)); setPicking(false); }} />
+            <Button label="Not rated" kind="secondary" disabled={gameChangers > 0} onPress={() => { setDeckBracket(id, undefined); setDeck(findDeck(id)); setPicking(false); }} />
           </View>
         </PopupWindow>
       )}
