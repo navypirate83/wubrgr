@@ -4,6 +4,8 @@
    really painted on each copy of each card. When a card is added to a deck
    (a mark to paint), taken out of one, or a deck leaves the set (marks to
    clear), it's listed here, so only the sleeves that need touching are touched.
+   (A deck moved to another slot works the same way: its old marks are "scrape
+   off", its new ones "paint".)
    There is one row for each physical card (a card with both a mark to scrape
    off and a mark to paint is one row, since it's one sleeve in your hand). Each
    row shows a small picture of the card with its marks along the edges:
@@ -94,12 +96,16 @@ export default function ChangesTab({ set, plan, decks, changes, onChanged }: Pro
       if (kind === 'add') addSlots.push(slot);
       if (kind === 'remove') removeSlots.push(slot);
     }
+    // Marks left in a slot a deck was moved out of: still on the sleeve, to scrape off
+    for (const change of list) {
+      if (change.deckId === '' && change.slot !== undefined) { marks.push({ slot: change.slot, kind: 'remove' }); removeSlots.push(change.slot); }
+    }
     return {
       id, key, name, copy, wanted, marks, unplaced,
       image: card?.sample.image ?? null,
       addSlots: addSlots.sort((a, b) => a - b),
       removeSlots: removeSlots.sort((a, b) => a - b),
-      outDecks: list.filter((c) => c.kind === 'clear').map((c) => deckName(c.deckId)),
+      outDecks: list.filter((c) => c.kind === 'clear' && c.deckId !== '').map((c) => deckName(c.deckId)),
       inDecks: list.filter((c) => c.kind === 'add').map((c) => deckName(c.deckId)),
       tip: list.find((c) => c.sleeveTip)?.sleeveTip,
       leaving: wanted.length === 0,

@@ -23,6 +23,7 @@ const SET = {
   decks: [{ deckId: 'deckAAAA', slot: 3 }, { deckId: 'deckBBBB', slot: 9 }],
   pins: [{ deckId: 'deckAAAA', key: 'island', print: 'dmu/262' }, { deckId: 'deckBBBB', key: 'swamp' }],
   painted: { 'exotic orchard': [['deckAAAA', 'deckBBBB']], 'sol ring': [[], ['deckAAAA']] },
+  scrape: { 'sol ring': [[3], []] },
   names: { 'exotic orchard': 'Exotic Orchard' },
   editedAt: 1700000000000,
 };
@@ -110,6 +111,9 @@ describe('bad sets are refused and nothing is saved', () => {
     ['painted copies that are not lists', { ...SET, painted: { island: 'yes' } }],
     ['painted deck ids that are not text', { ...SET, painted: { island: [[1]] } }],
     ['card names that are not text', { ...SET, names: { island: 5 } }],
+    ['scrape that is not an object', { ...SET, scrape: [] }],
+    ['a scrape slot past 48', { ...SET, scrape: { island: [[49]] } }],
+    ['scrape slots that are not numbers', { ...SET, scrape: { island: [['a']] } }],
   ])('%s', async (_what, body) => {
     const me = await prismPerson();
     expect((await me.put('/prism/set-1', body)).status).toBe(400);

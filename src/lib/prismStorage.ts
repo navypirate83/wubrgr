@@ -6,16 +6,20 @@
    1 to 48). A "PRISM set" is the group of decks that share cards. The full
    plan is in docs/prism-plan.md.
    A set remembers:
-     - its decks, each with the slot (and so the color) it was given. A
-       deck's slot should never change once its marks are painted
-     - which corner of the sleeve counts as slot 1
+     - its decks, each with the slot (and so the color) it was given. A deck
+       can be given another (free) slot at any time: if its marks are already
+       painted, the old marks are noted in "scrape" and the cards show up on
+       the Changes tab (scrape the old slot, paint the new one)
      - what has really been painted: for each card (by lowercase name),
        and each physical copy of it, the decks whose marks are on it
+     - the marks still on sleeves in a slot the deck has since left ("scrape")
+   Slot 1 is ALWAYS the sleeve's top right corner (the slots count from there).
    PRISM sets are kept on this device (they are not in your account yet).
    Plain TypeScript with no React in it.
    ===================================================================== */
 
 import { storageGet, storageRemove, storageSet } from './storage';
+import { clearScrape, moveSlot, takeSlot } from './prismSlots';
 
 // A sleeve's edge holds this many slots (Side A: 1 to 24, Side B: 25 to 48)
 export const MAX_SLOTS = 48;
@@ -30,8 +34,10 @@ export const PRISM_COLORS = [
 ];
 export const colorForSlot = (slot: number): string => PRISM_COLORS[(slot - 1) % PRISM_COLORS.length];
 
-// Which corner of the sleeve is slot 1 (turned the way the sleeve is held)
+// The four corners of a sleeve, turned the way it is held (the drawings use these)
 export const CORNERS = ['top left', 'top right', 'bottom right', 'bottom left'] as const;
+// Slot 1 is always the top right corner (an index into CORNERS)
+export const SLOT_ONE_CORNER = 1;
 
 // One deck in a set: which deck, and its slot (1 to 48)
 export type PrismDeck = { deckId: string; slot: number };
@@ -44,7 +50,9 @@ export type PinRule = { deckId: string; key: string; print?: string };
 
 // One PRISM set. "painted" is what is really on the sleeves: for each card
 // (by lowercase name), one list per physical copy, each listing the ids of the
-// decks whose marks are painted on that copy.
+// decks whose marks are painted on that copy. "scrape" is the marks that are
+// still on a sleeve in a slot its deck was moved out of: for each card, one list
+// per physical copy of the slots to scrape off. "corner" is always SLOT_ONE_CORNER.
 export type PrismSet = {
   id: string;
   name: string;
@@ -52,6 +60,7 @@ export type PrismSet = {
   decks: PrismDeck[];
   pins: PinRule[];
   painted: Record<string, string[][]>;
+  scrape: Record<string, number[][]>;
   // The names as shown, by lowercase name (for a card painted earlier that has since left every deck)
   names: Record<string, string>;
   // When the set was last changed on a device (milliseconds). It's how the
@@ -77,7 +86,7 @@ export function loadPrismSets(): PrismSet[] {
       .map((s): PrismSet => ({
         id: s.id,
         name: s.name,
-        corner: [0, 1, 2, 3].includes(s.corner) ? s.corner : 0,
+        corner: SLOT_ONE_CORNER,
         decks: Array.isArray(s.decks)
           ? s.decks.filter((d: PrismDeck) => d && typeof d.deckId === 'string' && Number.isInteger(d.slot) && d.slot >= 1 && d.slot <= MAX_SLOTS)
           : [],
@@ -85,6 +94,7 @@ export function loadPrismSets(): PrismSet[] {
           ? s.pins.filter((p: PinRule) => p && typeof p.deckId === 'string' && typeof p.key === 'string' && (p.print === undefined || typeof p.print === 'string'))
           : [],
         painted: s.painted && typeof s.painted === 'object' ? s.painted : {},
+        scrape: s.scrape && typeof s.scrape === 'object' ? s.scrape : {},
         names: s.names && typeof s.names === 'object' ? s.names : {},
         editedAt: Number.isFinite(s.editedAt) ? s.editedAt : 0,
       }));
@@ -127,7 +137,7 @@ export function nextPrismSetName(): string {
 // Make a new, empty set at the end, and give back its id
 export function addPrismSet(name: string): string {
   const id = `prism-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-  saveSets([...loadPrismSets(), { id, name: name.trim().slice(0, SET_NAME_LIMIT) || nextPrismSetName(), corner: 0, decks: [], pins: [], painted: {}, names: {}, editedAt: Date.now() }]);
+  saveSets([...loadPrismSets(), { id, name: name.trim().slice(0, SET_NAME_LIMIT) || nextPrismSetName(), corner: SLOT_ONE_CORNER, decks: [], pins: [], painted: {}, scrape: {}, names: {}, editedAt: Date.now() }]);
   return id;
 }
 
@@ -178,7 +188,7 @@ export function addDeckToSet(setId: string, deckId: string): boolean {
   return changePrismSet(setId, (s) => {
     const slot = freeSlot(s);
     if (slot === null || s.decks.some((d) => d.deckId === deckId)) return s;
-    return { ...s, decks: [...s.decks, { deckId, slot }] };
+    return takeSlot({ ...s, decks: [...s.decks, { deckId, slot }] }, deckId, slot);
   });
 }
 
@@ -197,7 +207,7 @@ export function freeSlotOnSide(set: PrismSet, side: 'A' | 'B'): number | null {
 export function addDeckToSetAt(setId: string, deckId: string, slot: number): boolean {
   return changePrismSet(setId, (s) => {
     if (s.decks.some((d) => d.deckId === deckId || d.slot === slot)) return s;
-    return { ...s, decks: [...s.decks, { deckId, slot }] };
+    return takeSlot({ ...s, decks: [...s.decks, { deckId, slot }] }, deckId, slot);
   });
 }
 
@@ -207,17 +217,17 @@ export function removeDeckFromSet(setId: string, deckId: string): boolean {
   return changePrismSet(setId, (s) => ({ ...s, decks: s.decks.filter((d) => d.deckId !== deckId) }));
 }
 
-// Give a deck another slot (only when nothing is painted for it, and the slot is free)
-export function moveDeckSlot(setId: string, deckId: string, slot: number): boolean {
-  return changePrismSet(setId, (s) => {
-    if (deckHasPaint(s, deckId) || s.decks.some((d) => d.slot === slot)) return s;
-    return { ...s, decks: s.decks.map((d) => (d.deckId === deckId ? { ...d, slot } : d)) };
-  });
+// How many physical copies have this deck's marks painted on them
+export function paintedCopyCount(set: PrismSet, deckId: string): number {
+  return Object.values(set.painted).reduce((sum, copies) => sum + copies.filter((decks) => decks.includes(deckId)).length, 0);
 }
 
-// Turn the sleeve corner (only when nothing is painted yet)
-export function setCorner(setId: string, corner: 0 | 1 | 2 | 3): boolean {
-  return changePrismSet(setId, (s) => (Object.keys(s.painted).length > 0 ? s : { ...s, corner }));
+// Give a deck another slot (the slot must be free: a slot another deck is in can't be taken).
+// Any marks already painted for the deck are still on the sleeves in its OLD slot, so each
+// of those copies notes the old slot in "scrape" (the Changes tab then lists it: scrape the
+// old slot, paint the new one). See prismSlots.ts.
+export function moveDeckSlot(setId: string, deckId: string, slot: number): boolean {
+  return changePrismSet(setId, (s) => moveSlot(s, deckId, slot));
 }
 
 /* ---------------------------------------------------------------------
@@ -244,6 +254,8 @@ export function setPainted(setId: string, key: string, name: string, copy: numbe
     const copies = [...(s.painted[key] ?? [])];
     while (copies.length <= copy) copies.push([]);
     copies[copy] = [...deckIds];
-    return { ...s, painted: { ...s.painted, [key]: copies }, names: { ...s.names, [key]: name } };
+    // The sleeve is now as noted, so any marks waiting to be scraped off this copy are done with
+    const scrape = clearScrape(s, key, copy);
+    return { ...s, painted: { ...s.painted, [key]: copies }, scrape, names: { ...s.names, [key]: name } };
   });
 }

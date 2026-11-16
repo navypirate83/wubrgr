@@ -36,6 +36,9 @@ const prismSetSchema = new mongoose.Schema(
     },
     // What is painted: for each card (lowercase name), a list per physical copy of the deck ids painted on it
     painted: { type: mongoose.Schema.Types.Mixed, default: {} },
+    // Marks still on a sleeve in a slot their deck was moved out of: for each card (lowercase name),
+    // a list per physical copy of the slots (1 to 48) to scrape off
+    scrape: { type: mongoose.Schema.Types.Mixed, default: {} },
     // The names as shown, by lowercase name
     names: { type: mongoose.Schema.Types.Mixed, default: {} },
     editedAt: { type: Number, required: true, min: 0 },

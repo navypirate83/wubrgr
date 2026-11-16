@@ -97,7 +97,7 @@ function pull(remote: ServerSet, memory: PrismMemory): void {
   const set = withDeckIds({ ...rest, id: clientId }, (deckId) => toLocalId(deckId, memory));
   keepPrismSet({
     id: clientId, name: set.name, corner: set.corner, decks: set.decks, pins: set.pins ?? [],
-    painted: set.painted ?? {}, names: set.names ?? {}, editedAt: set.editedAt,
+    painted: set.painted ?? {}, scrape: set.scrape ?? {}, names: set.names ?? {}, editedAt: set.editedAt,
   });
   memory.prism[clientId] = { editedAt: remote.editedAt };
 }

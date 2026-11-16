@@ -107,8 +107,11 @@ export const paintedOn = (set: PrismSet, key: string, copy: number): string[] =>
 
 // Is this copy painted exactly as it should be?
 export function copyIsDone(set: PrismSet, card: PlanCard, copy: number): boolean {
-  return sameDecks(paintedOn(set, card.key, copy), card.required[copy] ?? []);
+  return sameDecks(paintedOn(set, card.key, copy), card.required[copy] ?? []) && scrapeOn(set, card.key, copy).length === 0;
 }
+
+// The marks still on this copy in a slot its deck was moved out of (to scrape off)
+export const scrapeOn = (set: PrismSet, key: string, copy: number): number[] => set.scrape?.[key]?.[copy] ?? [];
 
 // One copy that still needs painting
 export type Undone = { card: PlanCard; copy: number };
@@ -130,7 +133,8 @@ export type Change = {
   key: string;
   name: string;
   copy: number;
-  deckId: string;              // whose mark
+  deckId: string;              // whose mark ("" for a mark left in a slot its deck moved out of: see "slot")
+  slot?: number;               // for such a leftover mark: the slot to scrape
   sleeveTip?: string;          // a card whose sleeve already carries exactly the marks needed
 };
 
@@ -152,6 +156,11 @@ export function changesFor(set: PrismSet, plan: PlanCard[]): Change[] {
       for (const deckId of painted) if (!wanted.includes(deckId)) changes.push({ kind: 'clear', key, name: shownName, copy, deckId });
     }
   }
+  // Marks left in a slot a deck was moved out of: each is a mark to scrape off
+  for (const [key, copies] of Object.entries(set.scrape ?? {})) {
+    const shownName = byKey.get(key)?.name ?? set.names[key] ?? key;
+    copies.forEach((slots, copy) => { for (const slot of slots) changes.push({ kind: 'clear', key, name: shownName, copy, deckId: '', slot }); });
+  }
   for (const add of changes.filter((c) => c.kind === 'add')) {
     add.sleeveTip = sleeveTipFor(set, plan, changes, add.key, add.copy) ?? undefined;
   }
@@ -166,7 +175,7 @@ export function sleeveTipFor(set: PrismSet, plan: PlanCard[], changes: Change[],
   const card = plan.find((c) => c.key === key);
   if (!card) return null;
   const needs = card.required[copy] ?? [];
-  const donor = changes.find((c) => c.kind === 'clear' && c.key !== key && sameDecks(paintedOn(set, c.key, c.copy), needs));
+  const donor = changes.find((c) => c.kind === 'clear' && c.deckId !== '' && c.key !== key && scrapeOn(set, c.key, c.copy).length === 0 && sameDecks(paintedOn(set, c.key, c.copy), needs));
   return donor ? `${donor.name}'s sleeve is leaving a deck and already has exactly the marks ${card.name} needs. Move ${card.name} into that sleeve and nothing needs painting.` : null;
 }
 

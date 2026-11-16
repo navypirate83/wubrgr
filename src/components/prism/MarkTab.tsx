@@ -21,7 +21,7 @@ import SleeveEdge from './SleeveEdge';
 import CardMarks from './CardMarks';
 import { useColors } from '@/hooks/useTheme';
 import { RADIUS } from '@/theme/colors';
-import { copyIsDone, sleeveTipFor, undoneCopies, undoneText, type Change, type PlanCard } from '@/lib/prismPlan';
+import { copyIsDone, scrapeOn, sleeveTipFor, undoneCopies, undoneText, type Change, type PlanCard } from '@/lib/prismPlan';
 import { setPainted, type PrismSet } from '@/lib/prismStorage';
 import type { Deck } from '@/lib/deckStorage';
 import { showMessage } from '@/lib/dialogs';
@@ -71,6 +71,8 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
   const required = current ? current.card.required[current.copy] ?? [] : [];
   const slots = required.map(slotOf).filter((s): s is number => s !== null);
   const isDone = current ? copyIsDone(set, current.card, current.copy) : false;
+  // Marks left in a slot a deck was moved out of: scrape these off first
+  const scrapeSlots = current ? [...scrapeOn(set, current.card.key, current.copy)].sort((a, b) => a - b) : [];
   const tip = current && !isDone ? sleeveTipFor(set, plan, changes, current.card.key, current.copy) : null;
 
   function note(painted: boolean) {
@@ -118,12 +120,12 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
             )}
             <Text style={[styles.line, { color: colors.muted }]}>
               {current.card.copies > 1 ? `Copy ${current.copy + 1} of ${current.card.copies} · ` : ''}
-              {isDone ? 'painted ✓' : `paint ${slots.length} ${slots.length === 1 ? 'mark' : 'marks'} on its inner sleeve`}
+              {isDone ? 'painted ✓' : `${scrapeSlots.length > 0 ? `scrape off ${scrapeSlots.length === 1 ? 'slot' : 'slots'} ${scrapeSlots.join(', ')}, then ` : ''}paint ${slots.length} ${slots.length === 1 ? 'mark' : 'marks'} on its inner sleeve`}
             </Text>
           </View>
 
           {/* The big card with its marks, and the button right under it */}
-          <CardMarks image={current.card.sample.image} marks={slots.map((slot) => ({ slot, kind: 'paint' as const }))} corner={set.corner} />
+          <CardMarks image={current.card.sample.image} marks={[...scrapeSlots.map((slot) => ({ slot, kind: 'remove' as const })), ...slots.map((slot) => ({ slot, kind: 'paint' as const }))]} corner={set.corner} />
 
           <View style={styles.buttons}>
             {isDone ? (

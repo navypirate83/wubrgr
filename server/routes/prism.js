@@ -29,6 +29,8 @@ const isObject = (value) => !!value && typeof value === 'object' && !Array.isArr
 // fields, or { error } saying what is wrong.
 function checkSet(body) {
   const { name, corner, decks, pins, painted, names, editedAt } = body ?? {};
+  // Older copies of the app don't send this: none then
+  const scrape = body?.scrape ?? {};
   if (!isText(name, 60)) return { error: 'The set needs a name of up to 60 letters' };
   if (![0, 1, 2, 3].includes(corner)) return { error: 'The corner must be 0, 1, 2 or 3' };
   if (!Number.isFinite(editedAt) || editedAt < 0) return { error: 'The set needs the time it was last changed' };
@@ -46,6 +48,12 @@ function checkSet(body) {
       && copies.length <= 1000 && copies.every((ids) => Array.isArray(ids) && ids.length <= 48 && ids.every((id) => isText(id, 80))))) {
     return { error: 'What is painted must be, for each card, a list of the decks painted on each copy' };
   }
+  if (!isObject(scrape) || Object.keys(scrape).length > MAX_PAINTED_CARDS
+    || !Object.entries(scrape).every(([key, copies]) => key.length <= 200 && Array.isArray(copies)
+      && copies.length <= 1000 && copies.every((slots) => Array.isArray(slots) && slots.length <= 48
+        && slots.every((slot) => Number.isInteger(slot) && slot >= 1 && slot <= 48)))) {
+    return { error: 'The marks to scrape must be, for each card, a list of slots (1 to 48) for each copy' };
+  }
   if (!isObject(names) || Object.keys(names).length > MAX_PAINTED_CARDS
     || !Object.entries(names).every(([key, shown]) => key.length <= 200 && isText(shown, 200))) {
     return { error: 'The card names must be short text' };
@@ -57,6 +65,7 @@ function checkSet(body) {
       decks: decks.map((d) => ({ deckId: d.deckId, slot: d.slot })),
       pins: pins.map((p) => (p.print === undefined ? { deckId: p.deckId, key: p.key } : { deckId: p.deckId, key: p.key, print: p.print })),
       painted,
+      scrape,
       names,
       editedAt,
     },
@@ -72,6 +81,7 @@ function answer(doc) {
     decks: doc.decks,
     pins: doc.pins,
     painted: doc.painted ?? {},
+    scrape: doc.scrape ?? {},
     names: doc.names ?? {},
     editedAt: doc.editedAt,
   };

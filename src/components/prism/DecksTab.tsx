@@ -2,12 +2,14 @@
    A PRISM SET: THE DECKS TAB
    Which decks share their cards in this set. Tick a Commander deck to put it
    in (it gets the lowest free slot and that slot's color); untick it to take
-   it out. Tap a deck's slot to give it another one. Only Commander decks can
+   it out. Tap a deck's slot to give it another one: only FREE slots can be
+   picked (a slot another deck is in is greyed out). Only Commander decks can
    be ticked (PRISM is for Commander for now).
-   Below the decks: which corner of the sleeve is slot 1, and a button to
-   forget everything noted as painted (to start the marking over).
-   A deck's slot, and the corner, can't change once something is painted,
-   because paint doesn't move.
+   Below the decks: a button to forget everything noted as painted (to start
+   the marking over). Slot 1 is always the sleeve's top right corner.
+   Moving a deck whose marks are already painted is allowed: paint doesn't move,
+   so every card painted for it is listed on the Changes tab (scrape the old
+   slot, paint the new one).
    A deck that is already in ANOTHER Prism shows an outlined pill under its name
    for each one (its name, and the side and slot its marks use there). Ticking
    such a deck asks first: "Add anyway" always works, and when its marks there
@@ -27,8 +29,8 @@ import { RADIUS } from '@/theme/colors';
 import { deckFormat } from '@/lib/deckFormats';
 import type { Deck } from '@/lib/deckStorage';
 import {
-  CORNERS, MAX_SLOTS, addDeckToSet, addDeckToSetAt, changePrismSet, deckHasPaint, freeSlot, freeSlotOnSide, loadPrismSets, moveDeckSlot,
-  removeDeckFromSet, setCorner, sideOfSlot,
+  MAX_SLOTS, addDeckToSet, addDeckToSetAt, changePrismSet, deckHasPaint, freeSlot, freeSlotOnSide, loadPrismSets, moveDeckSlot,
+  paintedCopyCount, removeDeckFromSet, sideOfSlot,
   type PrismSet,
 } from '@/lib/prismStorage';
 import { cardCountText } from '@/lib/binderStorage';
@@ -81,18 +83,22 @@ export default function DecksTab({ set, decks, onChange }: Props) {
     onChange();
   }
 
-  function pickSlot(deck: Deck) {
-    if (deckHasPaint(set, deck.id)) {
-      showMessage('Its marks are painted', `${deck.name} already has marks painted on sleeves, and paint doesn't move, so its slot can't change. Clear its marks first.`);
-      return;
+  // Move a deck to a free slot. If its marks are already painted, those sleeves go to the Changes tab.
+  function moveTo(deckId: string, slot: number) {
+    const sleeves = paintedCopyCount(set, deckId);
+    moveDeckSlot(set.id, deckId, slot);
+    setPicking(null);
+    onChange();
+    if (sleeves > 0) {
+      showMessage('Slot changed',
+        `${sleeves} ${sleeves === 1 ? 'sleeve has' : 'sleeves have'} this deck's marks painted in the old slot. ${sleeves === 1 ? 'It is' : 'They are'} listed on the Changes tab: scrape the old mark off, then paint the new one.`);
     }
-    setPicking(deck.id);
   }
 
   return (
     <View style={styles.wrap}>
       <Text style={[styles.hint, { color: colors.muted }]}>
-        Tick the Commander decks that share cards. Each gets a slot and a color. A slot can't change once its marks are painted.
+        Tick the Commander decks that share cards. Each gets a slot and a color. Tap a slot to move a deck to a free one (marks already painted go to the Changes tab).
       </Text>
 
       {ordered.map((deck) => {
@@ -124,7 +130,7 @@ export default function DecksTab({ set, decks, onChange }: Props) {
               </View>
             </Pressable>
             {slot !== undefined && (
-              <Pressable accessibilityRole="button" accessibilityLabel={`${deck.name} is in slot ${slot}. Change its slot.`} onPress={() => pickSlot(deck)} style={styles.slotButton}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`${deck.name} is in slot ${slot}. Change its slot.`} onPress={() => setPicking(deck.id)} style={styles.slotButton}>
                 <DeckSquare slot={slot} size={26} />
                 <Text style={[styles.slotText, { color: colors.muted }]}>Slot {slot}</Text>
               </Pressable>
@@ -136,24 +142,17 @@ export default function DecksTab({ set, decks, onChange }: Props) {
         <Text style={[styles.hint, { color: colors.muted }]}>You have no decks yet. Make a Commander deck on the Decks page, then come back.</Text>
       )}
 
-      {/* Which corner of the sleeve is slot 1 */}
-      <View style={[styles.setting, { borderColor: colors.border }]}>
-        <View style={styles.settingText}>
-          <Text style={[styles.deckName, { color: colors.text }]}>Sleeve corner</Text>
-          <Text style={[styles.deckSub, { color: colors.muted }]}>Slot 1 is the {CORNERS[set.corner]} corner{painted ? ' (it can\'t change once paint is noted)' : ''}</Text>
-        </View>
-        <Button label="Change" kind="secondary" disabled={painted}
-                onPress={() => { setCorner(set.id, ((set.corner + 1) % 4) as 0 | 1 | 2 | 3); onChange(); }} />
-      </View>
+      {/* Slot 1 is always the sleeve's top right corner */}
+      <Text style={[styles.hint, { color: colors.muted }]}>Slot 1 is the top right corner of the sleeve; the slots count from there.</Text>
 
       {/* Start the marking over */}
       {painted && (
         <Button label="Forget what's painted" icon="refresh-outline" kind="secondary" onPress={async () => {
           const yes = await askYesNo('Forget what\'s painted?',
-            'The app will stop counting any card as painted, so everything shows as still to do, and slots and the corner can change again. Your sleeves aren\'t touched.',
+            'The app will stop counting any card as painted, so everything shows as still to do (marks waiting to be scraped off are forgotten too). Your sleeves aren\'t touched.',
             'Forget it', 'Cancel');
           if (!yes) return;
-          changePrismSet(set.id, (s) => ({ ...s, painted: {}, names: {} }));
+          changePrismSet(set.id, (s) => ({ ...s, painted: {}, scrape: {}, names: {} }));
           onChange();
         }} />
       )}
@@ -204,7 +203,7 @@ export default function DecksTab({ set, decks, onChange }: Props) {
                   accessibilityState={{ disabled: taken && !mine }}
                   accessibilityLabel={`Slot ${slot}${taken && !mine ? ', taken' : ''}`}
                   disabled={taken && !mine}
-                  onPress={() => { moveDeckSlot(set.id, picking, slot); setPicking(null); onChange(); }}
+                  onPress={() => moveTo(picking, slot)}
                   style={[styles.slotCell, { opacity: taken && !mine ? 0.25 : 1, borderColor: mine ? colors.accent : 'transparent' }]}
                 >
                   <DeckSquare slot={slot} size={34} />

@@ -1531,9 +1531,11 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <P>
               On a set's <Strong>Decks</Strong> tab, tick the decks that share cards (only Commander decks can be ticked; up
-              to 48). Each gets the lowest free <Strong>slot</Strong> and that slot's color; tap its slot to pick another. A
-              deck's slot, and which corner of the sleeve is slot 1 (<Strong>Sleeve corner</Strong>), can't change once paint
-              is noted, because paint doesn't move. <Strong>Forget what's painted</Strong> starts the marking over.
+              to 48). Each gets the lowest free <Strong>slot</Strong> and that slot's color; tap its slot to move it to another. Only
+              free slots can be picked (a slot another deck is in is greyed out). Slot 1 is always the top right corner of the
+              sleeve, and the slots count from there. If the deck's marks are already painted, paint doesn't move, so every
+              card painted for it goes to the <Strong>Changes</Strong> tab: scrape the old mark off, then paint the new one.
+              <Strong>Forget what's painted</Strong> starts the marking over.
               A deck that is already in another Prism shows a pill under its name for each one ("In Prism: Name · side A, slot 3"),
               so you can see at a glance. Ticking it anyway asks first; you can always go ahead, and the window suggests a slot
               on the opposite side of the sleeve from its marks in the other Prism.
