@@ -1487,8 +1487,10 @@ export const helpTopics: HelpTopic[] = [
             <P>
               A <Strong>PRISM set</Strong> is a group of Commander decks that share cards. On the PRISM page (the prism
               button beside Binders, Lists and Decks), tap <Strong>Make a Prism</Strong>, name it, then open it. Hold a set for{' '}
-              <Strong>Rename</Strong> and <Strong>Delete</Strong> (deleting a set never touches your decks). Sets are kept on
-              this device for now.
+              <Strong>Rename</Strong> and <Strong>Delete</Strong> (deleting a set never touches your decks). Your sets are
+              saved on this device and in your WUBRG'r account (when you're logged in), so they show up on your other phones
+              and computers too, with what you've painted and the cards you've pinned. If the same set is changed on two
+              devices before they sync, the newer change is kept and the app tells you. Deleting a set deletes it everywhere.
             </P>
             <P>
               On a set's <Strong>Decks</Strong> tab, tick the decks that share cards (only Commander decks can be ticked; up

@@ -24,6 +24,7 @@ import List from '../models/List.js';
 import ListCard from '../models/ListCard.js';
 import Deck from '../models/Deck.js';
 import DeckCard from '../models/DeckCard.js';
+import PrismSet from '../models/PrismSet.js';
 import PasswordReset from '../models/PasswordReset.js';
 import { mailIsConfigured, sendMail, sendWelcomeEmail } from '../utils/mail.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -345,6 +346,7 @@ router.delete('/account', requireAuth, async (req, res) => {
       List.deleteMany({ owner }),
       DeckCard.deleteMany({ owner }),
       Deck.deleteMany({ owner }),
+      PrismSet.deleteMany({ owner }),
       RefreshToken.deleteMany({ user: owner }),
       PasswordReset.deleteMany({ user: owner }),
     ]);

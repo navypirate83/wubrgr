@@ -14,12 +14,13 @@ import cors from 'cors';
 import { rateLimit } from 'express-rate-limit';
 import { loadConfig } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { requireAuth, requireAdmin } from './middleware/auth.js';
+import { requireAuth, requireAdmin, requirePrism } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import bindersRouter from './routes/binders.js';
 import listsRouter from './routes/lists.js';
 import decksRouter from './routes/decks.js';
 import settingsRouter from './routes/settings.js';
+import prismRouter from './routes/prism.js';
 import adminRouter from './routes/admin.js';
 import makeScryfallRouter from './routes/scryfall.js';
 import { createImportRouter } from './routes/importDeck.js';
@@ -92,6 +93,8 @@ app.post('/auth/refresh', makeAuthLimiter(config.authRateLimitMax * 2));
 app.put('/binders/:id/cards', requireAuth, express.json({ limit: '25mb' }));
 app.put('/lists/:id/cards', requireAuth, express.json({ limit: '10mb' }));
 app.put('/decks/:id/cards', requireAuth, express.json({ limit: '10mb' }));
+// A PRISM set with a lot painted can be large too
+app.put('/prism/:clientId', requireAuth, requirePrism, express.json({ limit: '10mb' }));
 app.post('/binders/import', requireAuth, express.json({ limit: '10mb' }));
 
 // Everything else: JSON bodies up to 100 KB
@@ -110,6 +113,8 @@ app.use('/lists', requireAuth, listsRouter);
 app.use('/decks', requireAuth, decksRouter);
 // The person's app settings (theme, page layout...), so they follow them
 app.use('/settings', requireAuth, settingsRouter);
+// The person's PRISM sets (only accounts with the PRISM role, and admins)
+app.use('/prism', requireAuth, requirePrism, prismRouter);
 // Card information from Scryfall, for logged-in people only (each person
 // has their own limit per minute, so nobody can use up the shared allowance)
 app.use('/scryfall', requireAuth, makeScryfallRouter(config.scryfallRateLimitMax));

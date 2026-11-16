@@ -50,7 +50,7 @@
 
 import { apiRequest, isOffline } from './api';
 import { accountLayout } from './pageLayout';
-import { getServerUser, isServerSignedIn } from './session';
+import { getServerUser, hasPrismAccess, isServerSignedIn } from './session';
 import {
   cleanCover, cleanPageCount, forgetBinder, freeBinderName, loadBinder, loadBinderList, newLocalBinderId,
   pocketKey, pocketsPerPage, relayoutCards, saveBinder, saveBinderList, setLocalMode, type Binder, type BinderCard, type BinderCards,
@@ -65,13 +65,15 @@ import { cleanDeckFormat } from './deckFormats';
 import { storageGet, storageKeys, storageRemove, storageSet } from './storage';
 import { mergeBinderCards, mergeDeckCards, mergeListCards } from './mergeCards';
 import { askMergeChoice, type MergeChoice } from './mergeChoice';
+import { prismChangedSinceSync, syncPrism, type PrismLink } from './prismSync';
 
 /* ---------- what we remember between syncs ---------- */
 
 // For one binder or list: its id on the server, its fingerprint when we
 // last synced it, and the server's "version" time then
 type Link = { serverId: string; fingerprint: string; version: string };
-type Memory = { binders: Record<string, Link>; lists: Record<string, Link>; decks: Record<string, Link> };
+// (PRISM sets, for accounts that have them, are kept apart: see prismSync.ts)
+type Memory = { binders: Record<string, Link>; lists: Record<string, Link>; decks: Record<string, Link>; prism: Record<string, PrismLink> };
 
 // Each account has its own memory on this device, so logging out and in
 // again (even as someone else in between) never mixes links up, and a
@@ -83,9 +85,9 @@ function memoryKey(): string {
 function readMemory(): Memory {
   try {
     const saved = JSON.parse(storageGet(memoryKey()) ?? 'null');
-    if (saved && typeof saved === 'object') return { binders: saved.binders ?? {}, lists: saved.lists ?? {}, decks: saved.decks ?? {} };
+    if (saved && typeof saved === 'object') return { binders: saved.binders ?? {}, lists: saved.lists ?? {}, decks: saved.decks ?? {}, prism: saved.prism ?? {} };
   } catch { /* unreadable: start fresh */ }
-  return { binders: {}, lists: {}, decks: {} };
+  return { binders: {}, lists: {}, decks: {}, prism: {} };
 }
 function writeMemory(memory: Memory): void {
   storageSet(memoryKey(), JSON.stringify(memory));
@@ -768,6 +770,8 @@ export function syncWithServer(): Promise<void> {
         await syncBinders(memory);
         await syncLists(memory);
         await syncDecks(memory);
+        // PRISM sets come last, since they refer to decks (only for accounts that have PRISM)
+        if (hasPrismAccess()) await syncPrism(memory);
       } finally {
         // Remember how far we got, even if something failed half way
         writeMemory(memory);
@@ -809,5 +813,6 @@ export function changedSinceSync(): boolean {
   const hereDecks = new Set(loadDecks().map((d) => d.id));
   return Object.keys(memory.binders).some((id) => !hereBinders.has(id))
     || Object.keys(memory.lists).some((id) => !hereLists.has(id))
-    || Object.keys(memory.decks).some((id) => !hereDecks.has(id));
+    || Object.keys(memory.decks).some((id) => !hereDecks.has(id))
+    || (hasPrismAccess() && prismChangedSinceSync(memory));
 }

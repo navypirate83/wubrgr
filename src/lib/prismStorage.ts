@@ -15,7 +15,7 @@
    Plain TypeScript with no React in it.
    ===================================================================== */
 
-import { storageGet, storageSet } from './storage';
+import { storageGet, storageRemove, storageSet } from './storage';
 
 // A sleeve's edge holds this many slots (Side A: 1 to 24, Side B: 25 to 48)
 export const MAX_SLOTS = 48;
@@ -54,6 +54,9 @@ export type PrismSet = {
   painted: Record<string, string[][]>;
   // The names as shown, by lowercase name (for a card painted earlier that has since left every deck)
   names: Record<string, string>;
+  // When the set was last changed on a device (milliseconds). It's how the
+  // device and the account tell which copy of the set is newer (see prismSync.ts).
+  editedAt: number;
 };
 
 const KEY = 'prismSets';
@@ -83,6 +86,7 @@ export function loadPrismSets(): PrismSet[] {
           : [],
         painted: s.painted && typeof s.painted === 'object' ? s.painted : {},
         names: s.names && typeof s.names === 'object' ? s.names : {},
+        editedAt: Number.isFinite(s.editedAt) ? s.editedAt : 0,
       }));
   } catch {
     return [];
@@ -104,7 +108,7 @@ export function changePrismSet(id: string, change: (set: PrismSet) => PrismSet):
   const sets = loadPrismSets();
   const index = sets.findIndex((s) => s.id === id);
   if (index < 0) return false;
-  sets[index] = change(sets[index]);
+  sets[index] = { ...change(sets[index]), editedAt: Date.now() };
   return saveSets(sets);
 }
 
@@ -123,7 +127,7 @@ export function nextPrismSetName(): string {
 // Make a new, empty set at the end, and give back its id
 export function addPrismSet(name: string): string {
   const id = `prism-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-  saveSets([...loadPrismSets(), { id, name: name.trim().slice(0, SET_NAME_LIMIT) || nextPrismSetName(), corner: 0, decks: [], pins: [], painted: {}, names: {} }]);
+  saveSets([...loadPrismSets(), { id, name: name.trim().slice(0, SET_NAME_LIMIT) || nextPrismSetName(), corner: 0, decks: [], pins: [], painted: {}, names: {}, editedAt: Date.now() }]);
   return id;
 }
 
@@ -134,6 +138,23 @@ export function renamePrismSet(id: string, name: string) {
 
 export function forgetPrismSet(id: string) {
   saveSets(loadPrismSets().filter((s) => s.id !== id));
+}
+
+// Forget every PRISM set on this device (used when the device is cleared: the
+// sets are kept in the account, so they come back down when you log in)
+export function forgetAllPrismSets() {
+  storageRemove(KEY);
+}
+
+// Used by the sync (see prismSync.ts): keep a set exactly as the account has
+// it, with the account's "editedAt" (it's added, or replaces the set with the
+// same id). It isn't a change made here, so the time isn't touched.
+export function keepPrismSet(set: PrismSet): boolean {
+  const sets = loadPrismSets();
+  const index = sets.findIndex((s) => s.id === set.id);
+  if (index < 0) sets.push(set);
+  else sets[index] = set;
+  return saveSets(sets);
 }
 
 /* ---------------------------------------------------------------------

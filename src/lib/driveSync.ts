@@ -43,6 +43,7 @@ import { storageRemove } from './storage';
 import { clearSaved } from './cardCache';
 import { forgetServerLinks } from './serverSync';
 import { forgetAllDecks } from './deckStorage';
+import { forgetAllPrismSets } from './prismStorage';
 
 // How a reconcile ended: nothing to do, one of the two directions, or
 // "Not now"
@@ -272,6 +273,7 @@ export async function resetPhoneMemory(): Promise<void> {
   clearAllBinders();
   forgetAllLists();
   forgetAllDecks();
+  forgetAllPrismSets();
   setLocalMode(false);
   clearSnapshot();
   storageRemove('lastBinderId');

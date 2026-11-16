@@ -16,6 +16,8 @@ export const COLLECTIONS = {
   listCard: 'wubrgr_listcards',
   deck: 'wubrgr_decks',
   deckCard: 'wubrgr_deckcards',
+  // A PRISM set: decks sharing physical cards (see models/PrismSet.js)
+  prismSet: 'wubrgr_prismsets',
   // Answers remembered from Scryfall (a different thing from "card" above,
   // which is a card sitting in someone's binder)
   scryfallCache: 'wubrgr_scryfallcache',

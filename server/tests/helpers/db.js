@@ -16,6 +16,7 @@ import '../../models/List.js';
 import '../../models/ListCard.js';
 import '../../models/Deck.js';
 import '../../models/DeckCard.js';
+import '../../models/PrismSet.js';
 import '../../models/ScryfallCache.js';
 
 // The safety lock: stop unless we're connected to a "...test" database

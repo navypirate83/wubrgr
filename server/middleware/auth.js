@@ -38,6 +38,13 @@ export function requireAdmin(req, res, next) {
   return next();
 }
 
+// Only accounts with the PRISM role (and admins, who have every role) may
+// pass. The role comes from the 15-minute token, like requireAdmin.
+export function requirePrism(req, res, next) {
+  if (req.user?.role !== 'prism' && req.user?.role !== 'admin') return res.status(403).json({ error: 'PRISM access required' });
+  return next();
+}
+
 // The one rule for "whose things may this person touch": only their own.
 // Every database search spreads this in, so someone else's item looks
 // exactly like one that doesn't exist (even admins get no special view).
