@@ -320,8 +320,11 @@ export const helpTopics: HelpTopic[] = [
               <Strong> Main deck</Strong> and <Strong>Sideboard</Strong> buttons under the search bar. The + and a dragged picture add to
               the one showing, and a card's window has <Strong>Move to sideboard</Strong> and <Strong>Move to main deck</Strong>.
               Tap a card for its window, the same as in a binder or list: a big picture (tap it to open the card in
-              the Card Finder), what the card does, how many copies, <Strong>Move to a binder</Strong> (the card goes
-              into that binder's first empty pocket and leaves the deck) and <Strong>Delete from deck</Strong> (it asks first).
+              the Card Finder), what the card does, how many copies, and <Strong>Delete from deck</Strong> (it asks first). A deck is not part of your
+              collection, so there is no Move to a binder. On a card with a <Strong>solid red border</Strong> (one you don't own) there's
+              <Strong> Add to a binder/list</Strong> instead: <Strong>Add to a binder</Strong> if you own it and it's just not in your collection yet
+              (say you bought a deck and uploaded its list first), or <Strong>Add to a list</Strong> to keep it on a wishlist. The card stays in
+              the deck either way; once it's in a binder its red border goes away.
             </P>
             <P>
               If the deck already has as many copies of a card as its format allows (one in Commander-style

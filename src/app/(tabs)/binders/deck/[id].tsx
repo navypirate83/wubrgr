@@ -54,7 +54,7 @@ import DeckSearchBar, { type DeckSearchMode } from '@/components/decks/DeckSearc
 import CardList, { type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import CardRules from '@/components/binder/CardRules';
-import MoveCardDialog from '@/components/binder/MoveCardDialog';
+import AddToCollectionDialog from '@/components/decks/AddToCollectionDialog';
 import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
 import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckCardCount, setDeckCards, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
@@ -124,7 +124,8 @@ export default function DeckScreen() {
   // The held card's window (its spot in the deck), and the card being moved
   // to a binder (the pop-up list of binders)
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
-  const [movingIndex, setMovingIndex] = useState<number | null>(null);
+  // The deck card being added to a binder or list (its spot in the deck), for cards you don't own
+  const [addingIndex, setAddingIndex] = useState<number | null>(null);
   // The import window (the upload button) and the download window (the download button)
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -528,21 +529,21 @@ export default function DeckScreen() {
     setMenuIndex(left >= 0 ? left : null);
   }
 
-  // "Move to a binder": close this window, then open the list of binders.
-  // (iPhones can't open one pop-up while another is still fading away,
-  // so there it waits a moment.)
-  function moveToBinder(index: number) {
+  // "Add to a binder/list" (a card you don't own): close this window, then open
+  // the choice of a binder or a list. (iPhones can't open one pop-up while
+  // another is still fading away, so there it waits a moment.)
+  function addToCollection(index: number) {
     setMenuIndex(null);
-    setTimeout(() => setMovingIndex(index), Platform.OS === 'ios' ? 350 : 0);
+    setTimeout(() => setAddingIndex(index), Platform.OS === 'ios' ? 350 : 0);
   }
 
-  // The card is safely in the binder: take it out of the deck
-  function movedToBinder(moveNote: string) {
-    if (movingIndex !== null) setDeckCardCount(id, movingIndex, 0);
+  // The card is now in a binder or on a list. It stays in the deck; what you
+  // own is read again, so a card that's now in a binder loses its red border.
+  function addedToCollection(addedNote: string) {
     setOwned(loadOwned());
-    setMovingIndex(null);
-    setNote(moveNote.replace('✓ ', ''));
-    setDeck(findDeck(id));
+    setAddingIndex(null);
+    setNote(addedNote);
+    announce(addedNote);
   }
 
   if (!usingBinders) return <Redirect href="/binders" />;
@@ -556,7 +557,7 @@ export default function DeckScreen() {
   }
 
   const menuCard = menuIndex !== null ? deck.cards[menuIndex] : undefined;
-  const movingCard = movingIndex !== null ? deck.cards[movingIndex] : undefined;
+  const addingCard = addingIndex !== null ? deck.cards[addingIndex] : undefined;
   // The printings you own that this card could switch to
   const menuChoices = menuIndex !== null ? choicesFor(deck.cards, menuIndex, owned) : [];
 
@@ -706,7 +707,10 @@ export default function DeckScreen() {
               <Button label="Move to main deck" icon="arrow-up-outline" kind="secondary"
                       onPress={() => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); }} />
             )}
-            <Button label="Move to a binder" icon="albums-outline" kind="secondary" onPress={() => moveToBinder(menuIndex)} />
+            {/* A card you don't own (a solid red border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */}
+            {marks.get(menuCard) === 'card' && (
+              <Button label="Add to a binder/list" icon="albums-outline" kind="secondary" onPress={() => addToCollection(menuIndex)} />
+            )}
             <Button label="Delete from deck" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuIndex)} />
           </View>
         </PopupWindow>
@@ -747,16 +751,9 @@ export default function DeckScreen() {
         />
       )}
 
-      {/* "Move to a binder": the pop-up list of binders (the same one a
-          binder's and a list's cards use). The deck's own extra details
-          (cost and type) aren't part of a binder card. */}
-      {movingCard && (
-        <MoveCardDialog
-          binderId=""
-          card={(({ manaCost: _cost, typeLine: _type, ...binderCard }) => binderCard)(movingCard)}
-          onMoved={(moveNote) => movedToBinder(moveNote)}
-          onCancel={() => setMovingIndex(null)}
-        />
+      {/* "Add to a binder/list": choose a binder (you own it) or a list (a wishlist) */}
+      {addingCard && (
+        <AddToCollectionDialog card={addingCard} onDone={addedToCollection} onCancel={() => setAddingIndex(null)} />
       )}
     </KeyboardAvoidingView>
   );

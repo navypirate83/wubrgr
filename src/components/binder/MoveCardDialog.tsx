@@ -40,9 +40,15 @@ type Props = {
   // went, "amount" how many
   onMoved: (note: string, amount: number) => void;
   onCancel: () => void;
+  // "move" (the usual: the copies leave where they were) or "add" (the same
+  // list, but the words say Add: a deck's card you own that isn't in any
+  // binder yet is added to one, and stays in the deck)
+  mode?: 'move' | 'add';
 };
 
-export default function MoveCardDialog({ binderId, card, onMoved, onCancel }: Props) {
+export default function MoveCardDialog({ binderId, card, onMoved, onCancel, mode = 'move' }: Props) {
+  const verb = mode === 'add' ? 'Add' : 'Move';
+  const past = mode === 'add' ? 'Added' : 'Moved';
   const colors = useColors();
   const owned = cardCount(card);
   // How many to move (starting at all of them), whether a move is being
@@ -86,7 +92,7 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel }: Pr
   // otherwise they go into its first empty pocket.
   async function moveTo(targetId: string) {
     setBusy(true);
-    setMessage({ text: 'Moving…' });
+    setMessage({ text: mode === 'add' ? 'Adding…' : 'Moving…' });
     try {
       await ensureSignedIn();
       // Get the other binder's latest cards from Drive (or send it any
@@ -111,7 +117,7 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel }: Pr
       }
       saveBinder(cards, targetId);   // keep it on this device (marked "needs saving")...
       await syncBinder(targetId);    // ...and save it to Drive
-      onMoved(`✓ Moved ${amount > 1 ? `${amount} ` : ''}to ${binderName(targetId)}, page ${page}`, amount);
+      onMoved(`✓ ${past} ${amount > 1 ? `${amount} ` : ''}to ${binderName(targetId)}, page ${page}`, amount);
     } catch (err) {
       setBusy(false);
       setMessage({ text: (err as Error).message, error: true });
@@ -130,7 +136,7 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel }: Pr
       const file = await createBinderFile(name, cards, color, list.length, cover);
       saveBinderList([...list, { id: file.id, name, color, cover, pages: DEFAULT_PAGES }]);
       saveBinder(cards, file.id, { dirty: false });   // Drive already has these cards
-      onMoved(`✓ Moved ${amount > 1 ? `${amount} ` : ''}to new binder ${name}`, amount);
+      onMoved(`✓ ${past} ${amount > 1 ? `${amount} ` : ''}to new binder ${name}`, amount);
     } catch (err) {
       // Back to the list, which shows what went wrong
       setBusy(false);
@@ -157,7 +163,7 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel }: Pr
 
   return (
     <PickerSheet
-      title={`Move "${card.name}" to…`}
+      title={`${verb} "${card.name}" to…`}
       items={others}
       keyOf={(binder) => binder.id}
       labelOf={(binder) => {
@@ -186,7 +192,7 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel }: Pr
         <>
           {owned > 1 && (
             <View style={styles.amountRow}>
-              <Text style={[styles.amountLabel, { color: colors.text }]}>How many to move</Text>
+              <Text style={[styles.amountLabel, { color: colors.text }]}>How many to {verb.toLowerCase()}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="One fewer" hitSlop={4}
                          disabled={busy || amount <= 1} onPress={() => setAmount(amount - 1)}
                          style={({ pressed }) => [styles.step, { borderColor: colors.border }, pressed && styles.pressed, (busy || amount <= 1) && styles.faded]}>
