@@ -503,8 +503,12 @@ export const helpTopics: HelpTopic[] = [
             <Bullet><Strong>Card Finder</Strong> (the magnifying glass): the MTG Card Finder, to look up any card.</Bullet>
             <Bullet>
               <Strong>Scan</Strong> (the camera): the card scanner, to point your camera at a card and add it to a binder.
-              It's still being built, one part at a time. It will identify cards from the{' '}
+              It's still being built, one part at a time, the website's first. For now, on the website, it shows the camera
+              with a card-shaped guide: line a card up in the corners and tap the round button (or tap the picture button to
+              choose a photo of a card), and it reads the card's name, its small print at the bottom left and its copyright
+              line, then shows what it read, which set and number that is, and whether the name agrees. It identifies cards from the{' '}
               <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, so it works with no internet.
+              Adding the card to a binder, and the phone app's camera, come next.
             </Bullet>
             <Bullet>
               <Strong>Settings</Strong> (the gear): the theme (light or dark) and more

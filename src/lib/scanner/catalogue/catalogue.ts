@@ -143,6 +143,14 @@ export async function setCodes(): Promise<string[]> {
   return (await catalogueDb.all(SQL.setCodes)).map((r) => String(r.code));
 }
 
+// Every card's front name in the plain form for matching (about 30,000), kept after
+// the first time it's asked for, for the scanner's fuzzy name matching
+let frontNames: string[] | null = null;
+export async function allFrontNames(): Promise<string[]> {
+  if (!frontNames) frontNames = (await catalogueDb.all(SQL.frontNames)).map((r) => String(r.front_norm));
+  return frontNames;
+}
+
 // A set's symbol as a 64 x 64 black-and-white bitmap (1 bit a pixel, 1 = dark,
 // row by row, 8 pixels to a byte, the first pixel in the top bit), or null
 export async function setSymbol(code: string): Promise<Uint8Array | null> {

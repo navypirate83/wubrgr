@@ -159,7 +159,15 @@ device, checks for a newer one and removes it).
   android`, or a local `npx expo prebuild` and run), because `expo-sqlite` (and
   later the camera and text recognition) are native. Expo Go will not work.
 
-Tests for the shared core: `node --test src/lib/scanner/core/phash.test.ts`.
+Tests for the shared core (the art fingerprint, the info-line parser for both printed
+layouts, set-code checking, fuzzy name matching, set-symbol scoring, narrowing the
+printings and how sure a scan is): `node --test src/lib/scanner/core/*.test.ts`.
+
+**The website's scanner** reads one full-size photo per tap (or a photo you choose from the
+device) with Tesseract.js in a web worker. Its files are copies in `public/tesseract/`
+(see the README there) and load only when the Scan tab opens; the camera is the browser's
+`getUserMedia` and needs https. The phone app's camera and text reading are built after the
+website's.
 
 ## Card data
 
