@@ -5,7 +5,7 @@
    partner or a Background), or an Oathbreaker and its signature spell
    (see lib/deckZones.ts for which cards each takes).
    - A spot with a card shows its picture, name, what it is and its rules text (no
-     flavor text; in a box three lines taller than the picture that scrolls if the
+     flavor text; in a box as tall as the (larger) picture, which scrolls if the
      text is longer), with
      "Change" (pick another card for the spot) and "Move to deck" (the card
      goes back into the main deck). Tap the card for its window.
@@ -29,6 +29,11 @@ import { deckFormat } from '@/lib/deckFormats';
 import { secondSpotShows, slotHint, slotName } from '@/lib/deckZones';
 import { pictureSource } from '@/lib/http';
 import { loadRulesText } from '@/lib/scryfall';
+
+// How big a card's picture is: as tall as the spot's text box (the old 76-point picture plus three
+// lines of 13 points), and as wide as a card's shape makes it (the old 54 by 76 shape)
+const PICTURE_HEIGHT = 76 + 3 * 13;
+const PICTURE_WIDTH = Math.round((PICTURE_HEIGHT * 54) / 76);
 
 type Props = {
   deck: Deck;
@@ -79,7 +84,7 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
               <Pressable accessibilityRole="button" accessibilityLabel={`${card.name}${gameChanger?.(card.name) ? ', Game Changer' : ''}, your ${name.toLowerCase()}. Opens its menu.`}
                          onPress={() => onOpenCard(deck.cards.indexOf(card))} style={styles.cardPress}>
                 <View>
-                  <FoilFrame foil={card.foil === true} width={54} height={76} radius={6}>
+                  <FoilFrame foil={card.foil === true} width={PICTURE_WIDTH} height={PICTURE_HEIGHT} radius={6}>
                     <Image source={pictureSource(card.image)} style={styles.thumb} contentFit="cover" />
                   </FoilFrame>
                   {banned?.(card.name) && <BannedSlash radius={6} />}
@@ -88,7 +93,7 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
                   {gameChanger?.(card.name) && <GameChangerBadge size={8} />}
                 </View>
                 {/* The name, the role and cost on one line, then the card's rules text (no flavor text) in
-                    a box that is three lines taller than the picture (it scrolls if the text is longer) */}
+                    a box as tall as the picture (it scrolls if the text is longer) */}
                 <View style={[styles.what, styles.whatFilled]}>
                   <Text style={[styles.role, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
                   <View style={styles.roleRow}>
@@ -141,17 +146,16 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', justifyContent: 'space-between' },
   title: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
   slots: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  slot: { flex: 1, minWidth: 200, borderWidth: 1, borderRadius: 12, padding: 8, gap: 6 },
+  slot: { flex: 1, minWidth: 240, borderWidth: 1, borderRadius: 12, padding: 8, gap: 6 },
   empty: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 2, borderStyle: 'dashed' },
-  // (the picture stays at the top while the text beside it runs a little taller)
   cardPress: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  picture: { width: 54, height: 76, borderRadius: 6 },
+  picture: { width: PICTURE_WIDTH, height: PICTURE_HEIGHT, borderRadius: 6 },
   plusPicture: { borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   plus: { fontSize: 28, fontWeight: '300' },
   thumb: { width: '100%', height: '100%' },
   what: { flex: 1, minWidth: 0, gap: 1 },
-  // With a card in the spot: as tall as the picture plus three more lines of rules text (13 points each)
-  whatFilled: { height: 76 + 3 * 13, alignSelf: 'flex-start' },
+  // With a card in the spot: as tall as the picture
+  whatFilled: { height: PICTURE_HEIGHT, alignSelf: 'flex-start' },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rulesBox: { flex: 1, minHeight: 0 },
   rules: { fontSize: 11, lineHeight: 13 },
