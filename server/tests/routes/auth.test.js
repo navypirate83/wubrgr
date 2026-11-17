@@ -128,28 +128,41 @@ describe('sessions', () => {
     expect(() => jwt.verify(res.body.accessToken, 'a-different-secret')).toThrow();
   });
 
-  test('refresh gives a new pair and kills the old token; the database holds only fingerprints', async () => {
+  test('refresh gives a new pair; the database holds only fingerprints', async () => {
     const first = (await signup(good)).body;
     expect(await RefreshToken.countDocuments({ tokenHash: first.refreshToken })).toBe(0);
     const second = await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken });
     expect(second.status).toBe(200);
     expect(second.body.refreshToken).not.toBe(first.refreshToken);
-    const old = await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken });
-    expect(old.status).toBe(401);
   });
 
-  test('replaying an old refresh token also kills the newer one', async () => {
+  // The swap worked but the new token never reached the app (it was closed or switched away from mid-reply):
+  // the app tries again with the old token, and that must not sign the person out
+  test('a token that was just swapped works again, so a lost reply does not sign anyone out', async () => {
+    const first = (await signup(good)).body;
+    await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken });    // the reply that never arrived
+    const retry = await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken });
+    expect(retry.status).toBe(200);
+    // ...and the pair it gives keeps working
+    const next = await request(app).post('/auth/refresh').send({ refreshToken: retry.body.refreshToken });
+    expect(next.status).toBe(200);
+  });
+
+  test('a swapped token coming back weeks later is treated as theft and cancels the whole login', async () => {
     const first = (await signup(good)).body;
     const second = (await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken })).body;
-    await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken }); // the replay
+    // Pretend the swap happened 15 days ago (the grace period is 14)
+    await RefreshToken.updateMany({ usedAt: { $ne: null } }, { usedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000) });
+    const replay = await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken });
+    expect(replay.status).toBe(401);
     const newer = await request(app).post('/auth/refresh').send({ refreshToken: second.refreshToken });
     expect(newer.status).toBe(401);
   });
 
-  test('two refreshes at the same instant: exactly one wins', async () => {
+  test('two refreshes at the same instant (two browser tabs) both succeed and neither is signed out', async () => {
     const first = (await signup(good)).body;
     const both = await Promise.all([1, 2].map(() => request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken })));
-    expect(both.filter((r) => r.status === 200)).toHaveLength(1);
+    expect(both.filter((r) => r.status === 200)).toHaveLength(2);
   });
 
   test('expired, made-up and deleted-account tokens all give 401', async () => {

@@ -3,7 +3,8 @@
    - POST /auth/signup       make an account (email + password)
    - POST /auth/login        sign in with a username-or-email + password
    - POST /auth/google       sign in with Google
-   - POST /auth/refresh      swap the long-lived token for a fresh pair
+   - POST /auth/refresh      swap the long-lived token for a fresh pair (a token swapped in the last
+                             14 days still works once more: see the note in the route)
    - POST /auth/logout       end this login
    - POST /auth/logout-all   end every login of this account (needs sign-in)
    - POST /auth/forgot       email a 6-digit code (and the username) to an account
@@ -36,6 +37,10 @@ const RESERVED_USERNAMES = ['admin', 'administrator', 'root', 'support', 'system
 // when there is no such account, so "no account" takes as long as "wrong
 // password" and can't be told apart by timing.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
+
+// How long after a refresh token was swapped it may still be used once more without it counting as theft
+// (see /auth/refresh). Long enough that "I opened the app, left, and came back later" never signs anyone out.
+const REUSE_GRACE_DAYS = 14;
 
 // A rough "looks like an email" check
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -180,9 +185,13 @@ router.post('/refresh', async (req, res) => {
     // Not found, or past its 60 days
     if (!row || row.expiresAt <= new Date()) return res.status(401).json({ error: 'Please sign in' });
 
-    // Already swapped for a newer one: someone is replaying an old token
-    // (it may have been copied). Cancel every token from this login.
-    if (row.usedAt) {
+    // Already swapped for a newer one. Usually that's an honest second try, not theft: the swap
+    // worked but the new token never reached the app (it was switched away from or closed while the
+    // reply was on its way, the signal dropped, or two browser tabs refreshed at once). Signing the
+    // person out for that is what made the app forget them, so a token swapped within the grace
+    // period is let through and gets a fresh pair. Only an OLD swapped token coming back (weeks
+    // later: it may have been copied) cancels every token from this login.
+    if (row.usedAt && Date.now() - row.usedAt.getTime() > REUSE_GRACE_DAYS * 24 * 60 * 60 * 1000) {
       await RefreshToken.deleteMany({ family: row.family });
       return res.status(401).json({ error: 'Please sign in' });
     }
@@ -194,11 +203,10 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Please sign in' });
     }
 
-    // Mark it used in ONE step, so two refreshes at the same instant can't both win
-    const claimed = await RefreshToken.findOneAndUpdate({ tokenHash, usedAt: null }, { usedAt: new Date() });
-    if (!claimed) return res.status(401).json({ error: 'Please sign in' });
+    // Mark it used in ONE step (it does nothing if it was already used, which is fine now)
+    await RefreshToken.updateOne({ tokenHash, usedAt: null }, { usedAt: new Date() });
 
-    // A new pair, in the same family (the old token is now dead)
+    // A new pair, in the same family
     return res.status(200).json(await issueSession(user, row.family));
   } catch (err) {
     return handleDbError(err, res);

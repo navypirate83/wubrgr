@@ -7,8 +7,9 @@
      (error 401), we quietly ask for a new one with the long-lasting
      "refresh token" and try the request again, once.
    - several requests can run out at the same moment. They SHARE one
-     refresh, because a refresh token works only once: using it twice
-     would look like theft and sign you out everywhere.
+     refresh, because a refresh token is meant to be swapped once (the
+     server also forgives a second try within two weeks, in case the new
+     one never arrived; see server/routes/auth.js).
    - a server on a free host goes to sleep when nobody uses it and takes
      up to a minute to wake. If a reply is slow, listeners (a screen) are
      told so it can say "Waking the server…" instead of looking frozen.

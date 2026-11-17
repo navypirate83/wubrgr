@@ -50,10 +50,19 @@ async function forgetRefreshToken(): Promise<void> {
   else await SecureStore.deleteItemAsync(REFRESH_KEY).catch(() => { /* already gone */ });
 }
 
-// Read it back when the app starts
+// Read it back when the app starts. The phone's secure vault can fail to answer the first time (right after
+// the phone starts up, say), and that would look exactly like being signed out even though the token is
+// still saved, so if it fails it is asked again a couple of times before giving up.
 async function readRefreshToken(): Promise<string | null> {
   if (Platform.OS === 'web') return storageGet(REFRESH_KEY);
-  return SecureStore.getItemAsync(REFRESH_KEY).catch(() => null);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await SecureStore.getItemAsync(REFRESH_KEY);
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+  return null;
 }
 
 /* ---------- what screens can ask ---------- */
@@ -183,7 +192,7 @@ export async function loadSession(): Promise<void> {
   accountChanged();
   // Get a fresh access token now; if there's no internet it waits until
   // the first request needs one
-  // (Through refreshOnce, so it shares a refresh already running: using
-  // the same refresh token twice would sign us out)
+  // (Through refreshOnce, so it shares a refresh already running instead
+  // of starting a second one with the same refresh token)
   refreshOnce().catch(() => { /* offline: stay signed in */ });
 }
