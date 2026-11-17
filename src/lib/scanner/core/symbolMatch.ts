@@ -92,16 +92,25 @@ export function normalizeSymbol(bits: Uint8Array): Uint8Array {
   return out;
 }
 
-// How much two symbols overlap: 0 (none) to 1 (the same shape)
-export function symbolScore(a: Uint8Array, b: Uint8Array): number {
-  const x = normalizeSymbol(a);
-  const y = normalizeSymbol(b);
+// How many 1-bits each byte value has, worked out once (so counting bits is a quick look-up)
+const ONES = new Uint8Array(256).map((_, value) => { let n = 0; for (let v = value; v; v >>= 1) n += v & 1; return n; });
+
+// Dark and light swapped. A set symbol is dark on a light frame but light on a dark one (gold on black),
+// and the crop alone can't say which way round it is, so both ways are tried.
+export function invertSymbol(bits: Uint8Array): Uint8Array {
+  return bits.map((byte) => ~byte & 0xff);
+}
+
+// How much two symbols that are ALREADY normalized (see normalizeSymbol) overlap: 0 (none) to 1 (the same shape).
+// Normalizing is the slow part, so a caller comparing one crop against many symbols does that once, up front.
+export function overlapOfNormalized(x: Uint8Array, y: Uint8Array): number {
   let both = 0;
   let either = 0;
-  for (let i = 0; i < SYMBOL_BYTES; i++) {
-    const and = x[i] & y[i];
-    const or = x[i] | y[i];
-    for (let bit = 0; bit < 8; bit++) { both += (and >> bit) & 1; either += (or >> bit) & 1; }
-  }
+  for (let i = 0; i < SYMBOL_BYTES; i++) { both += ONES[x[i] & y[i]]; either += ONES[x[i] | y[i]]; }
   return either === 0 ? 0 : both / either;
+}
+
+// How much two symbols overlap: 0 (none) to 1 (the same shape)
+export function symbolScore(a: Uint8Array, b: Uint8Array): number {
+  return overlapOfNormalized(normalizeSymbol(a), normalizeSymbol(b));
 }

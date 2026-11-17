@@ -25,7 +25,7 @@ import { rgbaToGray } from '../core/phash';
 import { binarizeForOcr } from '../core/ocrPrep';
 import { borderFromBrightness } from '../core/borderColor';
 import { letterCount, readCardStaged, type PartReader } from '../core/readPlan';
-import { ART_BOX, ART_SHIFTS, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_BOX, type Box, type GrayPicture, type ScanExtras, type ScanReading } from '../core/scannerTypes';
+import { ART_BOX, ART_REGION, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_REGION, type Box, type GrayPicture, type ScanExtras, type ScanReading } from '../core/scannerTypes';
 import type { CardOcr } from './ocr';
 
 /* ---------- a little of Tesseract's own shape ---------- */
@@ -217,16 +217,15 @@ const partOf = (card: CardRect, box: Box): CardRect => ({
   x: card.x + box[0] * card.w, y: card.y + box[1] * card.h, w: (box[2] - box[0]) * card.w, h: (box[3] - box[1]) * card.h,
 });
 
-// The set symbol crop, the art box cropped a few ways, and the border colour (only read if the fallback needs them)
+// One picture of the art area, one of the symbol area, and the border colour (only read if the fallback needs
+// them). They are cut up later, once it's known which printings are possible, because each frame era has its
+// art and symbol in a slightly different place (see core/clueMatch.ts).
 function readClues(source: CanvasImageSource, card: CardRect): ScanExtras {
-  const symbol = grayCrop(source, partOf(card, SYMBOL_BOX), 128);
-  const arts = ART_SHIFTS.map(([dx, dy]) => {
-    const art = partOf(card, ART_BOX);
-    return grayCrop(source, { x: art.x + dx * card.w, y: art.y + dy * card.h, w: art.w, h: art.h }, 128);
-  });
+  const artRegion = grayCrop(source, partOf(card, ART_REGION), 288);
+  const symbolRegion = grayCrop(source, partOf(card, SYMBOL_REGION), 300);
   const strip = grayCrop(source, partOf(card, BORDER_STRIP), 16);
   const mean = strip.data.reduce((sum, v) => sum + v, 0) / strip.data.length;
-  return { symbol, arts, border: borderFromBrightness(mean) };
+  return { artRegion, symbolRegion, border: borderFromBrightness(mean) };
 }
 
 // A small picture of the art as the camera saw it, to show beside the candidates

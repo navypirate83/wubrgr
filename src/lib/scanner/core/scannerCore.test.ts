@@ -12,7 +12,7 @@ import { parseCopyrightYears, parseInfoLine } from './infoLine.ts';
 import { checkSetCode } from './setCode.ts';
 import { bestNameMatch, editDistance, similarity } from './fuzzy.ts';
 import { SYMBOL_BYTES, SYMBOL_SIZE, normalizeSymbol, symbolBitsFromGray, symbolScore } from './symbolMatch.ts';
-import { narrowCandidates, type Candidate } from './narrow.ts';
+import { rankCandidates, type Candidate } from './rank.ts';
 import { decideScan } from './decide.ts';
 import { normalizeName } from './text.ts';
 import { binarizeForOcr } from './ocrPrep.ts';
@@ -166,39 +166,71 @@ test('the same symbol scores high even loosely cropped or in another colour, dif
   assert.equal(normalizeSymbol(new Uint8Array(SYMBOL_BYTES)).every((b) => b === 0), true);
 });
 
-/* ---------- narrowing the printings ---------- */
+/* ---------- ranking the printings ---------- */
 
-const printing = (id: string, setCode: string, year: number, border: string, frame: string): Candidate =>
-  ({ id, setCode, year, border, frame, symbol: null, artHashes: [] });
+const printing = (id: string, setCode: string, year: number, border: string): Candidate =>
+  ({ id, setCode, year, border, group: id });
 const BOLT = [
-  printing('lea', 'lea', 1993, 'black', '1993'), printing('leb', 'leb', 1993, 'black', '1993'),
-  printing('2ed', '2ed', 1993, 'white', '1993'), printing('3ed', '3ed', 1994, 'white', '1993'),
-  printing('4ed', '4ed', 1995, 'white', '1993'), printing('5ed', '5ed', 1997, 'white', '1997'),
-  printing('m10', 'm10', 2009, 'black', '2003'),
+  printing('lea', 'lea', 1993, 'black'), printing('leb', 'leb', 1993, 'black'),
+  printing('2ed', '2ed', 1993, 'white'), printing('3ed', '3ed', 1994, 'white'),
+  printing('4ed', '4ed', 1995, 'white'), printing('5ed', '5ed', 1997, 'white'),
+  printing('m10', 'm10', 2009, 'black'),
 ];
+const ids = (candidates: Candidate[]) => candidates.map((c) => c.id);
 
-test('each clue narrows, in order, and a clue that would remove everything is ignored', () => {
-  const byYear = narrowCandidates(BOLT, { years: { from: 1995, to: 1995 } });
-  assert.deepEqual(byYear.remaining.map((c) => c.id), ['4ed']);
+test('the year and the border push the right printings up the list, and a clear lead is "likely"', () => {
+  const byYear = rankCandidates(BOLT, { years: { from: 1995, to: 1995 } });
+  assert.equal(byYear.ordered[0].id, '4ed');
   assert.equal(byYear.likely, true);
-  const byBorderAndFrame = narrowCandidates(BOLT, { border: 'white', frame: '1997' });
-  assert.deepEqual(byBorderAndFrame.remaining.map((c) => c.id), ['5ed']);
-  // No printing from 1850: the year is ignored, not trusted
-  assert.equal(narrowCandidates(BOLT, { years: { from: 1850, to: 1850 } }).remaining.length, BOLT.length);
+  // The border alone only splits them into two bunches, so nothing is clearly ahead
+  const byBorder = rankCandidates(BOLT, { border: 'white' });
+  assert.deepEqual(ids(byBorder.ordered).slice(0, 4), ['2ed', '3ed', '4ed', '5ed']);
+  assert.equal(byBorder.likely, false);
+  // With no clues at all every printing is level, the catalogue's order is kept, and nothing is likely
+  const none = rankCandidates(BOLT, {});
+  assert.deepEqual(ids(none.ordered), ids(BOLT));
+  assert.equal(none.likely, false);
 });
 
-test('no set symbol points to Alpha through Fifth Edition', () => {
-  const result = narrowCandidates(BOLT, { symbolFound: false });
-  assert.deepEqual(result.remaining.map((c) => c.id), ['lea', 'leb', '2ed', '3ed', '4ed', '5ed']);
+test('a clue that is wrong costs a printing points but never removes it', () => {
+  // No printing is from 1850, but every printing is still in the list (the old way kept them by ignoring the clue)
+  const result = rankCandidates(BOLT, { years: { from: 1850, to: 1850 } });
+  assert.equal(result.ordered.length, BOLT.length);
+  // Art says Beta, a wrong year says Revised: the strong art clue still wins
+  const art = new Map([['lea', 120], ['leb', 15], ['2ed', 118]]);
+  const mixed = rankCandidates(BOLT.slice(0, 3), { artDistances: art, years: { from: 1994, to: 1994 } });
+  assert.equal(mixed.ordered[0].id, 'leb');
 });
 
-test('symbol overlap and art distance keep only the best candidates', () => {
+test('symbol overlap and art distance put the best candidates first', () => {
   const symbols = new Map([['lea', 0.2], ['2ed', 0.9], ['3ed', 0.88], ['4ed', 0.3]]);
-  assert.deepEqual(narrowCandidates(BOLT.slice(0, 5), { symbolScores: symbols }).remaining.map((c) => c.id), ['2ed', '3ed']);
+  assert.deepEqual(ids(rankCandidates(BOLT.slice(0, 5), { symbolScores: symbols }).ordered).slice(0, 2), ['2ed', '3ed']);
   const art = new Map([['lea', 90], ['leb', 10], ['2ed', 14], ['3ed', 120]]);
-  assert.deepEqual(narrowCandidates(BOLT.slice(0, 4), { artDistances: art }).remaining.map((c) => c.id), ['leb', '2ed']);
-  // Art nowhere near any candidate: not trusted
-  assert.equal(narrowCandidates(BOLT.slice(0, 3), { artDistances: new Map([['lea', 110], ['leb', 120], ['2ed', 130]]) }).remaining.length, 3);
+  assert.deepEqual(ids(rankCandidates(BOLT.slice(0, 4), { artDistances: art }).ordered).slice(0, 2), ['leb', '2ed']);
+  // Art nowhere near any candidate: they all lose about the same, so nothing is clearly ahead
+  const far = rankCandidates(BOLT.slice(0, 3), { artDistances: new Map([['lea', 110], ['leb', 112], ['2ed', 114]]) });
+  assert.equal(far.likely, false);
+});
+
+test('printings that look the same (same set and art) do not count as rivals, but a different set does', () => {
+  const foil = { ...printing('foil', 'm10', 2009, 'black'), group: 'm10|art1' };
+  const plain = { ...printing('plain', 'm10', 2009, 'black'), group: 'm10|art1' };
+  const other = { ...printing('other', 'lea', 1993, 'black'), group: 'lea|art2' };
+  const art = new Map([['foil', 20], ['plain', 20], ['other', 140]]);
+  const result = rankCandidates([foil, plain, other], { artDistances: art });
+  assert.equal(result.likely, true);
+  assert.equal(result.ordered[0].group, 'm10|art1');
+  assert.equal(result.fits, 2);
+  // Close art for two different sets: not likely, and both fit
+  const tied = rankCandidates([foil, other], { artDistances: new Map([['foil', 20], ['other', 22]]) });
+  assert.equal(tied.likely, false);
+  assert.equal(tied.fits, 2);
+});
+
+test('the reasons are written in plain words', () => {
+  const result = rankCandidates(BOLT.slice(0, 3), { artDistances: new Map([['lea', 20], ['leb', 100], ['2ed', 100]]), border: 'black' });
+  assert.match(result.why, /art matches \(20 bits\)/);
+  assert.match(result.why, /black border/);
 });
 
 /* ---------- how sure a scan is ---------- */

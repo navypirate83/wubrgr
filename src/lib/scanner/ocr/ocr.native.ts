@@ -12,7 +12,7 @@
    ===================================================================== */
 
 import { requireNativeModule } from 'expo';
-import { ART_BOX, ART_SHIFTS, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_BOX, type Box, type ScanExtras, type ScanReading } from '../core/scannerTypes';
+import { ART_BOX, ART_REGION, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_REGION, type Box, type ScanExtras, type ScanReading } from '../core/scannerTypes';
 import type { Fractions } from '../core/cardInPhoto';
 import { borderFromBrightness } from '../core/borderColor';
 import { decodeGray, meanBrightness, type PackedGray } from '../core/grayDecode';
@@ -51,19 +51,16 @@ export function photoSize(path: string): Promise<[number, number]> {
 // A box given as left/top/right/bottom, turned into left/top/width/height (what the add-on takes)
 const asFractions = (box: Box): Fractions => [box[0], box[1], box[2] - box[0], box[3] - box[1]];
 
-// The slower clues for older cards: the set symbol, the artwork cropped a few slightly different
-// ways, and the border colour. Only read when the fallback needs them (see core/readPlan.ts).
+// The slower clues for older cards: one picture of the art area, one of the symbol area, and the border
+// colour. Only read when the fallback needs them (see core/readPlan.ts). The pictures are cut up later,
+// once it's known which printings are possible, because each frame era has its art and symbol in a slightly
+// different place (see core/clueMatch.ts).
 async function readClues(path: string, card: Fractions): Promise<ScanExtras> {
-  const art = asFractions(ART_BOX);
-  const shifted = ART_SHIFTS.map(([dx, dy]): Fractions => [art[0] + dx, art[1] + dy, art[2], art[3]]);
-  const boxes = [asFractions(SYMBOL_BOX), ...shifted, asFractions(BORDER_STRIP)];
-  const widths = [128, ...shifted.map(() => 128), 16];
-  const pictures = (await reader().grayCrops(path, card, boxes, widths)).map(decodeGray);
-  return {
-    symbol: pictures[0],
-    arts: pictures.slice(1, 1 + shifted.length),
-    border: borderFromBrightness(meanBrightness(pictures[pictures.length - 1])),
-  };
+  const boxes = [asFractions(ART_REGION), asFractions(SYMBOL_REGION), asFractions(BORDER_STRIP)];
+  // The art only needs to be fingerprinted from a small picture; the symbol is tiny, so it keeps more detail
+  const widths = [288, 300, 16];
+  const [artRegion, symbolRegion, strip] = (await reader().grayCrops(path, card, boxes, widths)).map(decodeGray);
+  return { artRegion, symbolRegion, border: borderFromBrightness(meanBrightness(strip)) };
 }
 
 // The ways of reading the parts of one card in a photo, in the form the shared reading order

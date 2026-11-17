@@ -7,11 +7,11 @@
       real sets, the printing is looked up, and the card's NAME (read separately
       from the title bar) must agree with it. If so, the answer is "sure".
    2. THE FALLBACK (no readable info line, or nothing found for it): the NAME
-      alone finds every printing of that card, and every clue is used in turn to cut
-      the list down (copyright year, border colour, the set symbol compared only
-      against the sets this card was printed in, and the artwork's fingerprint
-      compared only against these printings; see core/narrow.ts).
-      One left: "likely". More than one: "pick" (the person chooses, with their
+      alone finds every printing of that card, and every clue adds to each printing's score
+      (copyright year, border colour, the set symbol compared only against the sets this card was
+      printed in, and the artwork's fingerprint compared only against these printings, each printing
+      judged with the crops for its own frame era; see core/rank.ts and core/clueMatch.ts).
+      One clearly ahead: "likely". Otherwise "pick" (the person chooses, most likely first, with their
       photo's art beside the candidates). Never "sure": this path never adds a card by itself.
    If the name can't be read either, the answer is "none".
    The slow extras (copyright line, symbol, artwork, border colour) are only read when the
@@ -19,17 +19,16 @@
    Plain TypeScript with no React in it. Everything here works with no internet.
    ===================================================================== */
 
-import { artHash, hammingDistance } from './core/phash';
+import { photoClues } from './core/clueMatch';
 import { bestNameMatch, similarity } from './core/fuzzy';
 import { parseCopyrightYears, parseInfoLine, type InfoLine } from './core/infoLine';
-import { narrowCandidates, type Candidate } from './core/narrow';
+import { rankCandidates, type Candidate } from './core/rank';
 import { checkSetCode } from './core/setCode';
 import { decideScan } from './core/decide';
 import { loadMoreClues } from './core/readPlan';
-import { symbolBitsFromGray, symbolScore } from './core/symbolMatch';
 import { normalizeName } from './core/text';
 import type { Printing } from './core/catalogueTypes';
-import type { GrayPicture, ScanReading } from './core/scannerTypes';
+import { eraOf, type ScanReading } from './core/scannerTypes';
 import { allFrontNames, artHashFor, findPrintings, printingsNamed, setCodes, setSymbol } from './catalogue/catalogue';
 
 export type ScanOutcome = {
@@ -55,17 +54,6 @@ async function symbolOf(code: string): Promise<Uint8Array | null> {
   return symbols.get(code) ?? null;
 }
 
-// How far apart (bits of 256) the art in the photo is from a stored fingerprint: the closest of the
-// few differently-cropped copies of the photo's art, since the card is never lined up exactly
-function closestArt(arts: GrayPicture[], stored: Uint8Array[]): number {
-  let best = Infinity;
-  for (const art of arts) {
-    const hash = artHash(art.data, art.width, art.height);
-    for (const other of stored) best = Math.min(best, hammingDistance(hash, other));
-  }
-  return best;
-}
-
 // The fallback, from the name
 async function fromName(reading: ScanReading, name: string, info: InfoLine, lang: string | null): Promise<ScanOutcome> {
   const printings = await printingsNamed(name);
@@ -76,33 +64,34 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   // Several printings to tell apart: only now are the slower clues worth reading from the photo
   await loadMoreClues(reading);
 
-  // What each candidate looks like to the clues
+  // Each printing is judged with the art and symbol crops for ITS OWN frame era (see core/clueMatch.ts):
+  // how far the photo's art is from its stored fingerprint, and how much the photo's symbol looks like its set's
+  const photo = photoClues(reading.extras);
+  const symbolScores = new Map<string, number>();
+  const artDistances = new Map<string, number>();
   const candidates: Candidate[] = [];
   for (const p of printings) {
     const hashes = (await Promise.all([p.illus, p.illusBack].map((id) => (id ? artHashFor(id) : null)))).filter((h): h is Uint8Array => !!h);
-    candidates.push({ id: p.id, setCode: p.setCode, year: p.year, border: p.border, frame: p.frame, symbol: await symbolOf(p.setCode), artHashes: hashes });
+    const distance = photo.artDistance(eraOf(p.frame), hashes);
+    if (distance !== null) artDistances.set(p.id, distance);
+    const symbol = await symbolOf(p.setCode);
+    const overlap = symbol ? photo.symbolOverlap(symbol) : null;
+    if (overlap !== null) symbolScores.set(p.id, overlap);
+    // (a foil and a non-foil of the same set and art look the same in a photo, so they share a group)
+    candidates.push({ id: p.id, setCode: p.setCode, year: p.year, border: p.border, group: `${p.setCode}|${p.illus ?? p.id}` });
   }
-  const extras = reading.extras;
-  const symbolBits = extras?.symbol ? symbolBitsFromGray(extras.symbol.data, extras.symbol.width, extras.symbol.height) : undefined;
-  const symbolScores = new Map<string, number>();
-  if (symbolBits) for (const c of candidates) if (c.symbol) symbolScores.set(c.id, symbolScore(symbolBits, c.symbol));
-  const artDistances = new Map<string, number>();
-  if (extras?.arts?.length) for (const c of candidates) if (c.artHashes.length) artDistances.set(c.id, closestArt(extras.arts, c.artHashes));
 
-  const narrowed = narrowCandidates(candidates, {
+  const ranked = rankCandidates(candidates, {
     years: parseCopyrightYears(reading.bottomText),
-    border: extras?.border ?? null,
-    symbolFound: symbolBits === undefined ? undefined : symbolBits !== null,
+    border: reading.extras?.border ?? null,
     symbolScores,
     artDistances,
   });
   const byId = new Map(printings.map((p) => [p.id, p]));
-  // The ones left first (closest art first), then the rest
-  const left = narrowed.remaining.map((c) => byId.get(c.id)!).sort((a, b) => (artDistances.get(a.id) ?? 999) - (artDistances.get(b.id) ?? 999));
-  const rest = printings.filter((p) => !left.includes(p));
-  const why = narrowed.steps.length ? narrowed.steps.join('; ') : 'No clue could narrow it';
-  if (narrowed.likely) return { ...base, status: 'likely', printing: left[0], candidates: [...left, ...rest], matched: left.length, reason: `Likely (${why})` };
-  return { ...base, status: 'pick', printing: null, candidates: [...left, ...rest], matched: left.length, reason: `${left.length} printings are left (${why})` };
+  // Most likely first
+  const ordered = ranked.ordered.map((c) => byId.get(c.id)!);
+  if (ranked.likely) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `Likely (${ranked.why})` };
+  return { ...base, status: 'pick', printing: null, candidates: ordered, matched: ranked.fits, reason: `${ranked.fits} printings fit best (${ranked.why})` };
 }
 
 // Works out the printing, then lets go of the photo's "read more" step (it holds on to the picture,

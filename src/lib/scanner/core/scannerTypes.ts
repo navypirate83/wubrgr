@@ -10,10 +10,13 @@
 export type GrayPicture = { data: Uint8Array; width: number; height: number };
 
 // What the camera also works out from the photo, for telling printings apart when the info
-// line can't be read (older cards): the set symbol, the artwork, and the border colour
+// line can't be read (older cards): the set symbol, the artwork, and the border colour.
+// The art and the symbol are each ONE picture of a generous area (ART_REGION, SYMBOL_REGION below). They are
+// cut up later, once the printings to choose between are known, because each frame era (1993, 1997, 2003,
+// 2015) has its art and symbol in a slightly different place (see core/clueMatch.ts).
 export type ScanExtras = {
-  symbol?: GrayPicture | null;           // the crop where the set symbol is (at the right end of the type line)
-  arts?: GrayPicture[];                  // the art box, cropped a few slightly different ways (the card is never lined up exactly)
+  artRegion?: GrayPicture | null;        // the art area of the card, as one grey picture
+  symbolRegion?: GrayPicture | null;     // the area around the set symbol (at the right end of the type line)
   border?: 'black' | 'white' | null;     // the card's border colour, if it could be told
   artPreview?: string;                   // the art crop as a picture address, to show beside the candidates
 };
@@ -52,15 +55,40 @@ export const CARD_PARTS = {
 // same place (older frames put it a little differently): read as scattered text, then each line is matched against the names
 export const NAME_BAND: Box = [0.03, 0.02, 0.85, 0.14];
 
-// More parts, for the older-card fallback (same measurements, same frame)
+// More parts, for the older-card fallback
+// The art box for the small picture shown beside the candidates (the modern frame's)
 export const ART_BOX: Box = [0.075, 0.105, 0.925, 0.545];
-export const SYMBOL_BOX: Box = [0.82, 0.545, 0.955, 0.625];
 export const BORDER_STRIP: Box = [0.0, 0.2, 0.03, 0.8];
-// The art box is also cropped moved by these shares of the card's width and height, because the
-// card is never lined up perfectly and a fingerprint is sensitive to that (see phash.ts)
-export const ART_SHIFTS: readonly (readonly [number, number])[] = [
-  [0, 0], [-0.03, 0], [0.03, 0], [0, -0.03], [0, 0.03], [-0.03, -0.03], [0.03, -0.03], [-0.03, 0.03], [0.03, 0.03],
-];
+
+// The four frame designs the printings use (the catalogue says which one each printing has; anything
+// newer than 2015 uses the 2015 one's places)
+export type Era = '1993' | '1997' | '2003' | '2015';
+export const eraOf = (frame: string): Era => (frame === '1993' || frame === '1997' || frame === '2003' ? frame : '2015');
+
+// Where the art is in each frame design, matching the art the catalogue's fingerprints were made from.
+// These were found by trying boxes on real scans of cards from each era and keeping the ones that gave
+// the closest fingerprints (the old single box was about 60 bits off; these are about 15 to 25).
+export const ART_BY_ERA: Record<Era, Box> = {
+  '1993': [0.115, 0.095, 0.89, 0.54],
+  '1997': [0.115, 0.1, 0.885, 0.54],
+  '2003': [0.09, 0.12, 0.91, 0.555],
+  '2015': [0.08, 0.115, 0.92, 0.555],
+};
+// Each art box is also tried moved by these shares of the card's width and height, across and down (so 5 x 5
+// places), because the card is never lined up perfectly and a fingerprint is sensitive to that (see phash.ts).
+// (On real scans moved and resized on purpose, 5 steps beat 3 by a lot for a card lined up a little off, and
+// trying a few sizes as well added almost nothing for a lot more work.)
+export const ART_SHIFT_STEPS: readonly number[] = [-0.03, -0.015, 0, 0.015, 0.03];
+// The one picture of the art area the camera takes: big enough to hold every era's art box moved by every shift
+export const ART_REGION: Box = [0.05, 0.065, 0.95, 0.585];
+
+// The set symbol: a small spot at the right end of the type line, found by sliding a window around.
+// (Found by locating real symbols on real scans: the middle was at about 0.887 across and 0.59 down, in every era.)
+export const SYMBOL_SPOT = { x: 0.887, y: 0.59, width: 0.06, height: 0.04 } as const;
+// The window is tried moved by these shares of the card's width and height (5 across, 5 down)
+export const SYMBOL_OFFSETS = { x: [-0.03, -0.015, 0, 0.015, 0.03], y: [-0.02, -0.01, 0, 0.01, 0.02] } as const;
+// The one picture of the symbol area the camera takes: holds the window in every one of those places
+export const SYMBOL_REGION: Box = [0.82, 0.545, 0.955, 0.635];
 
 // A standard card is 63 x 88 mm
 export const CARD_ASPECT = 63 / 88;
