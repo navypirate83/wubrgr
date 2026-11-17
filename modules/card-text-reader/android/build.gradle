@@ -1,0 +1,30 @@
+// =====================================================================
+// BUILD RECIPE FOR THE CARD TEXT READER (Android only)
+// This tells Android's build tool what this little add-on is made of:
+// it is an Expo module (written the way Expo's own add-ons are), and it
+// needs Google's ML Kit text reader. That reader is the "Latin" one (it reads
+// English, French, Spanish and the other languages written with our letters;
+// it already has its reading data inside, so it works with no internet).
+// =====================================================================
+
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.cardtextreader'
+version = '1.0.0'
+
+android {
+  // The add-on's own name inside the app
+  namespace "expo.modules.cardtextreader"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // Google's on-device text reader (the newest release of the Latin script one)
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+}
