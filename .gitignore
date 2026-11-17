@@ -47,3 +47,9 @@ weds.md
 scripts/catalogue/cache/
 scripts/catalogue/out/
 scripts/catalogue/node_modules/
+
+# Files Android's build tool makes while compiling (rebuilt each time)
+android/build/
+android/.gradle/
+modules/**/android/build/
+modules/**/android/.gradle/
