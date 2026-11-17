@@ -1,7 +1,7 @@
 // =====================================================================
 // THE CARD TEXT READER (Android's half)
 // The scanner screen takes a photo of a card and asks this add-on for things:
-//   photoSize(path)        -> how big the photo is, turned the right way up
+//   photoSize(path)        -> how big the photo is, turned the right way up (quick: the picture isn't opened)
 //   readParts(...)         -> the text in each requested part of the card
 //   grayCrops(...)         -> parts of the card as grey pictures (for telling older printings apart)
 //   jpegCrop(...)          -> one part of the card as a small JPEG picture (to show on screen)
@@ -9,8 +9,11 @@
 // Reading is done by Google's ML Kit, which runs on the phone itself (no
 // internet needed). The photo is opened here, in the phone's own code, rather
 // than sent through the app's JavaScript, because photos are big and this is much faster.
-// The last photo opened is kept in memory, so asking for several things from the
-// same photo only opens it once.
+// SPEED: the photo is opened only once it is known where the card is, and only as big as
+// reading needs (a huge photo is opened at half or quarter size), and it is NOT turned
+// upright as a whole (that would copy every pixel): each small piece that is cut out is
+// turned instead. The last photo opened is kept in memory, so asking for several
+// things from the same photo only opens it once.
 // =====================================================================
 
 package expo.modules.cardtextreader
@@ -32,6 +35,15 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
 
+// How wide the card should be when opened, in pixels, at the least. A photo that would still
+// leave the card this wide after being halved (or quartered) is opened smaller, which is faster
+// and uses much less memory.
+private const val CARD_WIDTH_WANTED = 1700
+
+// The photo as opened: the picture itself (possibly shrunk), how many times it was shrunk,
+// and how it must be turned to be upright (0, 90, 180 or 270 degrees)
+private class OpenPhoto(val path: String, val picture: Bitmap?, val shrunkBy: Int, val turn: Int, val rawWidth: Int, val rawHeight: Int)
+
 class CardTextReaderModule : Module() {
   // Google's reader, made the first time it's needed and kept after that
   private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
@@ -40,38 +52,50 @@ class CardTextReaderModule : Module() {
   // (and two scans never run on top of each other)
   private val worker = Executors.newSingleThreadExecutor()
 
-  // The photo most recently opened (its file path and the picture), kept for the next request
-  private var openPath: String? = null
-  private var openPicture: Bitmap? = null
+  // The photo most recently opened, kept for the next request
+  private var open: OpenPhoto? = null
 
   // Let go of the kept photo (a picture takes a lot of the phone's memory)
   private fun forget() {
-    openPicture?.recycle()
-    openPicture = null
-    openPath = null
+    open?.picture?.recycle()
+    open = null
   }
 
-  // The photo opened as a picture in memory, turned upright using the "which way up"
-  // note the camera wrote into the file (phones usually save photos sideways)
-  private fun openUpright(path: String): Bitmap {
-    if (path == openPath) openPicture?.let { return it }
-    forget()
-    val raw = BitmapFactory.decodeFile(path) ?: throw IllegalStateException("The photo could not be opened")
+  // How the photo's file says it must be turned to be upright (phones usually save photos sideways),
+  // and its size as stored. Reads only the file's small header, not the picture.
+  private fun look(path: String): OpenPhoto {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IllegalStateException("The photo could not be opened")
     val turn = when (ExifInterface(path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-      ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-      ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-      ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-      else -> 0f
+      ExifInterface.ORIENTATION_ROTATE_90 -> 90
+      ExifInterface.ORIENTATION_ROTATE_180 -> 180
+      ExifInterface.ORIENTATION_ROTATE_270 -> 270
+      else -> 0
     }
-    val upright = if (turn == 0f) raw else {
-      val matrix = Matrix().apply { postRotate(turn) }
-      val turned = Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
-      if (turned !== raw) raw.recycle()
-      turned
-    }
-    openPath = path
-    openPicture = upright
-    return upright
+    return OpenPhoto(path, null, 1, turn, bounds.outWidth, bounds.outHeight)
+  }
+
+  // The photo's size once it's upright: sideways photos swap width and height
+  private fun uprightSize(photo: OpenPhoto): Pair<Int, Int> =
+    if (photo.turn == 90 || photo.turn == 270) Pair(photo.rawHeight, photo.rawWidth) else Pair(photo.rawWidth, photo.rawHeight)
+
+  // The photo opened as a picture, as small as is still good enough for this card. "card" is
+  // where the card is in the photo (shares of the photo: left, top, width, height).
+  private fun openFor(path: String, card: List<Double>): OpenPhoto {
+    val seen = open?.takeIf { it.path == path } ?: look(path).also { forget(); open = it }
+    // The card's width in the photo's own pixels, and how many times the photo can be shrunk and still
+    // leave the card wide enough (only 1, 2, 4, 8 ... are possible)
+    val cardWidth = card[2] * uprightSize(seen).first
+    var shrink = 1
+    while (cardWidth / (shrink * 2) >= CARD_WIDTH_WANTED) shrink *= 2
+    if (seen.picture != null && seen.shrunkBy == shrink) return seen
+    seen.picture?.recycle()
+    val picture = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = shrink })
+      ?: throw IllegalStateException("The photo could not be opened")
+    val opened = OpenPhoto(path, picture, shrink, seen.turn, seen.rawWidth, seen.rawHeight)
+    open = opened
+    return opened
   }
 
   // A box inside the card, as shares of the whole photo. "card" and "part" are both
@@ -83,21 +107,40 @@ class CardTextReaderModule : Module() {
     part[3] * card[3],
   )
 
-  // That box cut out of the picture (never empty, never outside the picture)
-  private fun cut(picture: Bitmap, box: List<Double>): Bitmap {
-    val left = (box[0] * picture.width).toInt().coerceIn(0, picture.width - 1)
-    val top = (box[1] * picture.height).toInt().coerceIn(0, picture.height - 1)
-    val width = (box[2] * picture.width).toInt().coerceIn(1, picture.width - left)
-    val height = (box[3] * picture.height).toInt().coerceIn(1, picture.height - top)
-    return Bitmap.createBitmap(picture, left, top, width, height)
+  // That box cut out of the photo and turned upright (never empty, never outside the picture).
+  // The box is given as shares of the UPRIGHT photo, so it is first worked out where that is in the
+  // photo as stored (sideways), cut out there, and only that small piece is turned.
+  private fun cut(photo: OpenPhoto, box: List<Double>): Bitmap {
+    val picture = photo.picture ?: throw IllegalStateException("The photo is not open")
+    val u0 = box[0].coerceIn(0.0, 1.0)
+    val v0 = box[1].coerceIn(0.0, 1.0)
+    val u1 = (box[0] + box[2]).coerceIn(0.0, 1.0)
+    val v1 = (box[1] + box[3]).coerceIn(0.0, 1.0)
+    // The same box in the stored photo, as shares (left, top, right, bottom)
+    val shares = when (photo.turn) {
+      90 -> listOf(v0, 1 - u1, v1, 1 - u0)
+      180 -> listOf(1 - u1, 1 - v1, 1 - u0, 1 - v0)
+      270 -> listOf(1 - v1, u0, 1 - v0, u1)
+      else -> listOf(u0, v0, u1, v1)
+    }
+    val left = (shares[0] * picture.width).toInt().coerceIn(0, picture.width - 1)
+    val top = (shares[1] * picture.height).toInt().coerceIn(0, picture.height - 1)
+    val width = ((shares[2] - shares[0]) * picture.width).toInt().coerceIn(1, picture.width - left)
+    val height = ((shares[3] - shares[1]) * picture.height).toInt().coerceIn(1, picture.height - top)
+    val piece = Bitmap.createBitmap(picture, left, top, width, height)
+    if (photo.turn == 0) return piece
+    val turned = Bitmap.createBitmap(piece, 0, 0, piece.width, piece.height, Matrix().apply { postRotate(photo.turn.toFloat()) }, true)
+    if (turned !== piece) piece.recycle()
+    return turned
   }
 
   // The text in one box of the picture
-  private fun readBox(picture: Bitmap, box: List<Double>): String {
-    var piece = cut(picture, box)
-    // Small print reads better when it's bigger: blow a narrow piece up (never more than 3 times)
-    if (piece.width < 700) {
-      val grow = minOf(3.0, 700.0 / piece.width)
+  private fun readBox(photo: OpenPhoto, box: List<Double>): String {
+    var piece = cut(photo, box)
+    // Only a narrow piece (a card held far away) is blown up to read better, never more than twice;
+    // a piece that is already wide enough is read as it is, which is much quicker
+    if (piece.width < 500) {
+      val grow = minOf(2.0, 500.0 / piece.width)
       val bigger = Bitmap.createScaledBitmap(piece, (piece.width * grow).toInt(), (piece.height * grow).toInt(), true)
       if (bigger !== piece) piece.recycle()
       piece = bigger
@@ -110,8 +153,8 @@ class CardTextReaderModule : Module() {
 
   // One box as a grey picture no wider than "maxWidth": its size, and one number from 0 to 255 for
   // each pixel (row by row), packed as text. Uses the same brightness sum as the website's reader.
-  private fun grayBox(picture: Bitmap, box: List<Double>, maxWidth: Int): Map<String, Any> {
-    val piece = cut(picture, box)
+  private fun grayBox(photo: OpenPhoto, box: List<Double>, maxWidth: Int): Map<String, Any> {
+    val piece = cut(photo, box)
     val width = minOf(maxWidth, piece.width)
     val height = maxOf(1, Math.round(width.toDouble() * piece.height / piece.width).toInt())
     val small = Bitmap.createScaledBitmap(piece, width, height, true)
@@ -134,12 +177,13 @@ class CardTextReaderModule : Module() {
     // The name the app's JavaScript uses to find this add-on
     Name("CardTextReader")
 
-    // How big the photo is once turned upright: [width, height]
+    // How big the photo is once it's upright: [width, height]. Only the file's header is read.
     AsyncFunction("photoSize") { path: String, promise: Promise ->
       worker.execute {
         try {
-          val picture = openUpright(path)
-          promise.resolve(listOf(picture.width, picture.height))
+          val photo = open?.takeIf { it.path == path } ?: look(path).also { forget(); open = it }
+          val (width, height) = uprightSize(photo)
+          promise.resolve(listOf(width, height))
         } catch (error: Exception) {
           promise.reject(CodedException("ERR_CARD_PHOTO", error.message ?: "The photo could not be read", error))
         }
@@ -152,8 +196,8 @@ class CardTextReaderModule : Module() {
     AsyncFunction("readParts") { path: String, card: List<Double>, parts: List<List<Double>>, promise: Promise ->
       worker.execute {
         try {
-          val picture = openUpright(path)
-          promise.resolve(parts.map { readBox(picture, inPhoto(card, it)) })
+          val photo = openFor(path, card)
+          promise.resolve(parts.map { readBox(photo, inPhoto(card, it)) })
         } catch (error: Exception) {
           promise.reject(CodedException("ERR_CARD_TEXT", error.message ?: "The card could not be read", error))
         }
@@ -165,8 +209,8 @@ class CardTextReaderModule : Module() {
     AsyncFunction("grayCrops") { path: String, card: List<Double>, parts: List<List<Double>>, maxWidths: List<Int>, promise: Promise ->
       worker.execute {
         try {
-          val picture = openUpright(path)
-          promise.resolve(parts.mapIndexed { index, part -> grayBox(picture, inPhoto(card, part), maxWidths[index]) })
+          val photo = openFor(path, card)
+          promise.resolve(parts.mapIndexed { index, part -> grayBox(photo, inPhoto(card, part), maxWidths[index]) })
         } catch (error: Exception) {
           promise.reject(CodedException("ERR_CARD_CROP", error.message ?: "The card could not be cropped", error))
         }
@@ -177,8 +221,8 @@ class CardTextReaderModule : Module() {
     AsyncFunction("jpegCrop") { path: String, card: List<Double>, part: List<Double>, width: Int, promise: Promise ->
       worker.execute {
         try {
-          val picture = openUpright(path)
-          val piece = cut(picture, inPhoto(card, part))
+          val photo = openFor(path, card)
+          val piece = cut(photo, inPhoto(card, part))
           val size = minOf(width, piece.width)
           val small = Bitmap.createScaledBitmap(piece, size, maxOf(1, Math.round(size.toDouble() * piece.height / piece.width).toInt()), true)
           if (small !== piece) piece.recycle()
@@ -196,7 +240,7 @@ class CardTextReaderModule : Module() {
     AsyncFunction("deletePhoto") { path: String, deleteFile: Boolean, promise: Promise ->
       worker.execute {
         try {
-          if (path == openPath) forget()
+          if (path == open?.path) forget()
           if (deleteFile) File(path).delete()
           promise.resolve(null)
         } catch (error: Exception) {

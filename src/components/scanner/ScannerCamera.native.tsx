@@ -11,13 +11,15 @@
    of a card from the phone ("Choose a photo").
    The camera is switched off whenever you leave the Scan tab or the app goes to
    the background, so it doesn't drain the battery.
-   AUTO SCAN (the button at the top): the camera takes a photo about once a second by
-   itself and reads it. When a real card's name is seen in the guide it is scanned,
-   then nothing more happens until the card has been taken away (a couple of looks
-   with no card), so one card isn't scanned over and over. Together with Stack mode
-   this is hands-free: slide the next card into the guide and it's added.
-   Older cards also get their clues read (set symbol, artwork and border colour; see
-   ocr.native.ts), the same as on the website.
+   AUTO SCAN (the button at the top): the camera takes a photo again and again by itself.
+   Each look only reads the title bar (quick). When a real card's name is seen in the guide
+   the rest is read and the card is scanned, then nothing more happens until the card has been
+   taken away (a couple of looks with no card), so one card isn't scanned over and over.
+   Together with Stack mode this is hands-free: slide the next card into the guide and it's added.
+   Older cards get their clues read (set symbol, artwork and border colour) only when the
+   scan needs them (see core/readPlan.ts), the same as on the website.
+   SPEED: photos are taken in the quick mode at about 8 megapixels (plenty for the small
+   print), and every scan notes how long each step took (shown after the scan).
    Nothing from the website's camera (video, canvas) is used here.
    ===================================================================== */
 
@@ -28,7 +30,7 @@ import { useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
 import { useColors } from '@/hooks/useTheme';
-import { cardOcr, finishPhoto, photoSize, readCardExtras, readCardPhoto } from '@/lib/scanner/ocr/ocr.native';
+import { cardOcr, finishPhoto, photoSize, readCardPhoto, readTitleOnly } from '@/lib/scanner/ocr/ocr.native';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { cardInPickedPhoto, guideInPhoto, type Fractions } from '@/lib/scanner/core/cardInPhoto';
 import type { ScannerCameraProps } from './scannerCameraTypes';
@@ -41,16 +43,20 @@ const GUIDE_WIDTH = 0.82;
 const BOTTOM_ROOM = 150;
 // Auto scan: the wait between one look and the next, and how many looks in a row with no
 // card it takes to count the card as taken away
-const LOOK_PAUSE_MS = 350;
+const LOOK_PAUSE_MS = 120;
 const GONE_LOOKS = 2;
+// The photo size asked for (a target: the camera gives the nearest it has, in the same shape)
+const PHOTO_SIZE = { width: 2448, height: 3264 };
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName }: ScannerCameraProps) {
   const colors = useColors();
   const { hasPermission, canRequestPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
-  // The photo taker: the highest quality it will give, because small print is what we read
-  const photoOutput = usePhotoOutput({ qualityPrioritization: 'quality' });
+  // The photo taker. Speed matters more than the last bit of quality: about 8 megapixels (4:3, like the
+  // live picture) is plenty for the small print, and the quick mode and a little more JPEG
+  // squeezing make each photo come back much sooner than a full-size, best-quality one.
+  const photoOutput = usePhotoOutput({ targetResolution: PHOTO_SIZE, qualityPrioritization: 'speed', quality: 0.85 });
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [torchOn, setTorchOn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -92,10 +98,13 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
 
   // Read the card in a photo file and hand the reading over. "card" is where the card is in it,
   // "fresh" is whether the camera just took it (its file is then deleted afterwards)
-  async function scanPhoto(path: string, card: Fractions, fresh: boolean) {
+  // "photoMs" is how long the camera took to take the photo (for the timings shown after the scan)
+  async function scanPhoto(path: string, card: Fractions, fresh: boolean, photoMs?: number) {
     try {
       const reading = await readCardPhoto(path, card, looksLikeName);
-      onReading(reading);
+      if (photoMs !== undefined) reading.timings = { photo: photoMs, ...reading.timings };
+      // Wait until the reading has been worked out, because the extra clues are read from the photo then
+      await onReading(reading);
     } finally {
       await finishPhoto(path, fresh);
     }
@@ -107,10 +116,12 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     setBusy(true);
     setHint('');
     try {
+      const startedAt = Date.now();
       const photo = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
+      const photoMs = Date.now() - startedAt;
       try {
         const [width, height] = await photoSize(photo.filePath);
-        await scanPhoto(photo.filePath, guideInPhoto(area, guide, { w: width, h: height }), true);
+        await scanPhoto(photo.filePath, guideInPhoto(area, guide, { w: width, h: height }), true, photoMs);
       } catch (err) {
         await finishPhoto(photo.filePath, true);
         throw err;
@@ -165,20 +176,24 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         if (now.paused || now.busy || now.area.w === 0) { await sleep(300); continue; }
         let path = '';
         try {
+          const startedAt = Date.now();
           const photo = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
+          const photoMs = Date.now() - startedAt;
           path = photo.filePath;
           const [width, height] = await photoSize(path);
           const card = guideInPhoto(now.area, now.guide, { w: width, h: height });
-          // First just the text (quick); the older-card clues only once there's a card to scan
-          const reading = await readCardPhoto(path, card, now.looksLikeName, false);
-          const present = !!now.looksLikeName && now.looksLikeName(reading.nameText);
+          // A quick look first: only the title bar, to see whether a real card is there
+          const title = await readTitleOnly(path, card, now.looksLikeName ?? (() => true));
+          const present = !!now.looksLikeName && now.looksLikeName(title);
           if (present) {
             missing = 0;
             setSeeing(true);
             if (armed && !stop && !live.current.paused) {
               armed = false;
-              reading.extras = await readCardExtras(path, card);
-              live.current.onReading(reading);
+              // A card to scan: read the rest (the title isn't read again)
+              const reading = await readCardPhoto(path, card, now.looksLikeName, title);
+              reading.timings = { photo: photoMs, ...reading.timings };
+              await live.current.onReading(reading);
             }
           } else {
             setSeeing(false);

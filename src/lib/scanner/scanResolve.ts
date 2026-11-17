@@ -14,6 +14,8 @@
       One left: "likely". More than one: "pick" (the person chooses, with their
       photo's art beside the candidates). Never "sure": this path never adds a card by itself.
    If the name can't be read either, the answer is "none".
+   The slow extras (copyright line, symbol, artwork, border colour) are only read when the
+   fallback gets as far as needing them (several printings to tell apart), not for every scan.
    Plain TypeScript with no React in it. Everything here works with no internet.
    ===================================================================== */
 
@@ -23,6 +25,7 @@ import { parseCopyrightYears, parseInfoLine, type InfoLine } from './core/infoLi
 import { narrowCandidates, type Candidate } from './core/narrow';
 import { checkSetCode } from './core/setCode';
 import { decideScan } from './core/decide';
+import { loadMoreClues } from './core/readPlan';
 import { symbolBitsFromGray, symbolScore } from './core/symbolMatch';
 import { normalizeName } from './core/text';
 import type { Printing } from './core/catalogueTypes';
@@ -70,6 +73,9 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   if (printings.length === 0) return { ...base, status: 'none', printing: null, candidates: [], reason: 'No printing of that card was found' };
   if (printings.length === 1) return { ...base, status: 'likely', printing: printings[0], candidates: printings, reason: 'The only printing of that card' };
 
+  // Several printings to tell apart: only now are the slower clues worth reading from the photo
+  await loadMoreClues(reading);
+
   // What each candidate looks like to the clues
   const candidates: Candidate[] = [];
   for (const p of printings) {
@@ -99,7 +105,17 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   return { ...base, status: 'pick', printing: null, candidates: [...left, ...rest], matched: left.length, reason: `${left.length} printings are left (${why})` };
 }
 
+// Works out the printing, then lets go of the photo's "read more" step (it holds on to the picture,
+// and a reading is kept in the stack list for a long time afterwards)
 export async function resolveReading(reading: ScanReading): Promise<ScanOutcome> {
+  try {
+    return await resolveInner(reading);
+  } finally {
+    reading.moreClues = undefined;
+  }
+}
+
+async function resolveInner(reading: ScanReading): Promise<ScanOutcome> {
   const info = parseInfoLine(reading.infoText);
   // The name text may be several lines (the title band's scattered text): the line that matches a real card name best
   const names = await allFrontNames();

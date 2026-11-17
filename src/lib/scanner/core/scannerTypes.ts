@@ -24,8 +24,13 @@ export type ScanReading = {
   nameText: string;        // the raw text of the title bar (the card's name)
   bottomText: string;      // the raw text of the copyright line at the very bottom
   takenAt: number;         // when (milliseconds)
-  // The pictures that were actually read (as data addresses), for seeing what the scanner saw
-  debug?: { info?: string; name?: string; bottom?: string };
+  // The slower extras (the copyright line, and the symbol / artwork / border clues for older cards) are NOT read
+  // up front: most cards are told apart by the info line alone. This reads them if the fallback turns out to need
+  // them (see readPlan.ts). It is dropped once the reading has been worked out, so the photo can be let go.
+  moreClues?: () => Promise<{ bottomText: string; extras: ScanExtras }>;
+  // How long each step took, in milliseconds (the camera adds "photo", the reader adds "text" and so on).
+  // Shown briefly after a scan so it's easy to see what is slow.
+  timings?: Record<string, number>;
 };
 
 // Where the parts of a card are, as shares of the card's width and height (0 to 1):

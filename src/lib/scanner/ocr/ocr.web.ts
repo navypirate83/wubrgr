@@ -1,6 +1,6 @@
 /* =====================================================================
    READING TEXT FROM A CARD PHOTO: THE WEBSITE
-   Uses Tesseract.js (text recognition compiled to WebAssembly), in a web worker
+   Uses Tesseract.js (text recognition compiled to WebAssembly), in web workers
    so the page doesn't freeze. Nothing native is imported here (Android's
    version is ocr.native.ts).
    Tesseract is weaker than Google's ML Kit on small text, and slower, so the
@@ -10,6 +10,11 @@
      - makes it about 3 times bigger, grey, and pure black on white (core/ocrPrep.ts)
      - tells Tesseract what kind of text to expect (a block, a single line) and,
        for the info line, which characters can appear at all
+   SPEED: two workers are used when the device looks strong enough (4 or more processor
+   cores, and enough memory if the browser says), so the title and the info line are read at
+   the same time instead of one after the other. And only what is needed is read: the order is
+   decided in core/readPlan.ts (the copyright line and the older-card clues are read only if
+   the fallback needs them).
    Tesseract's files (its script, its worker, the text engine and the English
    data) are in public/tesseract/ (see the README there), loaded the first time
    they're needed, from this same website, so no outside address is used and
@@ -19,6 +24,7 @@
 import { rgbaToGray } from '../core/phash';
 import { binarizeForOcr } from '../core/ocrPrep';
 import { borderFromBrightness } from '../core/borderColor';
+import { letterCount, readCardStaged, type PartReader } from '../core/readPlan';
 import { ART_BOX, ART_SHIFTS, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_BOX, type Box, type GrayPicture, type ScanExtras, type ScanReading } from '../core/scannerTypes';
 import type { CardOcr } from './ocr';
 
@@ -36,7 +42,8 @@ const tesseractOnPage = (): TesseractGlobal | undefined => (globalThis as unknow
 
 /* ---------- loading it, once ---------- */
 
-let loaded: Promise<TesseractWorker> | null = null;
+// Tesseract's script and where its files are, found once
+let engine: Promise<{ tesseract: TesseractGlobal; root: string }> | null = null;
 
 function addScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -48,10 +55,9 @@ function addScript(src: string): Promise<void> {
   });
 }
 
-// The worker: made the first time it's needed, kept for every scan after
-function worker(): Promise<TesseractWorker> {
-  if (!loaded) {
-    loaded = (async () => {
+function loadEngine() {
+  if (!engine) {
+    engine = (async () => {
       // The site lives in a folder of its own on GitHub Pages (/wubrgr/) but at the top while developing: try both
       const base = (process.env.EXPO_BASE_URL ?? '').replace(/\/+$/, '');
       let folder = '';
@@ -60,7 +66,30 @@ function worker(): Promise<TesseractWorker> {
       }
       const tesseract = tesseractOnPage();
       if (!folder || !tesseract) throw new Error('The text reader (Tesseract) could not be loaded');
-      const root = `${location.origin}${folder}`;
+      return { tesseract, root: `${location.origin}${folder}` };
+    })();
+    engine.catch(() => { engine = null; });
+  }
+  return engine;
+}
+
+// Whether this device looks strong enough for a second reader (each one takes a good chunk of memory)
+function roomForTwo(): boolean {
+  const nav = globalThis.navigator as (Navigator & { deviceMemory?: number }) | undefined;
+  if (!nav) return false;
+  return (nav.hardwareConcurrency ?? 1) >= 4 && (nav.deviceMemory === undefined || nav.deviceMemory >= 4);
+}
+
+// The workers: made the first time each is needed, kept for every scan after
+const workers: (Promise<TesseractWorker> | null)[] = [null, null];
+// Each worker does one thing at a time: a new job waits for the one before it (they would otherwise
+// change each other's settings halfway)
+const queues: Promise<unknown>[] = [Promise.resolve(), Promise.resolve()];
+
+function worker(index: number): Promise<TesseractWorker> {
+  if (!workers[index]) {
+    workers[index] = (async () => {
+      const { tesseract, root } = await loadEngine();
       // 1 = the LSTM engine only (the modern, accurate one)
       return tesseract.createWorker('eng', 1, {
         workerPath: `${root}/worker.min.js`,
@@ -69,13 +98,26 @@ function worker(): Promise<TesseractWorker> {
         gzip: true,
       });
     })();
-    loaded.catch(() => { loaded = null; });
+    workers[index]!.catch(() => { workers[index] = null; });
   }
-  return loaded;
+  return workers[index]!;
+}
+
+// Run a job on a worker, after the jobs already waiting for it. The second worker is only used on a
+// device with room for it; otherwise its jobs go to the first, one after the other.
+function onWorker<T>(wanted: number, job: (reader: TesseractWorker) => Promise<T>): Promise<T> {
+  const index = wanted === 1 && roomForTwo() ? 1 : 0;
+  const result = queues[index].then(async () => job(await worker(index)));
+  queues[index] = result.catch(() => { /* the next job still runs */ });
+  return result;
 }
 
 export const cardOcr: CardOcr = {
-  async warmUp() { await worker(); },
+  async warmUp() {
+    await worker(0);
+    // The second one loads in the background, so the first scan doesn't wait for it
+    if (roomForTwo()) worker(1).catch(() => { /* its jobs go to the first worker's turn instead if it never comes */ });
+  },
 };
 
 /* ---------- reading one part of a card ---------- */
@@ -126,38 +168,31 @@ function prepare(source: CanvasImageSource, from: { x: number; y: number; w: num
   return padded;
 }
 
-// How many letters a reading has (a reading with few is probably the wrong way round)
-const letterCount = (text: string) => (text.match(/[A-Za-z]/g) ?? []).length;
-
-async function readPart(source: CanvasImageSource, card: { x: number; y: number; w: number; h: number }, box: Box, kind: Kind): Promise<{ text: string; picture: string }> {
+// "which" says which worker to use: 0 for the title, 1 for the info line (and the copyright line).
+// (The pictures that were read are no longer kept as PNGs for a debug view: making them was slow and nothing used them.)
+async function readPart(source: CanvasImageSource, card: { x: number; y: number; w: number; h: number }, box: Box, kind: Kind, which: number): Promise<string> {
   const part = {
     x: card.x + box[0] * card.w,
     y: card.y + box[1] * card.h,
     w: (box[2] - box[0]) * card.w,
     h: (box[3] - box[1]) * card.h,
   };
-  const reader = await worker();
-  await reader.setParameters({
-    tessedit_pageseg_mode: String(KINDS[kind].psm),
-    tessedit_char_whitelist: KINDS[kind].whitelist,
-    preserve_interword_spaces: 1,
-  });
-  // The title band is read both ways round, whatever the first way gave
-  const once = async (flip: boolean) => {
-    const picture = prepare(source, part, flip);
-    const { data } = await reader.recognize(picture);
-    return { text: data.text.trim(), picture: picture.toDataURL('image/png') };
-  };
-  const first = await once(false);
-  // A title bar on a dark or coloured frame can come out the wrong way round (text taken
-  // for background). If very little was read, try the other way and keep the one with more letters.
-  if (kind === 'band') {
+  return onWorker(which, async (reader) => {
+    await reader.setParameters({
+      tessedit_pageseg_mode: String(KINDS[kind].psm),
+      tessedit_char_whitelist: KINDS[kind].whitelist,
+      preserve_interword_spaces: 1,
+    });
+    const once = async (flip: boolean) => (await reader.recognize(prepare(source, part, flip))).data.text.trim();
+    const first = await once(false);
+    // The title band is read both ways round, whatever the first way gave
+    if (kind === 'band') return `${first}\n${await once(true)}`;
+    // A title bar on a dark or coloured frame can come out the wrong way round (text taken
+    // for background). If very little was read, try the other way and keep the one with more letters.
+    if (kind !== 'name' || letterCount(first) >= 6) return first;
     const second = await once(true);
-    return { text: `${first.text}\n${second.text}`, picture: first.picture };
-  }
-  if (kind !== 'name' || letterCount(first.text) >= 6) return first;
-  const second = await once(true);
-  return letterCount(second.text) > letterCount(first.text) ? second : first;
+    return letterCount(second) > letterCount(first) ? second : first;
+  });
 }
 
 /* ---------- the extra clues: symbol, artwork and border ---------- */
@@ -182,8 +217,8 @@ const partOf = (card: CardRect, box: Box): CardRect => ({
   x: card.x + box[0] * card.w, y: card.y + box[1] * card.h, w: (box[2] - box[0]) * card.w, h: (box[3] - box[1]) * card.h,
 });
 
-// The set symbol crop, the art box cropped a few ways, and the border colour
-function readExtras(source: CanvasImageSource, card: CardRect): ScanExtras {
+// The set symbol crop, the art box cropped a few ways, and the border colour (only read if the fallback needs them)
+function readClues(source: CanvasImageSource, card: CardRect): ScanExtras {
   const symbol = grayCrop(source, partOf(card, SYMBOL_BOX), 128);
   const arts = ART_SHIFTS.map(([dx, dy]) => {
     const art = partOf(card, ART_BOX);
@@ -191,36 +226,35 @@ function readExtras(source: CanvasImageSource, card: CardRect): ScanExtras {
   });
   const strip = grayCrop(source, partOf(card, BORDER_STRIP), 16);
   const mean = strip.data.reduce((sum, v) => sum + v, 0) / strip.data.length;
-  // A small picture of the art as the camera saw it, to show beside the candidates
-  const preview = document.createElement('canvas');
+  return { symbol, arts, border: borderFromBrightness(mean) };
+}
+
+// A small picture of the art as the camera saw it, to show beside the candidates
+function artPreview(source: CanvasImageSource, card: CardRect): string {
   const art = partOf(card, ART_BOX);
+  const preview = document.createElement('canvas');
   preview.width = 240;
   preview.height = Math.round((240 * art.h) / art.w);
   preview.getContext('2d')!.drawImage(source, art.x, art.y, art.w, art.h, 0, 0, preview.width, preview.height);
-  return { symbol, arts, border: borderFromBrightness(mean), artPreview: preview.toDataURL('image/jpeg', 0.8) };
+  return preview.toDataURL('image/jpeg', 0.8);
 }
 
-// Read the three parts of a card from a photo. "card" is where the card is in the
-// photo, in the photo's own pixels (the camera works it out from the guide on the screen).
-export async function readCard(
+// Read the card in a photo, in the cheap order (see core/readPlan.ts): the title and the info line together
+// now (on two workers if there's room), the copyright line and the clues only if they turn out to be needed.
+// "card" is where the card is in the photo, in the photo's own pixels (the camera works it out from the
+// guide on the screen). The photo (source) is kept by the reading until it has been worked out.
+export function readCard(
   source: CanvasImageSource,
   card: { x: number; y: number; w: number; h: number },
   looksLikeName: (text: string) => boolean = () => true,
 ): Promise<ScanReading> {
-  const info = await readPart(source, card, CARD_PARTS.infoLine, 'info');
-  // The name: where the modern frame puts it; if that isn't a card's name, the whole title band
-  let name = await readPart(source, card, CARD_PARTS.name, 'name');
-  if (!looksLikeName(name.text)) {
-    const band = await readPart(source, card, NAME_BAND, 'band');
-    name = { text: `${name.text}\n${band.text}`.trim(), picture: name.picture };
-  }
-  const bottom = await readPart(source, card, CARD_PARTS.bottomLine, 'bottom');
-  return {
-    infoText: info.text,
-    nameText: name.text,
-    bottomText: bottom.text,
-    takenAt: Date.now(),
-    extras: readExtras(source, card),
-    debug: { info: info.picture, name: name.picture, bottom: bottom.picture },
+  const reader: PartReader = {
+    name: () => readPart(source, card, CARD_PARTS.name, 'name', 0),
+    band: () => readPart(source, card, NAME_BAND, 'band', 0),
+    info: () => readPart(source, card, CARD_PARTS.infoLine, 'info', 1),
+    bottom: () => readPart(source, card, CARD_PARTS.bottomLine, 'bottom', 1),
+    clues: async () => readClues(source, card),
+    preview: async () => artPreview(source, card),
   };
+  return readCardStaged(reader, looksLikeName);
 }

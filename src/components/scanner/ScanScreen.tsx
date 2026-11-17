@@ -32,6 +32,7 @@ import type { Finish } from '@/lib/cards';
 import type { CatalogueInfo, Printing } from '@/lib/scanner/core/catalogueTypes';
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import { resolveReading, type ScanOutcome } from '@/lib/scanner/scanResolve';
+import { timingWords } from '@/lib/scanner/core/readPlan';
 import { finishesOf, newScanId, startingFinish, type ScanItem } from '@/lib/scanner/scanItems';
 import { allFrontNames, catalogueConfigured, downloadCatalogue, openCatalogue, printingsNamed, type DownloadStage } from '@/lib/scanner/catalogue/catalogue';
 import { bestNameMatch } from '@/lib/scanner/core/fuzzy';
@@ -112,13 +113,19 @@ export default function ScanScreen() {
   /* ----- a card was scanned ----- */
   async function onReading(reading: ScanReading) {
     if (!catalogue) { say('Get the card catalogue first (Settings → Card catalogue).'); return; }
+    const lookupStart = Date.now();
     const outcome = await resolveReading(reading);
-    if (outcome.status === 'none') { say('Couldn\'t read that card. Try again, closer and with more light.'); return; }
+    // How long each step took (the extra clues, if they were needed, are counted as their own step)
+    const times = { ...reading.timings };
+    times.lookup = Date.now() - lookupStart - (times.clues ?? 0);
+    const took = ` · ${timingWords(times)}`;
+    if (outcome.status === 'none') { say(`Couldn't read that card. Try again, closer and with more light.${took}`); return; }
     hapticTap();
     const art = reading.extras?.artPreview;
     if (mode === 'one') {
       if (outcome.status === 'sure' || outcome.status === 'likely') {
         setSheet({ item: itemFor(outcome, outcome.printing!, null), likely: outcome.status === 'likely', fromList: false });
+        say(`Read in${took.slice(2)}`);
       } else {
         setPicker({
           name: outcome.candidates[0]?.name ?? outcome.name ?? 'This card', candidates: outcome.candidates, matched: outcome.matched, chosen: null, artPreview: art, reason: outcome.reason,
@@ -130,13 +137,13 @@ export default function ScanScreen() {
     // Stack mode: straight onto the list
     if (outcome.status === 'sure') {
       addToList(itemFor(outcome, outcome.printing!, null));
-      say(`Added ${outcome.printing!.name}`);
+      say(`Added ${outcome.printing!.name}${took}`);
     } else if (outcome.status === 'likely') {
       addToList(itemFor(outcome, outcome.printing!, 'pick'));
-      say(`${outcome.printing!.name}: please check the printing`);
+      say(`${outcome.printing!.name}: please check the printing${took}`);
     } else {
       addToList(itemFor(outcome, outcome.candidates[0], 'pick'));
-      say(`${outcome.candidates[0].name}: pick the printing later`);
+      say(`${outcome.candidates[0].name}: pick the printing later${took}`);
     }
   }
 

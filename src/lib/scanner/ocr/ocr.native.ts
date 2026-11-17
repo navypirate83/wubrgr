@@ -8,7 +8,7 @@
    side (Tesseract.js, canvases) is used or imported here.
    The camera file (ScannerCamera.native.tsx) takes the photo and works out where the
    card is in it; this file turns that into the same ScanReading the website makes,
-   including the extra clues for older cards (set symbol, artwork, border colour).
+   with the extra clues for older cards (set symbol, artwork, border colour) read only when they are needed.
    ===================================================================== */
 
 import { requireNativeModule } from 'expo';
@@ -16,6 +16,7 @@ import { ART_BOX, ART_SHIFTS, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_BOX, t
 import type { Fractions } from '../core/cardInPhoto';
 import { borderFromBrightness } from '../core/borderColor';
 import { decodeGray, meanBrightness, type PackedGray } from '../core/grayDecode';
+import { readCardStaged, readTitle, type PartReader } from '../core/readPlan';
 import type { CardOcr } from './ocr';
 
 // What the add-on offers (see CardTextReaderModule.kt)
@@ -50,50 +51,54 @@ export function photoSize(path: string): Promise<[number, number]> {
 // A box given as left/top/right/bottom, turned into left/top/width/height (what the add-on takes)
 const asFractions = (box: Box): Fractions => [box[0], box[1], box[2] - box[0], box[3] - box[1]];
 
-// The extra clues for older cards: the set symbol, the artwork cropped a few slightly different ways,
-// the border colour, and a small picture of the art to show beside the candidates
-export async function readCardExtras(path: string, card: Fractions): Promise<ScanExtras> {
+// The slower clues for older cards: the set symbol, the artwork cropped a few slightly different
+// ways, and the border colour. Only read when the fallback needs them (see core/readPlan.ts).
+async function readClues(path: string, card: Fractions): Promise<ScanExtras> {
   const art = asFractions(ART_BOX);
   const shifted = ART_SHIFTS.map(([dx, dy]): Fractions => [art[0] + dx, art[1] + dy, art[2], art[3]]);
   const boxes = [asFractions(SYMBOL_BOX), ...shifted, asFractions(BORDER_STRIP)];
   const widths = [128, ...shifted.map(() => 128), 16];
-  const [packed, preview] = await Promise.all([
-    reader().grayCrops(path, card, boxes, widths),
-    reader().jpegCrop(path, card, art, 240),
-  ]);
-  const pictures = packed.map(decodeGray);
+  const pictures = (await reader().grayCrops(path, card, boxes, widths)).map(decodeGray);
   return {
     symbol: pictures[0],
     arts: pictures.slice(1, 1 + shifted.length),
     border: borderFromBrightness(meanBrightness(pictures[pictures.length - 1])),
-    artPreview: `data:image/jpeg;base64,${preview}`,
   };
 }
 
-// Read the card in a photo. "card" is where the card is in the photo (shares of the photo).
-// "withExtras" is false to skip the older-card clues (they can be added with readCardExtras).
-// The photo is left as it is: call finishPhoto when you're done with it.
-export async function readCardPhoto(
+// The ways of reading the parts of one card in a photo, in the form the shared reading order
+// (core/readPlan.ts) wants. "card" is where the card is in the photo (shares of the photo).
+function partsOf(path: string, card: Fractions): PartReader {
+  // The text in one part of the card
+  const text = async (box: Box) => (await reader().readParts(path, card, [asFractions(box)]))[0];
+  return {
+    name: () => text(CARD_PARTS.name),
+    band: () => text(NAME_BAND),
+    info: () => text(CARD_PARTS.infoLine),
+    bottom: () => text(CARD_PARTS.bottomLine),
+    clues: () => readClues(path, card),
+    // A small picture of the art to show beside the candidates
+    preview: async () => `data:image/jpeg;base64,${await reader().jpegCrop(path, card, asFractions(ART_BOX), 240)}`,
+  };
+}
+
+// A quick look for the hands-free camera: just the title text (the name, and the whole band only
+// if the name box had some text but no real name). Used to see whether there is a card to scan.
+export function readTitleOnly(path: string, card: Fractions, looksLikeName: (text: string) => boolean): Promise<string> {
+  return readTitle(partsOf(path, card), looksLikeName, true);
+}
+
+// Read the card in a photo, in the cheap order (see core/readPlan.ts): name and info line now, the
+// copyright line and older-card clues only if they turn out to be needed. "knownTitle" is the title
+// text if readTitleOnly already got it. The photo is left as it is: call finishPhoto when the reading
+// has been worked out (the extras are read from it then, if needed).
+export function readCardPhoto(
   path: string,
   card: Fractions,
   looksLikeName: (text: string) => boolean = () => true,
-  withExtras = true,
+  knownTitle?: string,
 ): Promise<ScanReading> {
-  // All four parts in one go: the info line, the name, the whole title band (used only when the
-  // name doesn't look like a card's, as on older frames), and the copyright line
-  const [info, name, band, bottom] = await reader().readParts(
-    path, card,
-    [asFractions(CARD_PARTS.infoLine), asFractions(CARD_PARTS.name), asFractions(NAME_BAND), asFractions(CARD_PARTS.bottomLine)],
-  );
-  return {
-    infoText: info,
-    // The name from the usual place; if that isn't a card's name, the band's lines too (the same rule the website uses)
-    nameText: looksLikeName(name) ? name : `${name}\n${band}`.trim(),
-    bottomText: bottom,
-    takenAt: Date.now(),
-    // (the hands-free loop leaves these out until it has seen a card, because most looks find none)
-    extras: withExtras ? await readCardExtras(path, card) : undefined,
-  };
+  return readCardStaged(partsOf(path, card), looksLikeName, knownTitle);
 }
 
 // Done with a photo: free its memory, and delete the file if the camera took it (not for a gallery photo)

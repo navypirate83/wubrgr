@@ -11,8 +11,9 @@ import type { ReactNode } from 'react';
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 
 export type ScannerCameraProps = {
-  // Called with the text the camera read from a card each time one is scanned
-  onReading: (reading: ScanReading) => void;
+  // Called with the text the camera read from a card each time one is scanned. It may take a moment (it works out
+  // the printing); the camera waits for it, because the photo is needed until then
+  onReading: (reading: ScanReading) => void | Promise<void>;
   // A short line to show instead of the usual hint ("Added Exotic Orchard")
   message?: string;
   // What goes either side of the round scan button along the bottom (the mode choice, the list button)
