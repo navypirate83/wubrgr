@@ -35,7 +35,7 @@ import { resolveReading, type ScanOutcome } from '@/lib/scanner/scanResolve';
 import { timingWords } from '@/lib/scanner/core/readPlan';
 import { finishesOf, newScanId, startingFinish, type ScanItem } from '@/lib/scanner/scanItems';
 import { allFrontNames, catalogueConfigured, downloadCatalogue, openCatalogue, printingsNamed, type DownloadStage } from '@/lib/scanner/catalogue/catalogue';
-import { bestNameMatch } from '@/lib/scanner/core/fuzzy';
+import { looksLikeAnyName } from '@/lib/scanner/core/fuzzy';
 import { normalizeName } from '@/lib/scanner/core/text';
 
 const STAGE_WORDS: Record<DownloadStage, string> = { downloading: 'Downloading', unpacking: 'Unpacking', saving: 'Saving' };
@@ -185,7 +185,7 @@ export default function ScanScreen() {
     <View style={styles.screen}>
       <ScannerCamera
         onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding}
-        looksLikeName={(text) => text.split('\n').some((line) => { const plain = normalizeName(line); return plain.length >= 3 && !!bestNameMatch(plain, names.current); })}
+        looksLikeName={(text) => text.split('\n').some((line) => { const plain = normalizeName(line); return plain.length >= 3 && looksLikeAnyName(plain, names.current); })}
       />
 
       {sheet && (
