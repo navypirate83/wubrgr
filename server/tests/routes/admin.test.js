@@ -16,7 +16,7 @@ import Deck from '../../models/Deck.js';
 import PrismSet from '../../models/PrismSet.js';
 import RefreshToken from '../../models/RefreshToken.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
-import { makeUser, bearer } from '../helpers/users.js';
+import { makeUser, bearer, TEST_PASSWORD } from '../helpers/users.js';
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);
@@ -100,6 +100,21 @@ describe('listing people', () => {
     expect(res.body).toHaveLength(2);
     expect(res.body[0]).toEqual(expect.objectContaining({ email: expect.any(String), role: expect.any(String) }));
     expect(JSON.stringify(res.body)).not.toMatch(/password/i);
+  });
+
+  // Someone who has never signed in has no "last used" date; signing in sets it
+  test('the list shows when each account was last used, set by signing in', async () => {
+    const admin = await makeUser({ role: 'admin' });
+    const sam = await makeUser({ email: 'sam@example.com' });
+    const before = (await as(admin).get('/admin/users?limit=100')).body.find((p) => p.email === 'sam@example.com');
+    expect(before.lastAccessAt).toBeUndefined();
+
+    const started = Date.now();
+    const login = await request(app).post('/auth/login').send({ email: sam.email, password: TEST_PASSWORD });
+    expect(login.status).toBe(200);
+
+    const after = (await as(admin).get('/admin/users?limit=100')).body.find((p) => p.email === 'sam@example.com');
+    expect(new Date(after.lastAccessAt).getTime()).toBeGreaterThanOrEqual(started - 1000);
   });
 });
 

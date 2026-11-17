@@ -2,7 +2,7 @@
    THE ADMIN PAGE'S REQUESTS TO THE SERVER
    Only an account with the Admin right can use these (the server refuses
    everyone else, whatever the app does). They are:
-     - listPeople: everyone with an account, with their rights
+     - listPeople: everyone with an account, with their rights and when they last used it
      - setRights: give or take away PRISM or Admin
      - deletePerson: delete a person and everything they own (the person's
        name has to be sent too: the page makes you type it)
@@ -23,10 +23,11 @@ export type Person = {
   name: string;
   role: Rights;
   createdAt: string;      // when the account was made (as the server sends dates)
+  lastAccessAt: string;   // when the account was last used (empty if the server has no record yet)
 };
 
 // What the server sends for one person
-type ServerPerson = { _id: string; email: string; username?: string; name?: string; role?: string; createdAt?: string };
+type ServerPerson = { _id: string; email: string; username?: string; name?: string; role?: string; createdAt?: string; lastAccessAt?: string };
 
 // The words for each level, shown on the page
 export const RIGHTS_LABEL: Record<Rights, string> = { user: 'No extra rights', prism: 'PRISM', admin: 'Admin' };
@@ -51,6 +52,7 @@ export async function listPeople(): Promise<Person[]> {
         name: p.name?.trim() || p.username || p.email,
         role: p.role === 'admin' || p.role === 'prism' ? p.role : 'user',
         createdAt: p.createdAt ?? '',
+        lastAccessAt: p.lastAccessAt ?? '',
       });
     }
     if (batch.length < PAGE) break;
@@ -66,6 +68,22 @@ export async function setRights(id: string, role: Rights): Promise<void> {
 // Delete a person and everything they own. "name" is what was typed to confirm.
 export async function deletePerson(id: string, name: string): Promise<void> {
   await apiRequest(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE', body: { name } });
+}
+
+// When an account was last used, in plain words: "just now", "5 min ago", "3 days ago", or
+// "Not since tracking began" for an account that hasn't been used since the server started noting it.
+// ("now" can be passed in so this can be checked with a made-up clock.)
+export function lastAccessText(lastAccessAt: string, now: number = Date.now()): string {
+  const then = new Date(lastAccessAt).getTime();
+  if (!lastAccessAt || Number.isNaN(then)) return 'Not since tracking began';
+  const minutes = Math.max(0, Math.floor((now - then) / 60000));
+  if (minutes < 2) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+  return new Date(then).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 // "Mar 2026" from a date the server sent (empty if there isn't one)

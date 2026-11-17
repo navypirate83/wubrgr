@@ -1681,7 +1681,9 @@ export const helpTopics: HelpTopic[] = [
               The page lists everyone with an account, with a pill for what they can do. <Strong>No extra rights</Strong> is the
               normal app. <Strong>PRISM</Strong> also shows the PRISM section. <Strong>Admin</Strong> is everything, PRISM
               included, and this page. Search by name or email, or use the buttons (All, Admin, PRISM, No extra rights, each with a
-              count) to narrow the list.
+              count) to narrow the list. Under each email, <Strong>Last used</Strong> says when the account was last signed in
+              to or renewed its login (it updates about every 15 minutes while the app is open). Accounts that haven't been
+              used since that began say "Not since tracking began".
             </P>
             <P>
               Tap a person to open their window. Pick a level and tap <Strong>Save</Strong>. Giving Admin shows a warning first,

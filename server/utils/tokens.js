@@ -7,11 +7,13 @@
    - a REFRESH token: a long random secret (60 days) the app keeps so you
      stay signed in. It buys a new pair when the access token runs out.
      We save only its SHA-256 fingerprint, never the token itself.
+   Every new pair also notes "last used" on the account (shown on the Admin page).
    ===================================================================== */
 
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import RefreshToken from '../models/RefreshToken.js';
+import User from '../models/User.js';
 
 // How long a refresh token lives: 60 days
 const REFRESH_DAYS = 60;
@@ -50,6 +52,9 @@ export async function createRefreshToken(user, family = crypto.randomUUID()) {
 // tokens plus a user object built BY HAND with only safe fields, so a
 // password hash can never leak even if the model gains fields later.
 export async function issueSession(user, family) {
+  // Write down that this account was just used (the Admin page shows it). If this
+  // small note can't be saved, signing in still works, so a failure is ignored.
+  await User.updateOne({ _id: user._id }, { $set: { lastAccessAt: new Date() } }).catch(() => {});
   return {
     accessToken: signAccessToken(user),
     refreshToken: await createRefreshToken(user, family),

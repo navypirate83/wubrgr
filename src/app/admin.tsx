@@ -2,7 +2,7 @@
    THE ADMIN PAGE: PEOPLE (/admin)
    Only for accounts with the Admin right (anyone else who gets here, by
    typing the address, is sent home; Settings only shows the way in to admins).
-   It lists everyone with an account and the rights each has:
+   It lists everyone with an account, when each was last used, and the rights each has:
      - No extra rights: the normal app
      - PRISM: also the PRISM section
      - Admin: everything, PRISM included, and this page
@@ -28,7 +28,7 @@ import { useColors } from '@/hooks/useTheme';
 import { showMessage } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import { RADIUS } from '@/theme/colors';
-import { RIGHTS_ABOUT, RIGHTS_LABEL, deletePerson, joinedText, listPeople, setRights, type Person, type Rights } from '@/lib/adminApi';
+import { RIGHTS_ABOUT, RIGHTS_LABEL, deletePerson, joinedText, lastAccessText, listPeople, setRights, type Person, type Rights } from '@/lib/adminApi';
 
 // The page is never wider than this (points)
 const PAGE_MAX_WIDTH = 900;
@@ -196,6 +196,8 @@ export default function AdminScreen() {
                 {item.name}{item.id === myId ? <Text style={[styles.you, { color: colors.muted }]}>  you</Text> : null}
               </Text>
               <Text style={[styles.personMail, { color: colors.muted }]} numberOfLines={1}>{item.email}</Text>
+              {/* When this account was last used */}
+              <Text style={[styles.lastSeen, { color: colors.muted }]} numberOfLines={1}>Last used: {lastAccessText(item.lastAccessAt)}</Text>
             </View>
             {/* The level, as a pill: Admin in the accent color, PRISM in purple, the rest quiet */}
             <View style={[styles.pill, {
@@ -225,6 +227,7 @@ export default function AdminScreen() {
             <Text style={[styles.personMail, { color: colors.muted }]}>
               {picked.email}{joinedText(picked.createdAt) ? ` · joined ${joinedText(picked.createdAt)}` : ''}
             </Text>
+            <Text style={[styles.personMail, { color: colors.muted }]}>Last used: {lastAccessText(picked.lastAccessAt)}</Text>
             <Text style={[styles.sectionLabel, { color: colors.muted }]} accessibilityRole="header">Rights</Text>
             {LEVELS.map((level) => {
               const on = choice === level;
@@ -318,6 +321,7 @@ const styles = StyleSheet.create({
   personText: { flex: 1, minWidth: 0 },
   personName: { fontSize: 15, fontWeight: '700' },
   personMail: { fontSize: 13 },
+  lastSeen: { fontSize: 12 },
   you: { fontSize: 11, fontWeight: '600' },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
   pillText: { fontSize: 12, fontWeight: '700' },

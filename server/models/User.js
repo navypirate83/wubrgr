@@ -106,6 +106,10 @@ const userSchema = new mongoose.Schema(
     },
     // When the settings were last saved
     settingsSavedAt: { type: Date },
+    // When the account was last used: set every time the person signs in or the
+    // app renews their login (about every 15 minutes while the app is open).
+    // Accounts that haven't been used since this was added have none yet.
+    lastAccessAt: { type: Date },
   },
   { timestamps: true },
 );

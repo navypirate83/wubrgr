@@ -3,7 +3,8 @@
    Only for the admin account (mounted behind requireAuth AND
    requireAdmin in app.js). Admin power is kept to managing accounts: an
    admin can NOT read other people's binders or lists (a privacy choice).
-   - GET    /admin/users        everyone's account details (never passwords), a page at a time
+   - GET    /admin/users        everyone's account details (never passwords), a page at a time,
+                                including when each account was last used (lastAccessAt)
    - PATCH  /admin/users/:id    change one person's rights: { role: "user" | "prism" | "admin" }
    - DELETE /admin/users/:id    delete a person and everything they own: { name } must be
                                 their name (or username, or email) typed out, as a last check
@@ -27,7 +28,7 @@ router.get('/users', async (req, res) => {
   try {
     const [users, total] = await Promise.all([
       // Only the fields that are safe to show (password is also off by default)
-      User.find().select('email username name role createdAt').sort({ _id: 1 }).skip(paging.skip).limit(paging.limit).lean(),
+      User.find().select('email username name role createdAt lastAccessAt').sort({ _id: 1 }).skip(paging.skip).limit(paging.limit).lean(),
       User.countDocuments(),
     ]);
     res.set('X-Total-Count', String(total));
