@@ -33,7 +33,7 @@ const ANDROID_APP_URL = 'https://drive.google.com/drive/folders/1UVEg-bix-rpSoCb
 // When the Android app was last built (the finish time of the newest build, in UTC).
 // Update it after every new Android build. It's shown under the download link, as a
 // date in the viewer's own time zone.
-const ANDROID_BUILD_DATE = '2026-11-17T05:56:33Z';
+const ANDROID_BUILD_DATE = '2026-11-17T16:36:40Z';
 const androidBuildDay = new Date(ANDROID_BUILD_DATE).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
 // The server's status page, and the small live badge picture UptimeRobot
