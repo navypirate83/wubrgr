@@ -1021,14 +1021,15 @@ export const helpTopics: HelpTopic[] = [
               Pictures of matching cards fill the area under the box, A to Z, three across (more on a wide screen).
               Any word in the name counts, not just the first, so "bolt" finds Lightning Bolt. Scroll down and more
               load. If nothing matches (a typo, say), the cards for the closest names are shown instead.
-              Tap (or click) the card you want.<OnComputer> On a computer, press <Key>Enter</Key> to open the single
-              closest match.</OnComputer>
+              Tap (or click) the card you want.
             </Step>
-            <Step n={3}>The card opens, with its picture, name, set and artist, and all its versions. <Strong>Back to results</Strong> (above the card) returns to the pictures, right where you were.</Step>
+            <Step n={3}>The card opens, with its picture, name, set and artist, and all its versions. What you typed stays in the search box.</Step>
             <P>
-              Changing anything in the search box, even one letter, switches back to the pictures and searches
-              again. To start again, tap the <Strong>×</Strong> at the right end of the search box. It
-              empties the box, ready for a new name.
+              To get back to your search, tap <Strong>Back to results</Strong> (above the card), which returns to the pictures right
+              where you were. Or carry on in the search box: tapping it just lets you keep typing. Typing anything, even one
+              letter, or pressing the keyboard's <Strong>Search</Strong> key (<Key>Enter</Key> on a computer) brings the pictures
+              back for what's in the box. Tap anywhere else without typing and nothing changes. To start again, tap
+              the <Strong>×</Strong> at the right end of the search box. It empties the box, ready for a new name.
             </P>
             <P>
               Looking for a card you already own? Use <Strong>Search your binders</Strong> on The
@@ -1177,7 +1178,7 @@ export const helpTopics: HelpTopic[] = [
         body: (
           <>
             <P>
-              On a computer, the search box (<Key>Enter</Key> opens the closest card), the Set list and the "Add to which
+              On a computer, the search box (<Key>Enter</Key> shows the pictures for what you typed), the Set list and the "Add to which
               binder?" menu work with the keyboard, <Key>Enter</Key> and <Key>Escape</Key>.
               There are also shortcut keys that work anywhere on the screen, except while you're
               typing in a box:

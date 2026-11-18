@@ -4,8 +4,9 @@
    the exact set, version and language. The search box is at the top.
    Type even one letter and the area under it fills with pictures of
    matching cards, A to Z (CardGrid). Tap one and its details show in the
-   card area (CardPanel), with a "Back to results" button. Changing the
-   text in the box again brings the picture grid back.
+   card area (CardPanel), with a "Back to results" button, and what was
+   typed stays in the box. Tapping the box just lets you carry on typing;
+   changing the text, or pressing Enter, brings the picture grid back.
    A shared link (like /search?set=isd&number=51) opens one exact card.
    The card data comes from Scryfall, through TanStack Query, which
    remembers each answer so nothing is downloaded twice.
@@ -217,13 +218,17 @@ export default function CardFinderScreen() {
   if (arrived && shownLookup !== lookup) setShownLookup(lookup);
   const result = cardQuery.isError ? undefined : cardQuery.data;
 
-  // When a card arrives, put its full name in the search box (unless the
-  // person has gone back to typing a search in the meantime).
+  // When a card arrives that did NOT come from the picture grid (a link, a
+  // binder), put its full name in the search box. A card picked from the grid
+  // leaves the box alone, so the search you were typing is still there to
+  // carry on from. (Nor if the person has gone back to typing meanwhile.)
   const cardName = arrived ? cardQuery.data?.card.name : undefined;
   const modeNow = useRef(mode);
   modeNow.current = mode;
+  const fromGridNow = useRef(fromGrid);
+  fromGridNow.current = fromGrid;
   useEffect(() => {
-    if (cardName && modeNow.current === 'card') setText(cardName);
+    if (cardName && modeNow.current === 'card' && !fromGridNow.current) setText(cardName);
   }, [cardName, lookup?.number]);
 
   // Stop a waiting grid search if the screen goes away
@@ -260,14 +265,14 @@ export default function CardFinderScreen() {
     searchFor(card.name, true);
   }
 
-  // The Search key: look up the single closest card to what's typed
+  // The Search key (Enter): go to the picture grid for what's in the box,
+  // straight away, and put the phone's keyboard away
   function submitSearch(value: string) {
     clearTimeout(gridTimer.current);
     setGridText(value);
     typedText.current = value;
-    setFromGrid(true);
+    setMode('grid');
     if (Platform.OS !== 'web') Keyboard.dismiss();
-    searchFor(value, false);
   }
 
   // "Back to results": the grid again, with the text that was typed
@@ -368,6 +373,9 @@ export default function CardFinderScreen() {
         value={text}
         onChange={handleTyped}
         onSubmit={submitSearch}
+        // Tapping the box selects its text only when it holds a card's name
+        // (so typing replaces it), not when it holds the search you typed
+        selectOnFocus={mode === 'card' && !fromGrid}
         onLeave={() => announce('Left the search box. The shortcut keys work now: press ? to see them.')}
         hint={addMessage ? addMessage.text : hint}
         hintIsError={addMessage ? addMessage.isError : hintIsError}

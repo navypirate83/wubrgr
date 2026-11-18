@@ -4,7 +4,8 @@
    Everything you type is handed straight to the screen, which searches
    from the very first letter and fills the area under the box with card
    pictures (see CardGrid.tsx). Pressing the keyboard's Search key (Enter
-   on a computer) asks Scryfall for the single closest card to what's typed.
+   on a computer) brings the pictures back for what's in the box. Tapping
+   the box while a card is open just lets you carry on typing.
    The card area under the box is passed in as "children".
    Keyboard handling: the Card Finder screen shrinks itself above the
    keyboard (KeyboardAvoidingView), so the keyboard never covers the box.
@@ -29,8 +30,10 @@ type Props = {
   value: string;
   // The text was changed by the person typing (or by the "×" button)
   onChange: (text: string) => void;
-  // The Search key was pressed: look up the closest card to this text
+  // The Search key was pressed: show the pictures for this text
   onSubmit: (text: string) => void;
+  // Select all the text when the box is tapped?
+  selectOnFocus: boolean;
   // Escape was pressed: the box was left (web)
   onLeave: () => void;
   hint: string;
@@ -43,7 +46,7 @@ type Props = {
 };
 
 export default function SearchBox(props: Props) {
-  const { value, onChange, onSubmit, onLeave, hint, hintIsError, onShowShortcuts, inputRef, children } = props;
+  const { value, onChange, onSubmit, selectOnFocus, onLeave, hint, hintIsError, onShowShortcuts, inputRef, children } = props;
   const colors = useColors();
   // Show the shortcuts tip? (Computers only: see useShortcutKeys)
   const showKeyHints = useShowKeyHints();
@@ -88,9 +91,10 @@ export default function SearchBox(props: Props) {
           autoCapitalize="none"
           spellCheck={false}
           autoComplete="off"
-          // Tapping the box (with a card's name in it) selects the name,
-          // so typing replaces it
-          selectTextOnFocus
+          // Tapping the box selects its text when it holds a card's name,
+          // so typing replaces it; otherwise the cursor just goes in, so
+          // you can carry on typing the search
+          selectTextOnFocus={selectOnFocus}
           style={[styles.input, { backgroundColor: colors.surface }]}
         />
         {/* "×": only while there's something in the box to clear */}
