@@ -282,8 +282,8 @@ function BinderView({ binderId }: { binderId: string }) {
   // looked up on the internet for this, and the answers are kept for a while.
   const prices = useBinderPrices(baseEntries);
   const entries = useMemo<CardEntry[]>(
-    () => sortEntries(matchingEntries, sort, reversed, { printings: prices.printings, prices: prices.byKey }),
-    [matchingEntries, sort, reversed, prices.printings, prices.byKey],
+    () => sortEntries(matchingEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey }),
+    [matchingEntries, sort, reversed, prices.printings, prices.eachByKey],
   );
   // Which group each card falls under for the sort in use, so the List and
   // Grid views can put a header bar between the groups. (The Binder view's

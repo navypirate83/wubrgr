@@ -7,8 +7,8 @@
      the casting cost (Scryfall's own mana symbols), the set's symbol, the
      set code and number, with a "*" after the number for a foil or "**"
      for an etched foil; then the type line. To the right: the "− 3 +"
-     copies bar (− and + change how many copies you have), and what they're
-     worth at the store chosen in Settings (a dash when it has no price).
+     copies bar (− and + change how many copies you have), and what ONE copy
+     is worth at the store chosen in Settings (a dash when it has no price).
    Above both, one quiet line: how many cards, how many different, and the
    total value.
    - GRID: card pictures side by side (a foil has a rainbow border), each
@@ -299,7 +299,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         // The List view: one card to a row
         if (mode === 'list') {
           const item = row.entries[0];
-          return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.byKey.get(item.key)} currency={prices.currency}
+          return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.eachByKey.get(item.key)} currency={prices.currency}
                           setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />;
         }
         // The Grid view: a row of pictures side by side
@@ -377,7 +377,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
   missing: false | 'card' | 'printing';   // a deck: not in your binders (solid red border) or not that printing (dashed)
   banned: boolean;                     // banned in the deck's format: black "BANNED" slash
   gold: boolean;                       // a Game Changer: yellow border
-  price: number | null | undefined;    // undefined: not loaded yet; null: the store has none
+  price: number | null | undefined;    // one copy's price. undefined: not loaded yet; null: the store has none
   currency: 'USD' | 'EUR';
 }) {
   const colors = useColors();
@@ -393,7 +393,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
       {/* The picture and name: tap them for the card's menu */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)}` : ''}${gold ? ', Game Changer' : ''}. Opens its menu.`}
+        accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)} each` : ''}${gold ? ', Game Changer' : ''}. Opens its menu.`}
         onPress={() => onPick(key)}
         style={({ pressed }) => [styles.rowMain, pressed && { backgroundColor: colors.surfaceHover }]}
       >
@@ -425,7 +425,8 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
       {/* How many copies: the "− 3 +" bar */}
       <CopiesBar name={card.name} count={count} style={styles.rowBar}
                  onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
-      {/* What the copies are worth (a dash if the store has no price) */}
+      {/* What ONE copy is worth, not the whole stack (a dash if the store has no price). The total
+          for everything is in the summary line above the cards. */}
       <Text style={[styles.price, { color: colors.muted }]}>{price === undefined ? '' : formatPrice(price, currency)}</Text>
     </View>
   );

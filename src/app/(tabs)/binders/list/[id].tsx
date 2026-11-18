@@ -236,8 +236,8 @@ export default function ListScreen() {
   // list, so typing in the search box doesn't start a new lookup each time.
   const prices = useBinderPrices(allEntries);
   const entries = useMemo<CardEntry[]>(
-    () => sortEntries(baseEntries, sort, reversed, { printings: prices.printings, prices: prices.byKey }),
-    [baseEntries, sort, reversed, prices.printings, prices.byKey],
+    () => sortEntries(baseEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey }),
+    [baseEntries, sort, reversed, prices.printings, prices.eachByKey],
   );
   // Which group each card falls under for the sort in use (A, B, C ...; a
   // color; a type; a set; a mana value), so the list can put a header bar

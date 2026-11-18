@@ -709,13 +709,13 @@ export const helpTopics: HelpTopic[] = [
         A binder opens as its pages of pockets (the <Strong>Binder</Strong> view, below). The
         three small picture buttons under the search bar switch between <Strong>Binder</Strong> (the open
         binder drawing), <Strong>List</Strong> (the list icon: a
-        small picture, the name, the set and number, how many copies you have and what they're
-        worth) and <Strong>Grid</Strong> (the grid icon: card pictures side by side). The app remembers your choice
+        small picture, the name, the set and number, how many copies you have and what one copy
+        is worth) and <Strong>Grid</Strong> (the grid icon: card pictures side by side). The app remembers your choice
         for the next binder you open, one for a phone-sized window and one for a wide screen, and
         saves it with your account so it follows you to your other devices.
         In the list and grid, the button at the right (it shows the sort in use, like <Strong>A–Z</Strong>) drops
         down a menu: <Strong>Name</Strong> (A to Z), <Strong>Newest added</Strong>, <Strong>Price</Strong> (the
-        most valuable first), <Strong>Color</Strong> (White, Blue, Black, Red, Green, then each
+        most valuable first, by the price of one copy, so owning several copies doesn't move a card up), <Strong>Color</Strong> (White, Blue, Black, Red, Green, then each
         two-color pair, then three colors and more, each exact set of colors in its own group, then colorless,
         then Lands in color order: Plains, Islands, Swamps, Mountains, Forests, then other lands), <Strong>Set</Strong> (the oldest set first), <Strong>Type</Strong> (Creatures, Enchantments,
         Artifacts, Sorceries, Instants, Battles, Planeswalkers, Lands, then anything else; anything that is a
@@ -1281,8 +1281,9 @@ export const helpTopics: HelpTopic[] = [
               Under <Strong>Collection</Strong>, <Strong>Price store</Strong> picks whose prices the app
               shows for your cards: <Strong>TCGplayer</Strong> or <Strong>Card Kingdom</Strong> (US
               dollars) or <Strong>Cardmarket</Strong> (euros). Inside a binder, each card in the
-              list shows what its copies are worth there (the foil price for a foil copy, times how many copies;
-              a dash when the store has no price), and the line above the cards adds it all up: how many
+              list shows what one copy is worth there (the foil price for a foil copy; a dash when the store has
+              no price), and the line above the cards adds up all your copies (the price of one copy times how
+              many copies you have, for every card): how many
               cards, how many different, how many different card names (distinct), and the total value. On the Card Finder, your store's prices are listed first.
             </P>
             <P>

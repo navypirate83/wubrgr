@@ -190,9 +190,9 @@ export default function DeckScreen() {
   const entries = useMemo<CardEntry[]>(
     () => sortEntries(
       onlyGameChangers ? baseEntries.filter((entry) => isGameChanger(entry.card.name)) : baseEntries,
-      sort, reversed, { printings: prices.printings, prices: prices.byKey },
+      sort, reversed, { printings: prices.printings, prices: prices.eachByKey },
     ),
-    [baseEntries, onlyGameChangers, isGameChanger, gameChangers, sort, reversed, prices.printings, prices.byKey],
+    [baseEntries, onlyGameChangers, isGameChanger, gameChangers, sort, reversed, prices.printings, prices.eachByKey],
   );
   // Which group each card falls under for the sort in use, so the list can
   // put a header bar between the groups (none if turned off in Settings)

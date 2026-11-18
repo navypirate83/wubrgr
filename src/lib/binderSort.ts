@@ -5,8 +5,8 @@
    - name:   A to Z                       (tap again: Z to A)
    - added:  newest added first           (tap again: oldest first)
    - price:  most valuable first          (tap again: cheapest first)
-             (what the copies are worth at the store chosen in Settings;
-             cards with no price always go last)
+             (what ONE copy of the card is worth at the store chosen in
+             Settings, not the whole stack; cards with no price always go last)
    - color:  White, Blue, Black, Red, Green (one color each), then every
              two-color pairing, then three colors and more (each exact
              set of colors is its own group), then colorless, then Lands
@@ -97,8 +97,9 @@ export function canReverse(sort: BinderSort): boolean {
 }
 
 // What the sorting can look at besides the cards themselves: each card's
-// details from Scryfall (by "set/number" in lowercase), and what each
-// card's copies are worth (by pocket key)
+// details from Scryfall (by "set/number" in lowercase), and what ONE copy
+// of each card is worth (by pocket key), so how many copies you own
+// doesn't change where a card sorts
 export type SortContext = {
   printings?: Map<string, ScryfallCard>;
   prices?: Map<string, number | null>;
@@ -207,7 +208,7 @@ export function sortEntries(entries: SortEntry[], sort: BinderSort, reversed = f
       by((item) => item.entry.card.added ?? '', -1);
       break;
     case 'price':
-      // Most valuable first; no price (or not loaded) last
+      // Most valuable first, by the price of one copy; no price (or not loaded) last
       by((item) => context.prices?.get(item.entry.key) ?? undefined, -1);
       break;
     case 'color':

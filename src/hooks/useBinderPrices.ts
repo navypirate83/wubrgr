@@ -6,10 +6,12 @@
      set of cards, and are kept for a while so reopening a binder is quick.
    - Card Kingdom's prices come from its own price list (about 8 MB, so it's
      only downloaded when Card Kingdom is the chosen store, and only once).
-   - A price is for the copies you have: the foil price for a foil copy,
-     times how many copies. A card the store has no price for counts as
-     nothing in the total (and shows a dash).
-   Gives back: each card's price by its pocket key, the total, which
+   - Each card has two prices: the price of ONE copy (the foil price for a
+     foil copy), which the list shows and "Price" sorting uses, and that
+     times how many copies you have, which is what the total adds up. A card
+     the store has no price for counts as nothing in the total (and shows a
+     dash).
+   Gives back: each card's prices by its pocket key, the total, which
    currency it's in, and whether prices are still loading. It also gives
    back the cards' details themselves (colors, type, rarity...), because
    sorting a binder by those needs the same lookup (see lib/binderSort.ts).
@@ -28,6 +30,10 @@ import type { CardEntry } from '@/components/binder/CardList';
 export type BinderPrices = {
   // Each card's price for all its copies, by pocket key (null = no price)
   byKey: Map<string, number | null>;
+  // Each card's price for ONE copy (the foil price for a foil), by pocket key (null = no price).
+  // The list shows this, and "Price" sorting goes by it, so a card you own three of isn't ranked
+  // as if it were three times as expensive.
+  eachByKey: Map<string, number | null>;
   // Everything added up (null until the prices have loaded)
   total: number | null;
   currency: 'USD' | 'EUR';
@@ -79,6 +85,7 @@ export function useBinderPrices(entries: CardEntry[]): BinderPrices {
 
   return useMemo(() => {
     const byKey = new Map<string, number | null>();
+    const eachByKey = new Map<string, number | null>();
     let total = 0;
     const ready = printings.data && (priceStore !== 'cardkingdom' || cardKingdom.data);
     if (ready) {
@@ -87,9 +94,11 @@ export function useBinderPrices(entries: CardEntry[]): BinderPrices {
         const each = print ? copyPrice(priceStore, print, finishOf(card), cardKingdom.data) : null;
         const line = each === null ? null : Math.round(each * cardCount(card) * 100) / 100;
         byKey.set(key, line);
+        // The price of a single copy, kept to the cent
+        eachByKey.set(key, each === null ? null : Math.round(each * 100) / 100);
         if (line !== null) total += line;
       }
     }
-    return { byKey, total: ready ? Math.round(total * 100) / 100 : null, currency, loading, failed, printings: printings.data };
+    return { byKey, eachByKey, total: ready ? Math.round(total * 100) / 100 : null, currency, loading, failed, printings: printings.data };
   }, [entries, printings.data, cardKingdom.data, priceStore, currency, loading, failed]);
 }
