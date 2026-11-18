@@ -15,10 +15,10 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { loadGridPage } from '@/lib/cardGrid';
 import type { ScryfallCard } from '@/lib/scryfall';
-import type { NameEntry } from '@/lib/nameSearch';
+import { nameHasWords, type NameEntry } from '@/lib/nameSearch';
 import { CARD_BACK, imageFor } from '@/lib/cards';
 import { pictureSource } from '@/lib/http';
 import { useColors } from '@/hooks/useTheme';
@@ -66,19 +66,30 @@ export default function CardGrid({ text, names, onPick, visible, onHint }: Props
     getNextPageParam: (last, all) => (last.hasMore ? all.length + 1 : undefined),
     enabled: searching,
     staleTime: 5 * 60 * 1000,
+    // While the next search loads, keep the cards from the last one on
+    // screen (so the grid never goes blank between letters)
+    placeholderData: keepPreviousData,
   });
-  const cards = query.data?.pages.flatMap((page) => page.cards) ?? [];
-  const closest = query.data?.pages[0]?.closest ?? false;
+  // Those old cards are narrowed on the spot to fit the new text (typing
+  // "aang a" after "aang" keeps just the cards that fit), so the grid
+  // follows every key press, before Scryfall has even answered.
+  const old = query.isPlaceholderData;
+  const loaded = query.data?.pages.flatMap((page) => page.cards) ?? [];
+  const cards = old ? loaded.filter((card) => nameHasWords(card.name, text)) : loaded;
+  const closest = !old && (query.data?.pages[0]?.closest ?? false);
 
   // Say "closest names" under the search box when these aren't exact matches
   useEffect(() => {
     onHint(searching && closest ? 'No exact match. Showing the closest names.' : '');
   }, [searching, closest, onHint]);
 
-  // Each new search starts back at the top
+  // A brand new search starts back at the top. (Narrowing what's already on
+  // screen doesn't: the cards that don't fit just drop out where they are.)
   useEffect(() => {
+    if (query.isPlaceholderData) return;
     offset.current = 0;
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
   // Coming back from a card: scroll to where the grid was
@@ -112,6 +123,10 @@ export default function CardGrid({ text, names, onPick, visible, onHint }: Props
     notice = <SearchError title="Couldn't search for cards" message={(query.error as Error).message || 'Something went wrong.'} onRetry={() => query.refetch()} retrying={query.isFetching} />;
   } else if (query.isPending) {
     notice = <Searching />;
+  } else if (cards.length === 0 && old) {
+    // Nothing on screen fits yet and the real answer is still loading: just
+    // an empty grid (no spinner or message flashing up between letters)
+    notice = null;
   } else if (cards.length === 0) {
     notice = <NoCardsFound message={`No card names match “${text.trim()}”.`} />;
   }

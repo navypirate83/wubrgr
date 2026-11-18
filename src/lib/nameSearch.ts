@@ -163,6 +163,17 @@ export function scryfallWordQuery(text: string): string {
   return [...words.map((word) => `name:/\\b${word}/`), '-st:memorabilia'].join(' ');
 }
 
+// Does this card name fit what's typed, the same way the Scryfall search above
+// does? Every typed word must be the start of some word in the name ("aang a"
+// fits "Aang and Katara"). Used to narrow cards already on the screen straight
+// away, while the real search is still on its way.
+export function nameHasWords(name: string, text: string): boolean {
+  const typed = simplify(text).split(' ').filter(Boolean);
+  if (typed.length === 0) return true;
+  const words = simplify(name).split(' ');
+  return typed.every((t) => words.some((w) => w.startsWith(t)));
+}
+
 // Split a name into three parts around the bit that matches what was
 // typed, so the page can highlight the middle part. Spaces and
 // punctuation are ignored, so typing "ur dragon" still highlights

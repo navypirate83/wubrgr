@@ -5,7 +5,15 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scryfallWordQuery } from './nameSearch.ts';
+import { nameHasWords, scryfallWordQuery } from './nameSearch.ts';
+
+test('a name fits when every typed word starts one of its words', () => {
+  assert.equal(nameHasWords('Aang and Katara', 'aang a'), true);
+  assert.equal(nameHasWords('Aang, A Lot to Learn', 'aang a'), true);
+  assert.equal(nameHasWords('Aang, Air Nomad', 'aang k'), false);
+  assert.equal(nameHasWords('Séance', 'sean'), true);
+  assert.equal(nameHasWords('Lightning Bolt', ''), true);
+});
 
 test('one letter makes a search for names with a word starting with it', () => {
   assert.equal(scryfallWordQuery('a'), 'name:/\\ba/ -st:memorabilia');

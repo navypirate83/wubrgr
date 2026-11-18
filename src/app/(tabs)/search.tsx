@@ -250,7 +250,7 @@ export default function CardFinderScreen() {
     typedText.current = value;
     setMode('grid');
     clearTimeout(gridTimer.current);
-    gridTimer.current = setTimeout(() => setGridText(value), value.trim() ? 200 : 0);
+    gridTimer.current = setTimeout(() => setGridText(value), value.trim() ? 60 : 0);
   }
 
   // A card in the grid was tapped: open it (and put the phone's keyboard away)
