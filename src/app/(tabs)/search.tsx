@@ -1,8 +1,11 @@
 /* =====================================================================
    CARD FINDER (the Search tab): THE MTG CARD FINDER
    Look up any Magic card by name, see its picture and details, and pick
-   the exact set, version and language. The search box is at the top;
-   everything about the card is in the card area under it (CardPanel).
+   the exact set, version and language. The search box is at the top.
+   Type even one letter and the area under it fills with pictures of
+   matching cards, A to Z (CardGrid). Tap one and its details show in the
+   card area (CardPanel), with a "Back to results" button. Changing the
+   text in the box again brings the picture grid back.
    A shared link (like /search?set=isd&number=51) opens one exact card.
    The card data comes from Scryfall, through TanStack Query, which
    remembers each answer so nothing is downloaded twice.
@@ -21,13 +24,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
-  BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, type TextInput,
+  BackHandler, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, type TextInput,
 } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
-  cardByNamePath, cardBySetPath, loadCard, loadCardNames, loadSetIcons,
+  cardByNamePath, cardBySetPath, loadCard, loadCardNames, loadSetIcons, type ScryfallCard,
 } from '@/lib/scryfall';
 import { prepareNames } from '@/lib/nameSearch';
 import { finishFromParam, plural, type Finish } from '@/lib/cards';
@@ -35,13 +39,14 @@ import { binderName, findBinder } from '@/lib/binderStorage';
 import { findList } from '@/lib/listStorage';
 import { findDeck } from '@/lib/deckStorage';
 import { RequestError } from '@/lib/http';
-import { useShortcutKeys, useShowKeyHints } from '@/hooks/useShortcutKeys';
+import { useShortcutKeys } from '@/hooks/useShortcutKeys';
 import { useAnnouncer } from '@/hooks/useAnnouncer';
 import { useAccount } from '@/hooks/useAccount';
 import { useColors } from '@/hooks/useTheme';
 import { MAX_CONTENT_WIDTH } from '@/theme/colors';
 import ShortcutsDialog, { type Shortcut } from '@/components/ShortcutsDialog';
-import SearchBox, { MIN_CHARS } from '@/components/search/SearchBox';
+import SearchBox from '@/components/search/SearchBox';
+import CardGrid from '@/components/search/CardGrid';
 import CardPanel from '@/components/search/CardPanel';
 import { NoCardsFound, SearchError, Searching } from '@/components/search/SearchStates';
 import { addressValue, pocketFromAddress } from '@/components/search/AddToBinder';
@@ -117,6 +122,22 @@ export default function CardFinderScreen() {
   // A shared link with "foil=1" (or "foil=etched") starts with it on.
   const [finish, setFinish] = useState<Finish>(() => finishFromParam(foilParam));
 
+  // What fills the area under the search box: the picture grid of matching
+  // cards ('grid'), or one card's details ('card'). It starts on the card
+  // area (the card back, until something is looked up), switches to the grid
+  // as soon as anything is typed, and switches to the card when one is picked.
+  const [mode, setMode] = useState<'grid' | 'card'>('card');
+  // Was the card on show picked from the grid? (Then "Back to results" is shown.)
+  const [fromGrid, setFromGrid] = useState(false);
+  // The text the grid searches for: what was typed, once typing pauses
+  const [gridText, setGridText] = useState('');
+  const gridTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // What was last typed (not a card's name put in the box), to bring back
+  // when returning to the grid
+  const typedText = useRef('');
+  // A note from the grid for under the search box (like "showing the closest names")
+  const [gridHint, setGridHint] = useState('');
+
   // A message from adding to a binder (like "That binder is full."),
   // shown under the search box instead of the usual one until the next
   // card is looked up
@@ -135,6 +156,9 @@ export default function CardFinderScreen() {
       setLookup(next);
       setFinish(finishFromParam(foilParam));
       setAddMessage(null);
+      // A card sent from elsewhere shows the card itself, not the picture grid
+      setMode('card');
+      setFromGrid(false);
     }
   }
 
@@ -193,22 +217,63 @@ export default function CardFinderScreen() {
   if (arrived && shownLookup !== lookup) setShownLookup(lookup);
   const result = cardQuery.isError ? undefined : cardQuery.data;
 
-  // When a card arrives, put its full name in the search box.
+  // When a card arrives, put its full name in the search box (unless the
+  // person has gone back to typing a search in the meantime).
   const cardName = arrived ? cardQuery.data?.card.name : undefined;
+  const modeNow = useRef(mode);
+  modeNow.current = mode;
   useEffect(() => {
-    if (cardName) setText(cardName);
+    if (cardName && modeNow.current === 'card') setText(cardName);
   }, [cardName, lookup?.number]);
+
+  // Stop a waiting grid search if the screen goes away
+  useEffect(() => () => clearTimeout(gridTimer.current), []);
 
   // Each new card starts with the screen scrolled to the top
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, [shownLookup?.number]);
 
-  // Look up a card by name. "exact" is true when the name came from the
-  // suggestion list; otherwise Scryfall guesses the closest match.
+  // Look up a card by name. "exact" is true when the name is a real card's
+  // name (from the picture grid); otherwise Scryfall guesses the closest match.
   function searchFor(name: string, exact: boolean) {
     setAddMessage(null);
     setLookup({ path: cardByNamePath(name, exact), face: 0, lang: null, name, number: ++lookupCount });
+    setMode('card');
+  }
+
+  // Anything typed in the search box (or cleared with the "×"): show the
+  // picture grid and search from the first letter. The grid's search waits
+  // for a short pause in typing, so it doesn't search on every key.
+  function handleTyped(value: string) {
+    setText(value);
+    typedText.current = value;
+    setMode('grid');
+    clearTimeout(gridTimer.current);
+    gridTimer.current = setTimeout(() => setGridText(value), value.trim() ? 200 : 0);
+  }
+
+  // A card in the grid was tapped: open it (and put the phone's keyboard away)
+  function pickCard(card: ScryfallCard) {
+    if (Platform.OS !== 'web') Keyboard.dismiss();
+    setFromGrid(true);
+    searchFor(card.name, true);
+  }
+
+  // The Search key: look up the single closest card to what's typed
+  function submitSearch(value: string) {
+    clearTimeout(gridTimer.current);
+    setGridText(value);
+    typedText.current = value;
+    setFromGrid(true);
+    if (Platform.OS !== 'web') Keyboard.dismiss();
+    searchFor(value, false);
+  }
+
+  // "Back to results": the grid again, with the text that was typed
+  function backToGrid() {
+    setText(typedText.current);
+    setMode('grid');
   }
 
   /* ----- Which of the four states the card area is in ----- */
@@ -222,10 +287,9 @@ export default function CardFinderScreen() {
 
   /* ----- The message under the search box ----- */
 
-  // Is this a computer-sized screen (not the phone app or a phone-sized
-  // window)? Only there does the letters reminder below show.
-  const onComputer = useShowKeyHints();
   const { hint, hintIsError } = useMemo(() => {
+    // The picture grid has its own note (or none)
+    if (mode === 'grid') return { hint: gridHint, hintIsError: false };
     if (cardQuery.isFetching) return { hint: 'Loading…', hintIsError: false };
     if (cardQuery.isError) return { hint: notFound ? 'No cards found.' : 'Couldn\'t load that card.', hintIsError: true };
     if (cardQuery.data) {
@@ -235,12 +299,9 @@ export default function CardFinderScreen() {
         hintIsError: false,
       };
     }
-    if (names.isPending) return { hint: 'Loading card names…', hintIsError: false };
-    // Nothing looked up yet: on a computer, a reminder of how many
-    // letters bring up suggestions; on a phone, nothing (it's clutter)
-    if (!onComputer) return { hint: '', hintIsError: false };
-    return { hint: `Type at least ${MIN_CHARS} letters to see suggestions.`, hintIsError: false };
-  }, [cardQuery.isFetching, cardQuery.isError, notFound, cardQuery.data, names.isPending, onComputer]);
+    // Nothing looked up yet: nothing to say
+    return { hint: '', hintIsError: false };
+  }, [mode, gridHint, cardQuery.isFetching, cardQuery.isError, notFound, cardQuery.data]);
 
   /* ----- Going back to the binder this screen was opened from ----- */
 
@@ -267,14 +328,18 @@ export default function CardFinderScreen() {
   // back to the list or binder it was opened from. (Without this, it
   // would jump to the Home tab instead.) "useFocusEffect" listens only
   // while this screen is in view; returning true says "handled".
+  // (A card picked from the picture grid goes back to the grid first.)
+  const backToResults = mode === 'card' && fromGrid;
   useFocusEffect(useCallback(() => {
-    if (!backTo) return undefined;
+    if (!backTo && !backToResults) return undefined;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
-      router.navigate(backTo as never);
+      if (backToResults) backToGrid();
+      else router.navigate(backTo as never);
       return true;
     });
     return () => listener.remove();
-  }, [backTo]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backTo, backToResults]));
 
   /* ----- Shortcut keys that work even before a card is shown (computers) ----- */
 
@@ -301,18 +366,42 @@ export default function CardFinderScreen() {
     >
       <SearchBox
         value={text}
-        onChange={setText}
-        names={names.data}
-        onChoose={searchFor}
+        onChange={handleTyped}
+        onSubmit={submitSearch}
         onLeave={() => announce('Left the search box. The shortcut keys work now: press ? to see them.')}
         hint={addMessage ? addMessage.text : hint}
         hintIsError={addMessage ? addMessage.isError : hintIsError}
         onShowShortcuts={() => setShortcutsOpen(true)}
         inputRef={searchRef}
       >
-        {/* The card area, which scrolls. "handled" lets taps on buttons
-            work while the keyboard is up; dragging the card area puts
-            the keyboard away. */}
+        {/* The picture grid of matching cards: always there (just hidden
+            while a card is open), so going back finds it as it was */}
+        <CardGrid
+          text={gridText}
+          names={names.data}
+          onPick={pickCard}
+          visible={mode === 'grid'}
+          onHint={setGridHint}
+        />
+
+        {/* "Back to results": only for a card picked from the grid */}
+        {mode === 'card' && fromGrid && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to the search results"
+            onPress={backToGrid}
+            style={({ pressed }) => [styles.backRow, pressed && { backgroundColor: colors.surfaceHover }]}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.accent} />
+            <Text style={[styles.backText, { color: colors.accent }]}>Back to results</Text>
+          </Pressable>
+        )}
+
+        {/* The card area, which scrolls (left out while the grid shows, so
+            its shortcut keys don't act on a hidden card). "handled" lets
+            taps on buttons work while the keyboard is up; dragging the
+            card area puts the keyboard away. */}
+        {mode === 'card' && (
         <ScrollView
           showsVerticalScrollIndicator={false}
           ref={scrollRef}
@@ -358,6 +447,7 @@ export default function CardFinderScreen() {
             />
           )}
         </ScrollView>
+        )}
       </SearchBox>
 
       <ShortcutsDialog
@@ -380,5 +470,10 @@ const styles = StyleSheet.create({
     width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center',
     paddingHorizontal: 16, paddingTop: 4, paddingBottom: 48,
   },
-  // The back arrow beside the title, with room around it to tap
+  // The "Back to results" button above a card picked from the grid
+  backRow: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 2,
+    minHeight: 44, paddingLeft: 12, paddingRight: 16, marginLeft: 8, borderRadius: 8,
+  },
+  backText: { fontSize: 16, fontWeight: '600' },
 });

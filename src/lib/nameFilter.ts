@@ -3,14 +3,14 @@
    As you type in a binder's or list's search box, only the cards whose
    NAME matches are kept, with the same forgiving search as the Card Finder
    (part of a name, any spacing or punctuation, small typos). It starts
-   once two letters are typed; before that, every card is kept.
+   from the first letter typed; before that, every card is kept.
    Plain TypeScript with no React in it.
    ===================================================================== */
 
 import { fuzzySearch, prepareNames, simplify } from './nameSearch';
 
 // Start narrowing once this many letters are typed
-export const SEARCH_MIN_CHARS = 2;
+export const SEARCH_MIN_CHARS = 1;
 
 // Is something long enough typed to search for?
 export function isSearching(text: string): boolean {

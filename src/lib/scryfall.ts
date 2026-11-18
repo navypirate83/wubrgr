@@ -181,6 +181,23 @@ export async function searchCards(query: string): Promise<ScryfallCard[]> {
   }
 }
 
+// One page (up to 175 cards) of a card search for the Card Finder's picture
+// grid: every card with a name word starting with the typed text, one per
+// card, A to Z. "page" starts at 1. "hasMore" says another page follows.
+// Nothing found gives an empty page.
+export type CardPage = { cards: ScryfallCard[]; hasMore: boolean };
+export async function searchCardsPage(query: string, page: number): Promise<CardPage> {
+  if (!query) return { cards: [], hasMore: false };
+  try {
+    const reply = await scryfall<ListPage<ScryfallCard>>(
+      `/cards/search?unique=cards&order=name&page=${page}&q=${encodeURIComponent(query)}`);
+    return { cards: reply.data, hasMore: Boolean(reply.has_more) };
+  } catch (err) {
+    if (err instanceof Error && /didn.t match any cards|No cards found/i.test(err.message)) return { cards: [], hasMore: false };
+    throw err;
+  }
+}
+
 // Like searchCards, but every page of answers (for searches with hundreds of
 // results, like "all the cards banned in a format"). Nothing found gives [].
 export async function searchAllCards(query: string): Promise<ScryfallCard[]> {

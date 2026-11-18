@@ -33,10 +33,12 @@ export function Searching({ name }: { name?: string }) {
 }
 
 // ERROR: what went wrong, and a button to try the same search again
-export function SearchError({ message, onRetry, retrying }: {
+export function SearchError({ message, onRetry, retrying, title = "Couldn't load that card" }: {
   message: string;
   onRetry: () => void;
   retrying: boolean;
+  // The heading (the picture grid says "Couldn't search for cards")
+  title?: string;
 }) {
   const colors = useColors();
   return (
@@ -45,7 +47,7 @@ export function SearchError({ message, onRetry, retrying }: {
       accessibilityRole="alert"
     >
       <Ionicons name="cloud-offline-outline" size={44} color={colors.error} />
-      <Text style={[styles.title, { color: colors.text }]}>Couldn't load that card</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       <Text style={[styles.text, { color: colors.muted }]}>{message}</Text>
       <Button label={retrying ? 'Trying again…' : 'Try again'} icon="refresh" onPress={onRetry} disabled={retrying} />
     </View>
@@ -65,7 +67,7 @@ export function NoCardsFound({ message }: { message: string }) {
       <Text style={[styles.title, { color: colors.text }]}>No cards found</Text>
       <Text style={[styles.text, { color: colors.muted }]}>{message}</Text>
       <Text style={[styles.text, { color: colors.muted }]}>
-        Check the spelling, or pick a name from the suggestions that appear as you type.
+        Check the spelling, or try fewer letters.
       </Text>
     </View>
   );

@@ -34,7 +34,7 @@ import { RADIUS } from '@/theme/colors';
 
 // Start searching once this many letters are typed, and wait this long
 // (milliseconds) after a key press, so it doesn't search on every letter
-const MIN_CHARS = 2;
+const MIN_CHARS = 1;
 const TYPING_PAUSE_MS = 120;
 
 // Show at most this many results in the list

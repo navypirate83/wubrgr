@@ -38,7 +38,7 @@ import TextField from '@/components/TextField';
 import { RADIUS } from '@/theme/colors';
 
 // Start searching at this many letters, and show at most this many lines
-const MIN_CHARS = 2;
+const MIN_CHARS = 1;
 const MAX_RESULTS = 12;
 
 export type DeckSearchMode = 'search' | 'add';

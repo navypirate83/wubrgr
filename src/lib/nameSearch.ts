@@ -149,6 +149,19 @@ export function fuzzySearch(entries: NameEntry[], text: string): string[] {
   return scored.map((m) => m.name);
 }
 
+// The Scryfall search that finds cards by the START OF ANY WORD in their name.
+// Each typed word becomes "name:/\bword/" (\b means "the start of a word"),
+// and a card must match all of them, so "bol lightn" finds "Lightning Bolt".
+// Only letters and numbers are kept (simplify), so nothing typed can break
+// the search. Typing nothing gives an empty search.
+export function scryfallWordQuery(text: string): string {
+  return simplify(text)
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => `name:/\\b${word}/`)
+    .join(' ');
+}
+
 // Split a name into three parts around the bit that matches what was
 // typed, so the page can highlight the middle part. Spaces and
 // punctuation are ignored, so typing "ur dragon" still highlights

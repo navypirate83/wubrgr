@@ -1016,14 +1016,18 @@ export const helpTopics: HelpTopic[] = [
         title: 'Searching for a card',
         body: (
           <>
-            <Step n={1}>Start typing a card's name in the search box at the top.</Step>
+            <Step n={1}>Start typing a card's name in the search box at the top. Even one letter is enough.</Step>
             <Step n={2}>
-              A list of matching names drops down. Tap (or click) one.<OnComputer> On a computer you can also
-              use the <Strong>up and down arrow keys</Strong> and press <Key>Enter</Key>.</OnComputer>
+              Pictures of matching cards fill the area under the box, A to Z, three across (more on a wide screen).
+              Any word in the name counts, not just the first, so "bolt" finds Lightning Bolt. Scroll down and more
+              load. If nothing matches (a typo, say), the cards for the closest names are shown instead.
+              Tap (or click) the card you want.<OnComputer> On a computer, press <Key>Enter</Key> to open the single
+              closest match.</OnComputer>
             </Step>
-            <Step n={3}>The card's picture appears, with its name, set and artist under it.</Step>
+            <Step n={3}>The card opens, with its picture, name, set and artist, and all its versions. <Strong>Back to results</Strong> (above the card) returns to the pictures, right where you were.</Step>
             <P>
-              To start again, tap the <Strong>×</Strong> at the right end of the search box. It
+              Changing anything in the search box, even one letter, switches back to the pictures and searches
+              again. To start again, tap the <Strong>×</Strong> at the right end of the search box. It
               empties the box, ready for a new name.
             </P>
             <P>
@@ -1173,8 +1177,8 @@ export const helpTopics: HelpTopic[] = [
         body: (
           <>
             <P>
-              On a computer, the search box, its list of names, the Set list and the "Add to which
-              binder?" menu all work with the arrow keys, <Key>Enter</Key> and <Key>Escape</Key>.
+              On a computer, the search box (<Key>Enter</Key> opens the closest card), the Set list and the "Add to which
+              binder?" menu work with the keyboard, <Key>Enter</Key> and <Key>Escape</Key>.
               There are also shortcut keys that work anywhere on the screen, except while you're
               typing in a box:
             </P>
