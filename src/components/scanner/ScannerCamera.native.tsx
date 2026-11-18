@@ -18,6 +18,11 @@
    Together with Stack mode this is hands-free: slide the next card into the guide and it's added.
    Older cards get their clues read (set symbol, artwork and border colour) only when the
    scan needs them (see core/readPlan.ts), the same as on the website.
+   SCAN QUEUE (Stack mode): the screen says "queue" and the camera stops waiting for each card to be
+   worked out. Once a card has been READ (the text reader), the photo goes to the scan screen to be
+   worked out and the camera is free for the next card straight away; up to a few cards can be
+   waiting at once (MAX_WAITING). Each photo is kept until the screen has finished with it, then deleted.
+   If that many are already waiting, the button says so and the camera holds back until one finishes.
    SPEED: photos are taken in the quick mode at about 8 megapixels (plenty for the small
    print), and every scan notes how long each step took (shown after the scan).
    Nothing from the website's camera (video, canvas) is used here.
@@ -45,11 +50,14 @@ const BOTTOM_ROOM = 150;
 // card it takes to count the card as taken away
 const LOOK_PAUSE_MS = 120;
 const GONE_LOOKS = 2;
+// The scan queue: how many cards may be waiting to be worked out at once (each one keeps its photo until
+// it's done, so this is kept small)
+const MAX_WAITING = 3;
 // The photo size asked for (a target: the camera gives the nearest it has, in the same shape)
 const PHOTO_SIZE = { width: 2448, height: 3264 };
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName }: ScannerCameraProps) {
+export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName, queue }: ScannerCameraProps) {
   const colors = useColors();
   const { hasPermission, canRequestPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
@@ -64,6 +72,9 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   // Auto scan: on or off, and whether a card is being looked at right now (for the hint)
   const [auto, setAuto] = useState(false);
   const [seeing, setSeeing] = useState(false);
+  // How many cards are waiting to be worked out in the scan queue right now (a note-to-self, not something
+  // the screen draws, so changing it doesn't redraw anything)
+  const waiting = useRef(0);
   // Whether this tab is the one being looked at, and whether the app is in front (the camera runs only then)
   const [focused, setFocused] = useState(true);
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
@@ -100,19 +111,43 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   // "fresh" is whether the camera just took it (its file is then deleted afterwards)
   // "photoMs" is how long the camera took to take the photo (for the timings shown after the scan)
   async function scanPhoto(path: string, card: Fractions, fresh: boolean, photoMs?: number) {
+    // True once the photo has been given to the queue, which then deletes it when it's finished with it
+    let handedOver = false;
     try {
       const reading = await readCardPhoto(path, card, looksLikeName);
       if (photoMs !== undefined) reading.timings = { photo: photoMs, ...reading.timings };
-      // Wait until the reading has been worked out, because the extra clues are read from the photo then
-      await onReading(reading);
+      if (queue) {
+        // The queue: the screen works the card out in the background and this camera is free for the next one
+        handedOver = true;
+        startInQueue(onReading, reading, path, fresh);
+      } else {
+        // Wait until the reading has been worked out, because the extra clues are read from the photo then
+        await onReading(reading);
+      }
     } finally {
-      await finishPhoto(path, fresh);
+      if (!handedOver) await finishPhoto(path, fresh);
     }
+  }
+
+  // Give a reading to the screen to work out without waiting for the answer. The photo is kept until
+  // the screen has finished (its extra clues are read from it), then deleted. While it's being worked
+  // out it counts as waiting (see MAX_WAITING).
+  function startInQueue(handler: ScannerCameraProps['onReading'], reading: Parameters<ScannerCameraProps['onReading']>[0], path: string, fresh: boolean) {
+    waiting.current += 1;
+    Promise.resolve()
+      .then(() => handler(reading))
+      .catch(() => { /* the screen tells the person about its own problems */ })
+      .finally(() => {
+        waiting.current -= 1;
+        finishPhoto(path, fresh).catch(() => { /* the photo is only a temporary file */ });
+      });
   }
 
   // The round button: take a photo, then read the card under the guide
   async function takePicture() {
     if (busy || paused || !device || auto) return;
+    // The queue is full: wait for one of the waiting cards to be finished
+    if (queue && waiting.current >= MAX_WAITING) { setHint('Still reading the earlier cards. One moment.'); return; }
     setBusy(true);
     setHint('');
     try {
@@ -160,8 +195,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   /* ----- Auto scan ----- */
 
   // The loop below lives on past renders, so it reads the newest values through these notes-to-self
-  const live = useRef({ busy, paused: !!paused, area, guide, onReading, looksLikeName });
-  live.current = { busy, paused: !!paused, area, guide, onReading, looksLikeName };
+  const live = useRef({ busy, paused: !!paused, area, guide, onReading, looksLikeName, queue: !!queue });
+  live.current = { busy, paused: !!paused, area, guide, onReading, looksLikeName, queue: !!queue };
   const running = !!device && hasPermission && focused && appActive;
 
   useEffect(() => {
@@ -173,7 +208,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       while (!stop) {
         const now = live.current;
         // Wait while something else is open over the camera, or a button press is being read
-        if (now.paused || now.busy || now.area.w === 0) { await sleep(300); continue; }
+        // (or, with the queue, while as many cards as it holds are still waiting to be worked out)
+        if (now.paused || now.busy || now.area.w === 0 || (now.queue && waiting.current >= MAX_WAITING)) { await sleep(300); continue; }
         let path = '';
         try {
           const startedAt = Date.now();
@@ -193,7 +229,13 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
               // A card to scan: read the rest (the title isn't read again)
               const reading = await readCardPhoto(path, card, now.looksLikeName, title);
               reading.timings = { photo: photoMs, ...reading.timings };
-              await live.current.onReading(reading);
+              if (now.queue) {
+                // The queue: hand it over and look for the next card; the queue deletes the photo when it's done
+                startInQueue(live.current.onReading, reading, path, true);
+                path = '';
+              } else {
+                await live.current.onReading(reading);
+              }
             }
           } else {
             setSeeing(false);

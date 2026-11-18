@@ -55,6 +55,12 @@ export function nextFinishOf(printing: Printing, current: Finish): Finish {
 // The finish to start with: not foil if the printing has it, otherwise what it does come in
 export const startingFinish = (printing: Printing): Finish => finishesOf(printing)[0];
 
+// The same, but with the person's choice in the scanner options ("nonfoil" or "foil"): that finish if the
+// printing comes in it, otherwise the usual starting finish (so a card with no foil never starts as foil)
+export function startingFinishFor(printing: Printing, preferred: 'nonfoil' | 'foil'): Finish {
+  return finishesOf(printing).includes(preferred) ? preferred : startingFinish(printing);
+}
+
 // The notes a card carries (the same as the Card Finder saves: see cardDetails.ts), from the catalogue's details
 export function detailsFromPrinting(p: Printing): Record<string, string> {
   const details: Record<string, string> = { 'Set name': p.setName };

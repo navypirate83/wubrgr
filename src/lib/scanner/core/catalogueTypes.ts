@@ -32,6 +32,14 @@ export type Printing = {
   layout: string;
 };
 
+// One set (expansion), for choosing which set to lock the scanner to
+export type SetInfo = {
+  code: string;               // lowercase, like "dom"
+  name: string;               // "Dominaria"
+  released: string;           // "2018-04-27" ("" if unknown)
+  icon: string | null;        // the address of the set's symbol picture
+};
+
 // What's known about the catalogue that's on the device
 export type CatalogueInfo = {
   schemaVersion: number;

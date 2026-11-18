@@ -18,7 +18,7 @@
 
 import { gunzipSync } from 'fflate';
 import { SQL, rowToPrinting, rowsToInfo } from '../core/catalogueQueries';
-import { SUPPORTED_SCHEMA, type CatalogueInfo, type Printing, type RemoteCatalogue } from '../core/catalogueTypes';
+import { SUPPORTED_SCHEMA, type CatalogueInfo, type Printing, type RemoteCatalogue, type SetInfo } from '../core/catalogueTypes';
 import { normalizeName } from '../core/text';
 import { CATALOGUE_URL, REFRESH_AFTER_DAYS } from './catalogueConfig';
 import { catalogueDb } from './catalogueDb';
@@ -141,6 +141,16 @@ export async function searchNames(start: string, limit = 25): Promise<Printing[]
 // Every set code in the catalogue (lowercase)
 export async function setCodes(): Promise<string[]> {
   return (await catalogueDb.all(SQL.setCodes)).map((r) => String(r.code));
+}
+
+// Every set, newest first, for the scanner's "lock to a set" choice
+export async function allSets(): Promise<SetInfo[]> {
+  return (await catalogueDb.all(SQL.allSets)).map((r) => ({
+    code: String(r.code),
+    name: String(r.name ?? r.code),
+    released: typeof r.released === 'string' ? r.released : '',
+    icon: typeof r.icon_url === 'string' && r.icon_url !== '' ? r.icon_url : null,
+  }));
 }
 
 // Every card's front name in the plain form for matching (about 30,000), kept after

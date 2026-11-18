@@ -563,7 +563,14 @@ export const helpTopics: HelpTopic[] = [
               and set symbol fit your photo. The best one is offered as a likely answer only when it is clearly ahead; otherwise you pick
               from the list (it's never added by itself), with the printings that fit best first, then an <Strong>Other printings</Strong> divider and the card's remaining printings, in case a clue was misread. <Strong>Stack</Strong> mode scans one card after another into a list
               (a card scanned again adds a copy); ones it wasn't sure of are marked PICK or FIX to sort out at the end, and the
-              list's <Strong>Add N to binder</Strong> adds them all. Once the catalogue is on the device, and you've opened the
+              list's <Strong>Add N to binder</Strong> adds them all. In Stack mode the phone doesn't wait for one card to be worked out before
+              it takes the next photo (a few can be waiting at once, shown beside the count as, say, <Strong>12+2</Strong>), so a pile goes
+              faster. The small <Strong>gear</Strong> button beside the scan button opens the <Strong>scanner options</Strong>, all optional and kept on
+              this device: <Strong>Lock to a set</Strong> (pick the set you're sorting through, like Dominaria, and the scanner only looks for
+              printings from it, which is quicker and surer; the gear turns orange and shows the set's code, and a card that has no printing in that set is
+              still found but is never added without you checking it), <Strong>When it isn't sure</Strong> (<Strong>Ask me</Strong> shows the printing
+              choices, <Strong>Best guess</Strong> takes the most likely printing and carries on, and you can still change a card in the list),
+              <Strong>Start cards as</Strong> (non-foil or foil) and <Strong>Show how long each scan took</Strong>. Once the catalogue is on the device, and you've opened the
               scanner once with a connection, it works with no internet.
             </Bullet>
             <Bullet>

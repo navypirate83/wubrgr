@@ -14,6 +14,11 @@
       One clearly ahead: "likely". Otherwise "pick" (the person chooses, most likely first, with their
       photo's art beside the candidates). Never "sure": this path never adds a card by itself.
    If the name can't be read either, the answer is "none".
+   THE SET LOCK (optional, from the gear button; see core/setLock.ts): the fallback only considers the locked
+   set's printings. When they all look the same (one set and artwork), that is the answer, "sure" if the name was
+   read well, and the slow photo clues are skipped. A card with no printing in the locked set is still found
+   from all its printings, but is never "sure". A card whose info line names a DIFFERENT set than the lock is
+   only "likely" (the person is asked to check). The rest of the card's printings stay in the list to pick from.
    The slow extras (copyright line, symbol, artwork, border colour) are only read when the
    fallback gets as far as needing them (several printings to tell apart), not for every scan.
    Plain TypeScript with no React in it. Everything here works with no internet.
@@ -26,6 +31,7 @@ import { rankCandidates, type Candidate } from './core/rank';
 import { checkSetCode } from './core/setCode';
 import { decideScan } from './core/decide';
 import { loadMoreClues } from './core/readPlan';
+import { applySetLock } from './core/setLock';
 import { normalizeName } from './core/text';
 import type { Printing } from './core/catalogueTypes';
 import { eraOf, type ScanReading } from './core/scannerTypes';
@@ -43,6 +49,14 @@ export type ScanOutcome = {
   name: string | null;            // the card's name as found in the catalogue, if the title bar could be matched
 };
 
+// What can change how a reading is worked out
+export type ResolveOptions = {
+  lockedSet?: string | null;      // the code of the set the scanner is locked to, if any
+};
+
+// Printings with the same set and artwork look the same in a photo, so they share a "group"
+const groupOf = (p: Printing): string => `${p.setCode}|${p.illus ?? p.id}`;
+
 // The real set codes, read once
 let realSets: Set<string> | null = null;
 const knownSets = async (): Promise<Set<string>> => (realSets ??= new Set(await setCodes()));
@@ -54,11 +68,27 @@ async function symbolOf(code: string): Promise<Uint8Array | null> {
   return symbols.get(code) ?? null;
 }
 
-// The fallback, from the name
-async function fromName(reading: ScanReading, name: string, info: InfoLine, lang: string | null): Promise<ScanOutcome> {
-  const printings = await printingsNamed(name);
+// The fallback, from the name. "nameSimilarity" is how well the title bar matched the name (0 to 1).
+async function fromName(reading: ScanReading, name: string, info: InfoLine, lang: string | null, nameSimilarity: number, lockedSet: string | null): Promise<ScanOutcome> {
+  const everyPrinting = await printingsNamed(name);
   const base = { reading, info, lang, name };
-  if (printings.length === 0) return { ...base, status: 'none', printing: null, candidates: [], reason: 'No printing of that card was found' };
+  if (everyPrinting.length === 0) return { ...base, status: 'none', printing: null, candidates: [], reason: 'No printing of that card was found' };
+
+  // The set lock: only that set's printings are worth considering (if the card has any there)
+  const lock = applySetLock(everyPrinting, lockedSet);
+  const printings = lock.printings;
+  const lockCode = (lockedSet ?? '').toUpperCase();
+  // Every printing of the card outside the ones being considered, kept at the end of the list to pick from
+  const others = lock.locked ? everyPrinting.filter((p) => !printings.includes(p)) : [];
+
+  // Locked, and what's left all looks the same: that's the answer, with no photo clues needed.
+  // "Sure" only when the title bar matched the name well, since this path never has the info line to agree.
+  if (lock.locked && new Set(printings.map(groupOf)).size === 1) {
+    return {
+      ...base, status: nameSimilarity >= 0.9 ? 'sure' : 'likely', printing: printings[0], candidates: [...printings, ...others], matched: printings.length,
+      reason: `Locked to ${lockCode}`,
+    };
+  }
   if (printings.length === 1) return { ...base, status: 'likely', printing: printings[0], candidates: printings, reason: 'The only printing of that card' };
 
   // Several printings to tell apart: only now are the slower clues worth reading from the photo
@@ -78,7 +108,7 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
     const overlap = symbol ? photo.symbolOverlap(symbol) : null;
     if (overlap !== null) symbolScores.set(p.id, overlap);
     // (a foil and a non-foil of the same set and art look the same in a photo, so they share a group)
-    candidates.push({ id: p.id, setCode: p.setCode, year: p.year, border: p.border, group: `${p.setCode}|${p.illus ?? p.id}` });
+    candidates.push({ id: p.id, setCode: p.setCode, year: p.year, border: p.border, group: groupOf(p) });
   }
 
   const ranked = rankCandidates(candidates, {
@@ -88,23 +118,25 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
     artDistances,
   });
   const byId = new Map(printings.map((p) => [p.id, p]));
-  // Most likely first
-  const ordered = ranked.ordered.map((c) => byId.get(c.id)!);
-  if (ranked.likely) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `Likely (${ranked.why})` };
-  return { ...base, status: 'pick', printing: null, candidates: ordered, matched: ranked.fits, reason: `${ranked.fits} printings fit best (${ranked.why})` };
+  // Most likely first (then, with a lock, the card's printings in other sets)
+  const ordered = [...ranked.ordered.map((c) => byId.get(c.id)!), ...others];
+  // A lock the card doesn't have a printing in is mentioned, and never makes the answer "likely" by itself
+  const note = lock.missing ? `Not in the locked set (${lockCode}). ` : lock.locked ? `Locked to ${lockCode}. ` : '';
+  if (ranked.likely) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `${note}Likely (${ranked.why})` };
+  return { ...base, status: 'pick', printing: null, candidates: ordered, matched: ranked.fits, reason: `${note}${ranked.fits} printings fit best (${ranked.why})` };
 }
 
 // Works out the printing, then lets go of the photo's "read more" step (it holds on to the picture,
 // and a reading is kept in the stack list for a long time afterwards)
-export async function resolveReading(reading: ScanReading): Promise<ScanOutcome> {
+export async function resolveReading(reading: ScanReading, options: ResolveOptions = {}): Promise<ScanOutcome> {
   try {
-    return await resolveInner(reading);
+    return await resolveInner(reading, options.lockedSet?.toLowerCase() || null);
   } finally {
     reading.moreClues = undefined;
   }
 }
 
-async function resolveInner(reading: ScanReading): Promise<ScanOutcome> {
+async function resolveInner(reading: ScanReading, lockedSet: string | null): Promise<ScanOutcome> {
   const info = parseInfoLine(reading.infoText);
   // The name text may be several lines (the title band's scattered text): the line that matches a real card name best
   const names = await allFrontNames();
@@ -128,18 +160,24 @@ async function resolveInner(reading: ScanReading): Promise<ScanOutcome> {
     const nameAgrees = !readName ? null : found.length > 0 ? similarity(readName, normalizeName(found[0].name.split(' // ')[0])) >= 0.75 : false;
     const verdict = decideScan({ info, setCode: checked, matches: found.length > 1 ? 1 : found.length, nameAgrees, requireName: true });
     const base = { reading, info, lang: info.lang, name };
-    if (found.length >= 1 && verdict.status === 'sure') return { ...base, status: 'sure', printing: found[0], candidates: found, reason: verdict.reason };
+    // A set other than the locked one: the person is asked to check, even though the info line was read well
+    const offLock = !!lockedSet && found.length >= 1 && found[0].setCode.toLowerCase() !== lockedSet;
+    if (found.length >= 1 && verdict.status === 'sure') {
+      return offLock
+        ? { ...base, status: 'likely', printing: found[0], candidates: found, reason: `${verdict.reason}; not from the locked set (${lockedSet!.toUpperCase()})` }
+        : { ...base, status: 'sure', printing: found[0], candidates: found, reason: verdict.reason };
+    }
     // The set and number found a printing but the name couldn't be checked: still the best guess
     if (found.length >= 1 && nameAgrees !== false) return { ...base, status: 'likely', printing: found[0], candidates: found, reason: verdict.reason };
     // The name disagrees with the set and number (or nothing was found): trust the name and try the clues
     if (name) {
-      const fallback = await fromName(reading, name, info, info.lang);
+      const fallback = await fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet);
       return fallback;
     }
     return { ...base, status: 'none', printing: null, candidates: found, reason: verdict.reason };
   }
 
   // 2. The fallback: the name, and the clues
-  if (name) return fromName(reading, name, info, info.lang);
+  if (name) return fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet);
   return { reading, info, lang: info.lang, name: null, status: 'none', printing: null, candidates: [], reason: 'Neither the info line nor the name could be read' };
 }

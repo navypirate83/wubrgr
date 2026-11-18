@@ -24,6 +24,8 @@ export const SQL = {
   byFrontNameStart: `${PRINTING_SELECT} WHERE p.front_norm LIKE ? ORDER BY p.front_norm, p.released LIMIT ?`,
   byFrontName: `${PRINTING_SELECT} WHERE p.front_norm = ? ORDER BY p.released`,
   setCodes: 'SELECT code FROM sets ORDER BY code',
+  // Every set with its name, release date and symbol picture address, newest first (for choosing a set to lock to)
+  allSets: 'SELECT code, name, released, icon_url FROM sets ORDER BY released DESC, name',
   frontNames: 'SELECT DISTINCT front_norm FROM printings',
   setSymbol: 'SELECT symbol FROM sets WHERE code = ?',
   artHash: 'SELECT hash FROM art WHERE illus = ?',

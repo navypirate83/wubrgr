@@ -16,16 +16,25 @@
    Nothing is ever added to a binder without choosing the binder, and a card the
    scanner wasn't sure of is never added by itself.
    The first time, with no catalogue on the device, it asks before downloading.
+   THE GEAR BUTTON (beside the scan button) opens the scanner options (ScanSettingsSheet.tsx): lock to
+   a set, what to do when unsure, which finish to start with, and whether to show scan times. All
+   optional, and saved on this device. A locked set shows its code beside the gear.
+   THE QUEUE: in Stack mode the camera doesn't wait for a card to be worked out before it takes the next
+   photo (on Android, a few at a time). The number still being worked out is shown beside the count on the
+   list button ("12+2"), and each card joins the list as soon as it's ready.
    ===================================================================== */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import ScannerCamera from './ScannerCamera';
+import ScanSettingsSheet from './ScanSettingsSheet';
 import ConfirmSheet from './ConfirmSheet';
 import PrintingPicker from './PrintingPicker';
 import StackList from './StackList';
 import AddToBinderDialog from './AddToBinderDialog';
 import { useColors } from '@/hooks/useTheme';
+import { useScanOptions } from '@/hooks/useScanOptions';
 import { askYesNo } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import type { Finish } from '@/lib/cards';
@@ -33,7 +42,8 @@ import type { CatalogueInfo, Printing } from '@/lib/scanner/core/catalogueTypes'
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import { resolveReading, type ScanOutcome } from '@/lib/scanner/scanResolve';
 import { timingWords } from '@/lib/scanner/core/readPlan';
-import { finishesOf, newScanId, startingFinish, type ScanItem } from '@/lib/scanner/scanItems';
+import { changeScanOptions, getScanOptions } from '@/lib/scanner/scanSettings';
+import { finishesOf, newScanId, startingFinish, startingFinishFor, type ScanItem } from '@/lib/scanner/scanItems';
 import { allFrontNames, catalogueConfigured, downloadCatalogue, openCatalogue, printingsNamed, type DownloadStage } from '@/lib/scanner/catalogue/catalogue';
 import { looksLikeAnyName } from '@/lib/scanner/core/fuzzy';
 import { normalizeName } from '@/lib/scanner/core/text';
@@ -46,10 +56,11 @@ type SheetState = { item: ScanItem; likely: boolean; fromList: boolean };
 // The picker: what it's choosing for, and what to do with the choice
 type PickerState = { name: string; candidates: Printing[]; matched?: number; chosen: Printing | null; artPreview?: string; reason?: string; apply: (printing: Printing) => void };
 
-// An item for a printing, with the language read from the card (or the printing's own)
-function itemFor(outcome: ScanOutcome, printing: Printing, flag: ScanItem['flag']): ScanItem {
+// An item for a printing, with the language read from the card (or the printing's own), and the finish
+// chosen in the scanner options ("start cards as") when the printing comes in it
+function itemFor(outcome: ScanOutcome, printing: Printing, flag: ScanItem['flag'], start: 'nonfoil' | 'foil' = 'nonfoil'): ScanItem {
   return {
-    id: newScanId(), printing, lang: outcome.lang ?? printing.lang ?? 'en', finish: startingFinish(printing), count: 1,
+    id: newScanId(), printing, lang: outcome.lang ?? printing.lang ?? 'en', finish: startingFinishFor(printing, start), count: 1,
     flag, candidates: outcome.candidates, matched: outcome.matched, reading: outcome.reading,
   };
 }
@@ -64,6 +75,10 @@ export default function ScanScreen() {
   const [listOpen, setListOpen] = useState(false);
   const [adding, setAdding] = useState<{ items: ScanItem[]; after: () => void } | null>(null);
   const [message, setMessage] = useState('');
+  // The scanner options sheet (the gear button), and how many scans are still being worked out in the queue
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pending, setPending] = useState(0);
+  const options = useScanOptions();
   // Every card's name in the plain form, once the catalogue is open (to tell whether some text is a name)
   const names = useRef<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,39 +126,56 @@ export default function ScanScreen() {
   const changeInList = (item: ScanItem) => setItems((list) => list.map((other) => (other.id === item.id ? item : other)));
 
   /* ----- a card was scanned ----- */
+  // The camera hands over each reading here. The count of scans still being worked out goes up while this one
+  // is, and the camera (in Stack mode) may already be taking the next photo meanwhile: the queue.
   async function onReading(reading: ScanReading) {
+    setPending((n) => n + 1);
+    try {
+      await handleReading(reading);
+    } finally {
+      setPending((n) => n - 1);
+    }
+  }
+
+  // Work out one reading and put the result where it goes (the options are read as they are right now)
+  async function handleReading(reading: ScanReading) {
     if (!catalogue) { say('Get the card catalogue first (Settings → Card catalogue).'); return; }
+    const chosen = getScanOptions();
     const lookupStart = Date.now();
-    const outcome = await resolveReading(reading);
-    // How long each step took (the extra clues, if they were needed, are counted as their own step)
+    const outcome = await resolveReading(reading, { lockedSet: chosen.lockedSet?.code ?? null });
+    // How long each step took (the extra clues, if they were needed, are counted as their own step), if the options say to show it
     const times = { ...reading.timings };
     times.lookup = Date.now() - lookupStart - (times.clues ?? 0);
-    const took = ` · ${timingWords(times)}`;
+    const timeText = chosen.showTimings ? timingWords(times) : '';
+    const took = timeText ? ` · ${timeText}` : '';
     if (outcome.status === 'none') { say(`Couldn't read that card. Try again, closer and with more light.${took}`); return; }
     hapticTap();
     const art = reading.extras?.artPreview;
+    // "Best guess": a card that could be several printings is taken as its most likely one, without asking
+    const guess = chosen.unsure === 'guess';
     if (mode === 'one') {
-      if (outcome.status === 'sure' || outcome.status === 'likely') {
-        setSheet({ item: itemFor(outcome, outcome.printing!, null), likely: outcome.status === 'likely', fromList: false });
-        say(`Read in${took.slice(2)}`);
+      if (outcome.status === 'sure' || outcome.status === 'likely' || (guess && outcome.candidates.length > 0)) {
+        const printing = outcome.printing ?? outcome.candidates[0];
+        setSheet({ item: itemFor(outcome, printing, null, chosen.startFinish), likely: outcome.status !== 'sure', fromList: false });
+        if (timeText) say(`Read in ${timeText}`);
       } else {
         setPicker({
           name: outcome.candidates[0]?.name ?? outcome.name ?? 'This card', candidates: outcome.candidates, matched: outcome.matched, chosen: null, artPreview: art, reason: outcome.reason,
-          apply: (printing) => { setPicker(null); setSheet({ item: itemFor(outcome, printing, null), likely: false, fromList: false }); },
+          apply: (printing) => { setPicker(null); setSheet({ item: itemFor(outcome, printing, null, chosen.startFinish), likely: false, fromList: false }); },
         });
       }
       return;
     }
-    // Stack mode: straight onto the list
+    // Stack mode: straight onto the list (a card it wasn't sure of gets the orange "check it" border, unless "best guess" is on)
     if (outcome.status === 'sure') {
-      addToList(itemFor(outcome, outcome.printing!, null));
+      addToList(itemFor(outcome, outcome.printing!, null, chosen.startFinish));
       say(`Added ${outcome.printing!.name}${took}`);
     } else if (outcome.status === 'likely') {
-      addToList(itemFor(outcome, outcome.printing!, 'pick'));
-      say(`${outcome.printing!.name}: please check the printing${took}`);
+      addToList(itemFor(outcome, outcome.printing!, guess ? null : 'pick', chosen.startFinish));
+      say(guess ? `Added ${outcome.printing!.name} (best guess)${took}` : `${outcome.printing!.name}: please check the printing${took}`);
     } else {
-      addToList(itemFor(outcome, outcome.candidates[0], 'pick'));
-      say(`${outcome.candidates[0].name}: pick the printing later${took}`);
+      addToList(itemFor(outcome, outcome.candidates[0], guess ? null : 'pick', chosen.startFinish));
+      say(guess ? `Added ${outcome.candidates[0].name} (best guess)${took}` : `${outcome.candidates[0].name}: pick the printing later${took}`);
     }
   }
 
@@ -174,19 +206,41 @@ export default function ScanScreen() {
         ))}
       </View>
     ),
-    right: mode === 'stack' ? (
-      <Pressable accessibilityRole="button" accessibilityLabel={`Scanned list, ${items.reduce((sum, i) => sum + i.count, 0)} cards`} onPress={() => setListOpen(true)} style={[styles.count, { backgroundColor: colors.accent }]}>
-        <Text style={[styles.countText, { color: colors.accentText }]}>{items.reduce((sum, i) => sum + i.count, 0)}</Text>
-      </Pressable>
-    ) : null,
+    right: (
+      <View style={styles.rightBar}>
+        {/* The gear: the scanner options. It's tinted orange, with the set's code beside it, while a set is locked. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={options.lockedSet ? `Scanner options, locked to ${options.lockedSet.name}` : 'Scanner options'}
+          onPress={() => setSettingsOpen(true)}
+          style={[styles.gear, { borderColor: options.lockedSet ? colors.accent : 'rgba(255,255,255,0.45)' }]}
+        >
+          <Ionicons name="settings-outline" size={20} color={options.lockedSet ? colors.accent : '#ffffff'} />
+          {options.lockedSet && <Text style={[styles.lockCode, { color: colors.accent }]} numberOfLines={1}>{options.lockedSet.code.toUpperCase()}</Text>}
+        </Pressable>
+        {/* The list button with the number of cards (Stack mode), and "+2" while two scans are still being worked out */}
+        {mode === 'stack' && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Scanned list, ${items.reduce((sum, i) => sum + i.count, 0)} cards${pending > 0 ? `, ${pending} still being read` : ''}`}
+            onPress={() => setListOpen(true)} style={[styles.count, { backgroundColor: colors.accent }]}
+          >
+            <Text style={[styles.countText, { color: colors.accentText }]}>{items.reduce((sum, i) => sum + i.count, 0)}{pending > 0 ? `+${pending}` : ''}</Text>
+          </Pressable>
+        )}
+      </View>
+    ),
   };
 
   return (
     <View style={styles.screen}>
       <ScannerCamera
-        onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding}
+        onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding || settingsOpen}
+        queue={mode === 'stack'}
         looksLikeName={(text) => text.split('\n').some((line) => { const plain = normalizeName(line); return plain.length >= 3 && looksLikeAnyName(plain, names.current); })}
       />
+
+      {settingsOpen && <ScanSettingsSheet options={options} onChange={changeScanOptions} onClose={() => setSettingsOpen(false)} />}
 
       {sheet && (
         <ConfirmSheet
@@ -240,6 +294,9 @@ const styles = StyleSheet.create({
   modes: { gap: 6 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, alignSelf: 'flex-start' },
   chipText: { fontSize: 13, fontWeight: '700' },
+  rightBar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gear: { minWidth: 36, height: 36, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1.5, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  lockCode: { fontSize: 12, fontWeight: '800', maxWidth: 52 },
   count: { minWidth: 36, height: 36, paddingHorizontal: 10, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 15, fontWeight: '800' },
 });
