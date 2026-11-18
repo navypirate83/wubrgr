@@ -8,15 +8,15 @@ import assert from 'node:assert/strict';
 import { scryfallWordQuery } from './nameSearch.ts';
 
 test('one letter makes a search for names with a word starting with it', () => {
-  assert.equal(scryfallWordQuery('a'), 'name:/\\ba/');
+  assert.equal(scryfallWordQuery('a'), 'name:/\\ba/ -st:memorabilia');
 });
 
 test('every typed word must start a word in the name', () => {
-  assert.equal(scryfallWordQuery('bol lightn'), 'name:/\\bbol/ name:/\\blightn/');
+  assert.equal(scryfallWordQuery('bol lightn'), 'name:/\\bbol/ name:/\\blightn/ -st:memorabilia');
 });
 
 test('capitals, accents and punctuation are tidied away', () => {
-  assert.equal(scryfallWordQuery("  Séance, Lim-Dûl's "), 'name:/\\bseance/ name:/\\blim/ name:/\\bduls/');
+  assert.equal(scryfallWordQuery("  Séance, Lim-Dûl's "), 'name:/\\bseance/ name:/\\blim/ name:/\\bduls/ -st:memorabilia');
 });
 
 test('nothing typed means no search', () => {

@@ -153,13 +153,14 @@ export function fuzzySearch(entries: NameEntry[], text: string): string[] {
 // Each typed word becomes "name:/\bword/" (\b means "the start of a word"),
 // and a card must match all of them, so "bol lightn" finds "Lightning Bolt".
 // Only letters and numbers are kept (simplify), so nothing typed can break
-// the search. Typing nothing gives an empty search.
+// the search. Typing nothing gives an empty search. "-st:memorabilia" leaves
+// out Scryfall's "memorabilia" group (the World Championship "Ad" cards and
+// other collectibles that aren't playable cards), which would otherwise
+// crowd the top of a short search.
 export function scryfallWordQuery(text: string): string {
-  return simplify(text)
-    .split(' ')
-    .filter(Boolean)
-    .map((word) => `name:/\\b${word}/`)
-    .join(' ');
+  const words = simplify(text).split(' ').filter(Boolean);
+  if (words.length === 0) return '';
+  return [...words.map((word) => `name:/\\b${word}/`), '-st:memorabilia'].join(' ');
 }
 
 // Split a name into three parts around the bit that matches what was
