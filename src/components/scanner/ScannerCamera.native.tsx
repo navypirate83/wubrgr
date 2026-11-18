@@ -24,7 +24,7 @@
    worked out and the camera is free for the next card straight away; up to a few cards can be
    waiting at once (MAX_WAITING). Each photo is kept until the screen has finished with it, then deleted.
    If that many are already waiting, the button says so and the camera holds back until one finishes.
-   SPEED: photos are taken in the quick mode at about 8 megapixels (plenty for the small
+   SPEED: photos are taken in the quick mode (where the phone has it) at about 8 megapixels (plenty for the small
    print), and every scan notes how long each step took (shown after the scan).
    Nothing from the website's camera (video, canvas) is used here.
    ===================================================================== */
@@ -66,7 +66,14 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   // The photo taker. Speed matters more than the last bit of quality: about 8 megapixels (4:3, like the
   // live picture) is plenty for the small print, and the quick mode and a little more JPEG
   // squeezing make each photo come back much sooner than a full-size, best-quality one.
-  const photoOutput = usePhotoOutput({ targetResolution: PHOTO_SIZE, qualityPrioritization: 'speed', quality: 0.85 });
+  // The quick mode only exists on phones whose camera supports it (the camera library throws an error, which
+  // closes the app, when it's asked for on one that doesn't), so ask the phone first and use the middle
+  // setting ("balanced") when it can't.
+  const photoOutput = usePhotoOutput({
+    targetResolution: PHOTO_SIZE,
+    qualityPrioritization: device?.supportsSpeedQualityPrioritization ? 'speed' : 'balanced',
+    quality: 0.85,
+  });
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [torchOn, setTorchOn] = useState(false);
   const [busy, setBusy] = useState(false);
