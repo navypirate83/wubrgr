@@ -79,6 +79,14 @@ type Props = {
   note?: string | null;
   // A deck that is not legal: why ("101 cards, at most 100"). It ends the line of totals in red as "Not legal: ..."
   warn?: string;
+  // Something to put at the very top of the list, above the line of totals (a deck's command zone). It's part
+  // of the list, so it scrolls up out of the way with the cards instead of staying put and taking up the screen.
+  header?: ReactElement;
+  // Cards that are counted in the line of totals (the number of cards, how many different, how many names and
+  // what they're worth) but aren't in the list itself: a deck's commanders. They must be among the cards the
+  // prices were worked out for (see useBinderPrices). Left out while searching, because the line then
+  // only talks about the matching cards.
+  alsoCounted?: CardEntry[];
   // Which group a card falls under for the sort in use (see "headerFor" in
   // lib/binderSort.ts). A header bar goes in wherever the group changes.
   // Leave it out (or give back null) for no header bars.
@@ -108,7 +116,7 @@ const CARD_RATIO = 88 / 63;
 // The space between grid pictures
 const GRID_GAP = 10;
 
-export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, headerOf, missing, banned, gameChanger }: Props) {
+export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
@@ -286,9 +294,12 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
       keyExtractor={(row) => row.id}
       contentContainerStyle={[styles.content, mode === 'grid' && { gap: GRID_GAP }]}
       ListEmptyComponent={empty}
-      ListHeaderComponent={entries.length > 0
+      // The top of the list: the screen's own header (the command zone) if it gave one, then the line of totals.
+      // (The grid works out where its rows are from how tall this whole top part is.)
+      ListHeaderComponent={entries.length > 0 || header
         ? <View onLayout={(event) => { summary.current = { y: event.nativeEvent.layout.y, height: event.nativeEvent.layout.height }; }}>
-            <Summary entries={entries} prices={prices} searchOf={searchOf} hint={hint} note={note ?? undefined} warn={warn} />
+            {header}
+            {entries.length > 0 && <Summary entries={entries} prices={prices} searchOf={searchOf} hint={hint} note={note ?? undefined} warn={warn} alsoCounted={alsoCounted} />}
           </View>
         : undefined}
       renderItem={({ item: row }) => {
@@ -346,9 +357,12 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
    (also shown above the pockets in the Binder view: the binder screen uses it,
    and the lists use it too)
    --------------------------------------------------------------------- */
-export function Summary({ entries, prices, searchOf, hint, note, warn }: { entries: CardEntry[]; prices: BinderPrices; searchOf?: number; hint?: string; note?: string; warn?: string }) {
+export function Summary({ entries, prices, searchOf, hint, note, warn, alsoCounted }: { entries: CardEntry[]; prices: BinderPrices; searchOf?: number; hint?: string; note?: string; warn?: string; alsoCounted?: CardEntry[] }) {
   const colors = useColors();
-  const cards = entries.reduce((sum, { card }) => sum + cardCount(card), 0);
+  // The cards in the list, plus any that are counted but not listed (a deck's commanders)
+  const extra = searchOf === undefined ? alsoCounted ?? [] : [];
+  const counted = extra.length > 0 ? [...entries, ...extra] : entries;
+  const cards = counted.reduce((sum, { card }) => sum + cardCount(card), 0);
   // What the cards showing are worth (all of them, or just those matching a search)
   const total = prices.total === null ? null
     : searchOf === undefined ? prices.total
@@ -357,7 +371,7 @@ export function Summary({ entries, prices, searchOf, hint, note, warn }: { entri
     : prices.failed ? 'prices unavailable' : prices.loading ? 'loading prices…' : '';
   const parts = searchOf !== undefined
     ? [`${entries.length} of ${searchOf} ${searchOf === 1 ? 'card' : 'cards'} match`, worth, hint, note].filter(Boolean)
-    : [`${cards} ${cards === 1 ? 'card' : 'cards'}`, `${entries.length} different`, `${sameNameCount(entries.map((entry) => entry.card)).toLocaleString()} distinct`, worth, note].filter(Boolean);
+    : [`${cards} ${cards === 1 ? 'card' : 'cards'}`, `${counted.length} different`, `${sameNameCount(counted.map((entry) => entry.card)).toLocaleString()} distinct`, worth, note].filter(Boolean);
   // A deck that is not legal ends the line with the reason, in red
   return (
     <Text style={[styles.summary, { color: colors.muted }]} accessibilityLiveRegion="polite">

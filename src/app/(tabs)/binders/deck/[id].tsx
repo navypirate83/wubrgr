@@ -35,10 +35,12 @@
    may be chosen) and 4 or more make it at least Bracket 4 (4 or 5), and the
    other brackets are greyed out in the window.
 
-   COMMAND ZONE (Commander-style formats): above the cards, one or two spots
+   COMMAND ZONE (Commander-style formats): at the top of the card list (it scrolls up out of the way with the cards), one or two spots
    for the cards kept outside the deck: a commander (and a partner or a
    Background only if its abilities call for one), or an Oathbreaker and its
    signature spell (see components/decks/CommandZone.tsx and lib/deckZones.ts).
+   The commanders count in the line of totals: the cards, how many different, the
+   names and the price all include them (on the main deck, not the sideboard).
    A spot is filled two ways: tap it to search the cards allowed there, or open
    a card in the deck and tap "Make commander" in its window.
    SIDEBOARD (formats that have one): "Main deck" and "Sideboard" buttons
@@ -185,7 +187,15 @@ export default function DeckScreen() {
   // What the cards are worth, and their details from Scryfall (for sorting).
   // Looked up for the whole deck, so typing in the search box doesn't start
   // a new lookup each time.
-  const prices = useBinderPrices(allEntries);
+  // The commanders (the command zone's cards) count towards the deck's total price and number of cards, so
+  // they're priced too, though they aren't in the list. (On the sideboard tab they don't count.)
+  const commandEntries = useMemo<CardEntry[]>(
+    () => shownZone !== 'main' ? [] : (deck?.cards ?? []).map((card, index) => ({ key: String(index), card }))
+      .filter((entry) => zoneOf(entry.card as DeckCard) === 'command'),
+    [deck, shownZone],
+  );
+  const pricedEntries = useMemo(() => (commandEntries.length > 0 ? [...allEntries, ...commandEntries] : allEntries), [allEntries, commandEntries]);
+  const prices = useBinderPrices(pricedEntries);
   // (with "Game Changers only" on, just those)
   const entries = useMemo<CardEntry[]>(
     () => sortEntries(
@@ -660,11 +670,6 @@ export default function DeckScreen() {
         )}
       </View>
 
-      {/* THE COMMAND ZONE (formats that have one) */}
-      {format.command && (
-        <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} gameChanger={hasBrackets(format.code) ? isGameChanger : undefined} />
-      )}
-
       {/* THE CARDS, with a picture dragged over them outlined */}
       <View ref={listAreaRef} style={styles.listArea} collapsable={false}>
         <CardList
@@ -681,8 +686,14 @@ export default function DeckScreen() {
           banned={(card) => isBannedHere(card.name)}
           gameChanger={hasBrackets(format.code) ? (card) => isGameChanger(card.name) : undefined}
           warn={problems.length > 0 ? problems.join(', ') : undefined}
+          // THE COMMAND ZONE (formats that have one) is the top of the list, so it scrolls up out of the way, and
+          // the commanders are counted in the line of totals
+          header={format.command
+            ? <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} gameChanger={hasBrackets(format.code) ? isGameChanger : undefined} />
+            : undefined}
+          alsoCounted={commandEntries}
           // The format, at the end of the line of totals (and how many cards aren't in your binders, and the card just dropped)
-          note={[format.name, deck.cards.some((c) => c.zone === 'command') ? `${deck.cards.filter((c) => c.zone === 'command').length} in command zone` : '', deck.cards.some((c) => isMissing(c) === 'card') ? `${deck.cards.filter((c) => isMissing(c) === 'card').reduce((sum, c) => sum + cardCount(c), 0)} not in your binders` : '', addedNote].filter(Boolean).join(' · ')}
+          note={[format.name, deck.cards.some((c) => c.zone === 'command') ? `${deck.cards.filter((c) => c.zone === 'command').length} in command zone, included` : '', deck.cards.some((c) => isMissing(c) === 'card') ? `${deck.cards.filter((c) => isMissing(c) === 'card').reduce((sum, c) => sum + cardCount(c), 0)} not in your binders` : '', addedNote].filter(Boolean).join(' · ')}
           searchOf={searching ? allEntries.length : undefined}
           // No cards yet (or none matching the search)
           empty={(

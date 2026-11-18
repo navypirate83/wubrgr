@@ -322,8 +322,8 @@ export const helpTopics: HelpTopic[] = [
               format.
             </P>
             <P>
-              <Strong>Command zone.</Strong> A deck in a Commander-style format has a <Strong>Command zone</Strong> above its
-              cards, with the spots its rules ask for: <Strong>Commander</Strong> (Commander, Duel Commander, PreDH, Pauper
+              <Strong>Command zone.</Strong> A deck in a Commander-style format has a <Strong>Command zone</Strong> at the top of its
+              list of cards (it scrolls up out of the way as you scroll the cards; the commanders count in the card total and the price), with the spots its rules ask for: <Strong>Commander</Strong> (Commander, Duel Commander, PreDH, Pauper
               Commander and Tiny Leaders), or <Strong>Oathbreaker</Strong> and <Strong>Signature spell</Strong>. Fill a spot
               two ways: tap it to search the cards allowed there (only those are listed), or open a card in the deck and
               tap <Strong>Make commander</Strong> (<Strong>Make Oathbreaker</Strong> or <Strong>Make signature spell</Strong>) in its
