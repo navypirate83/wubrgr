@@ -13,7 +13,8 @@
    the background, so it doesn't drain the battery.
    AUTO SCAN (the button at the top): the camera takes a photo again and again by itself.
    Each look only reads the title bar (quick). When a real card's name is seen in the guide
-   the rest is read and the card is scanned, then nothing more happens until the card has been
+   the same title has been read twice in a row (so a card still sliding in, or blurred, is skipped until
+   it settles; see core/frameAgree.ts) the rest is read and the card is scanned, then nothing more happens until the card has been
    taken away (a couple of looks with no card), so one card isn't scanned over and over.
    Together with Stack mode this is hands-free: slide the next card into the guide and it's added.
    Older cards get their clues read (set symbol, artwork and border colour) only when the
@@ -38,6 +39,7 @@ import { useColors } from '@/hooks/useTheme';
 import { cardOcr, finishPhoto, photoSize, readCardPhoto, readTitleOnly } from '@/lib/scanner/ocr/ocr.native';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { cardInPickedPhoto, guideInPhoto, type Fractions } from '@/lib/scanner/core/cardInPhoto';
+import { titlesAgree } from '@/lib/scanner/core/frameAgree';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
@@ -205,6 +207,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     (async () => {
       let armed = true;   // true until a card has been scanned, and again once it has been taken away
       let missing = 0;    // how many looks in a row found no card
+      let lastTitle = ''; // the title read on the look before this one (empty if that look saw no card)
       while (!stop) {
         const now = live.current;
         // Wait while something else is open over the camera, or a button press is being read
@@ -224,7 +227,11 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
           if (present) {
             missing = 0;
             setSeeing(true);
-            if (armed && !stop && !live.current.paused) {
+            // Two looks in a row must read the same title before the card is scanned. A card still sliding in,
+            // or blurred, reads differently each time and is skipped until it settles.
+            const steady = lastTitle !== '' && titlesAgree(lastTitle, title);
+            lastTitle = title;
+            if (armed && steady && !stop && !live.current.paused) {
               armed = false;
               // A card to scan: read the rest (the title isn't read again)
               const reading = await readCardPhoto(path, card, now.looksLikeName, title);
@@ -239,6 +246,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
             }
           } else {
             setSeeing(false);
+            lastTitle = '';
             missing += 1;
             if (missing >= GONE_LOOKS) armed = true;
           }
