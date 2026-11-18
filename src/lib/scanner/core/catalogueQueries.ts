@@ -29,6 +29,9 @@ export const SQL = {
   frontNames: 'SELECT DISTINCT front_norm FROM printings',
   setSymbol: 'SELECT symbol FROM sets WHERE code = ?',
   artHash: 'SELECT hash FROM art WHERE illus = ?',
+  // The special looks (full art, showcase...) of these printings: add "(?, ?, ...)" with one ? for each id.
+  // Only printings that look unusual have a row. A catalogue built before this existed has no such table.
+  looksStart: 'SELECT id, full_art, textless, frame_effects, promo_types FROM looks WHERE id IN ',
 };
 
 const IMAGE_PREFIX = 'https://cards.scryfall.io/normal/';

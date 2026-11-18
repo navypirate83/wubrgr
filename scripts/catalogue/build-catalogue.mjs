@@ -8,6 +8,9 @@
      2. reads every PAPER printing from default_cards (digital-only printings
         are left out), keeping: name, set, collector number, language, release
         date, border colour, frame, finishes, picture, colours, type, rarity...
+        and, for the unusual-looking ones (full art, showcase, extended art, etched,
+        textured, serialized...), a row in the "looks" table: the scanner uses it to
+        know when a card won't have the usual layout. See src/lib/scanner/core/looks.ts.
      3. fingerprints the ARTWORK: one 256-bit "perceptual hash" for each
         illustration (the art_crop picture of it, from unique_artwork), both faces
         of a double-faced card. See src/lib/scanner/core/phash.ts, which this
@@ -49,6 +52,7 @@ import { DatabaseSync } from 'node:sqlite';
 import sharp from 'sharp';
 import { artHash, hashToHex, hexToHash, rgbaToGray } from '../../src/lib/scanner/core/phash.ts';
 import { normalizeName } from '../../src/lib/scanner/core/text.ts';
+import { lookFromScryfall, lookToRow, needsLookRow } from '../../src/lib/scanner/core/looks.ts';
 
 /* ---------- options ---------- */
 
@@ -60,7 +64,9 @@ const ART_LIMIT = flag('--art-limit') ? Number(flag('--art-limit')) : Infinity;
 const SKIP_ART = process.argv.includes('--skip-art');
 
 // The database's own version. The app refuses a database whose version it
-// doesn't know, so change it whenever the tables change.
+// doesn't know, so change it whenever existing tables change in a way an app
+// can't ignore. (Adding a new table, like "looks", doesn't need it: apps that
+// don't know about the table never ask for it, and newer apps cope without it.)
 const SCHEMA_VERSION = 1;
 
 // Scryfall asks every program to say who it is
@@ -283,6 +289,10 @@ const SCHEMA = `
     colors TEXT, type_line TEXT, mana_cost TEXT, cmc REAL, rarity TEXT, layout TEXT
   );
   CREATE TABLE art (illus TEXT PRIMARY KEY, hash BLOB NOT NULL);
+  CREATE TABLE looks (
+    id TEXT PRIMARY KEY, full_art INTEGER NOT NULL, textless INTEGER NOT NULL,
+    frame_effects TEXT NOT NULL, promo_types TEXT NOT NULL
+  );
   CREATE INDEX printings_set_number ON printings (set_code, collector_number);
   CREATE INDEX printings_front ON printings (front_norm);
   CREATE INDEX printings_illus ON printings (illus);
@@ -307,10 +317,14 @@ async function main() {
   // 2. the printings (paper only)
   console.log('Reading the printings…');
   const rows = [];
+  // The printings that look unusual (full art, showcase...): their id and look
+  const looks = [];
   let digitalSkipped = 0;
   for await (const card of cardsIn(defaultFile)) {
     if (!(card.games ?? []).includes('paper')) { digitalSkipped++; continue; }
     rows.push(printingRow(card));
+    const look = lookFromScryfall(card);
+    if (needsLookRow(look)) looks.push({ id: card.id, ...lookToRow(look) });
   }
   const wanted = [...new Set(rows.flatMap((r) => [r.illus, r.illus_back]).filter(Boolean))];
 
@@ -346,6 +360,8 @@ async function main() {
   const columns = Object.keys(rows[0]);
   const addPrinting = db.prepare(`INSERT INTO printings (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
   for (const row of rows) addPrinting.run(...columns.map((c) => row[c]));
+  const addLook = db.prepare('INSERT INTO looks (id, full_art, textless, frame_effects, promo_types) VALUES (?, ?, ?, ?, ?)');
+  for (const look of looks) addLook.run(look.id, look.full_art, look.textless, look.frame_effects, look.promo_types);
   const addArt = db.prepare('INSERT INTO art (illus, hash) VALUES (?, ?)');
   let artRows = 0;
   for (const id of wanted) {
@@ -377,6 +393,7 @@ async function main() {
   const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
   console.log('\nDONE');
   console.log(`  printings:  ${rows.length} (paper; ${digitalSkipped} digital-only left out)`);
+  console.log(`  looks:      ${looks.length} printings look unusual (full art, showcase, extended art, etched...)`);
   console.log(`  sets:       ${sets.length} (${sets.filter((s) => symbols[s.icon_svg_uri]).length} with a symbol bitmap)`);
   console.log(`  art hashes: ${artRows} of ${wanted.length} illustrations wanted`);
   console.log(`              ${fingerprinted.attempted} tried this run, ${fingerprinted.failed} failed, ${missingSource} have no picture in unique_artwork`);

@@ -4,8 +4,10 @@
    scripts/catalogue/build-catalogue.mjs, which makes it). These are the
    shapes of what's read from it, and of the "store" each platform provides
    to get at it (catalogueDb.native.ts and catalogueDb.web.ts each provide one).
-   No imports, and nothing that belongs to only one platform.
+   Imports only the shape of a printing's look (looks.ts), and nothing that belongs to only one platform.
    ===================================================================== */
+
+import type { Look } from './looks';
 
 // One printing of a card: a specific set and collector number
 export type Printing = {
@@ -30,6 +32,9 @@ export type Printing = {
   cmc: number;
   rarity: string;
   layout: string;
+  // How it looks beyond the ordinary (full art, showcase, ...: see looks.ts). Added after the
+  // lookups, from the catalogue's "looks" table; missing on a catalogue built before that existed.
+  look?: Look;
 };
 
 // One set (expansion), for choosing which set to lock the scanner to

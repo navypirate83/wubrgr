@@ -18,6 +18,7 @@
 
 import { gunzipSync } from 'fflate';
 import { SQL, rowToPrinting, rowsToInfo } from '../core/catalogueQueries';
+import { lookFromRow } from '../core/looks';
 import { SUPPORTED_SCHEMA, type CatalogueInfo, type Printing, type RemoteCatalogue, type SetInfo } from '../core/catalogueTypes';
 import { normalizeName } from '../core/text';
 import { CATALOGUE_URL, REFRESH_AFTER_DAYS } from './catalogueConfig';
@@ -119,23 +120,40 @@ export async function downloadCatalogue(onProgress?: (stage: DownloadStage, frac
 
 /* ---------- looking things up ---------- */
 
+// Add each printing's look (full art, showcase...) from the catalogue's "looks" table. A catalogue
+// built before that table existed has none, so every printing then just gets a plain look
+// (nothing is an error). Asked in batches, since a database only takes so many "?" at once.
+async function withLooks(printings: Printing[]): Promise<Printing[]> {
+  const found = new Map<string, Record<string, unknown>>();
+  for (let start = 0; start < printings.length; start += 400) {
+    const ids = printings.slice(start, start + 400).map((p) => p.id);
+    try {
+      const rows = await catalogueDb.all(`${SQL.looksStart}(${ids.map(() => '?').join(',')})`, ids);
+      for (const row of rows) found.set(String(row.id), row);
+    } catch {
+      return printings.map((p) => ({ ...p, look: lookFromRow(undefined, p.border) }));
+    }
+  }
+  return printings.map((p) => ({ ...p, look: lookFromRow(found.get(p.id), p.border) }));
+}
+
 // The printings with this set code and collector number (the English one first)
 export async function findPrintings(setCode: string, collectorNumber: string, lang?: string): Promise<Printing[]> {
   const rows = await catalogueDb.all(SQL.bySetAndNumber, [setCode.toLowerCase(), collectorNumber]);
-  const printings = rows.map(rowToPrinting);
+  const printings = await withLooks(rows.map(rowToPrinting));
   return lang ? [...printings.filter((p) => p.lang === lang.toLowerCase()), ...printings.filter((p) => p.lang !== lang.toLowerCase())] : printings;
 }
 
 // Every printing of a card by its (front) name, spelled any way (case, accents and punctuation don't matter)
 export async function printingsNamed(name: string): Promise<Printing[]> {
-  return (await catalogueDb.all(SQL.byFrontName, [normalizeName(name.split(' // ')[0])])).map(rowToPrinting);
+  return withLooks((await catalogueDb.all(SQL.byFrontName, [normalizeName(name.split(' // ')[0])])).map(rowToPrinting));
 }
 
 // Printings whose front name starts with this (for typing a name in)
 export async function searchNames(start: string, limit = 25): Promise<Printing[]> {
   const normal = normalizeName(start);
   if (!normal) return [];
-  return (await catalogueDb.all(SQL.byFrontNameStart, [`${normal.replace(/[%_]/g, '')}%`, limit])).map(rowToPrinting);
+  return withLooks((await catalogueDb.all(SQL.byFrontNameStart, [`${normal.replace(/[%_]/g, '')}%`, limit])).map(rowToPrinting));
 }
 
 // Every set code in the catalogue (lowercase)
