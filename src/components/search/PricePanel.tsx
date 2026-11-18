@@ -172,7 +172,10 @@ const styles = StyleSheet.create({
   boxSide: { padding: 6 },
   row: { flexDirection: 'row', alignItems: 'stretch' },
   store: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  storeSide: { flex: 0, width: 36 },
+  // In the narrow "side" box the store column is exactly 36 wide (room for the icon) and never
+  // grows or shrinks. (It used to say "flex: 0", which on the website also sets the starting
+  // width to zero, so the column collapsed and the icon was drawn on top of the prices.)
+  storeSide: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: 36 },
   pressed: { opacity: 0.6 },
   storeIcon: { width: 26, height: 26, padding: 2, borderRadius: 5, backgroundColor: '#ffffff' },
   storeName: { flexShrink: 1, fontSize: 15, fontWeight: '700' },
