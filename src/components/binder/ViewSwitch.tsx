@@ -6,7 +6,7 @@
    still hear "List view", "Grid view" and "Binder view"). An opened card
    list has no pockets, so it's given just List and Grid.
    Between them and the Sort / Clean-up side can come a few small tool buttons
-   the screen hands in ("extras": the binder's download and reminder
+   the screen hands in ("extras": the binder's import and download
    buttons, the list's download button): see ToolButton below. They sit in
    the middle of the free space, and move closer to the other buttons as the
    window gets narrower.
@@ -70,8 +70,8 @@ type Props = {
   extras?: ReactNode;
 };
 
-// One small square tool button with an icon (like download or the reminder
-// bell), the same size as the grid's zoom buttons
+// One small square tool button with an icon (like download or import),
+// the same size as the grid's zoom buttons
 export function ToolButton({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
   const colors = useColors();
   return (
@@ -94,7 +94,7 @@ export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinder
 
   return (
     <View style={styles.row}>
-      {/* The view buttons, then the tool buttons (download, reminder) centered
+      {/* The view buttons, then the tool buttons (import, download) centered
           in the space that's left before the Sort side */}
       <View style={styles.left}>
       {/* One small button per view: the chosen one is filled with the accent color */}

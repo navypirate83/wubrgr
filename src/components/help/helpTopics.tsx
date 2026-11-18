@@ -977,26 +977,6 @@ export const helpTopics: HelpTopic[] = [
         ),
       },
       {
-        id: 'binder-reminders',
-        title: 'Reminders (phones)',
-        body: (
-          <>
-            <P>
-              On a phone, the <Strong>bell</Strong> beside the List, Grid and Binder buttons sets a reminder: a
-              notification later on, as a nudge to come back and sort new cards into this binder.
-              Choose <Strong>In 10 seconds</Strong> (to try it out), <Strong>In 1 hour</Strong> or <Strong>Tomorrow</Strong>.
-              Your phone gives a small buzz when it's set.
-            </P>
-            <P>
-              The first time, your phone asks whether WUBRG'r may send you notifications:
-              tap <Strong>Allow</Strong>. If you said no, the app tells you to turn them on in your
-              phone's own Settings app. Reminders arrive even if the app is closed.
-            </P>
-            <P>Reminders are phone notifications, so they aren't available on the website.</P>
-          </>
-        ),
-      },
-      {
         id: 'binder-keyboard',
         title: 'Using the keyboard (computers)',
         computerOnly: true,

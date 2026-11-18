@@ -30,7 +30,7 @@
    pictures dragged in from Scryfall or EDHREC fill empty pockets.
    Every change is saved on this device straight away, then to Google
    Drive a moment later (the line under the search bar says where it's
-   saved). The bell in the header sets a reminder about this binder.
+   saved).
    ===================================================================== */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
@@ -84,7 +84,6 @@ import { fillDetails, finishParam } from '@/lib/cardDetails';
 import { rememberBinderPage, rememberedBinderPage } from '@/lib/shelfMemory';
 import { useContentWidth } from '@/hooks/useMenuStyle';
 import { askYesNo, showMessage } from '@/lib/dialogs';
-import { REMINDERS_AVAILABLE, scheduleReminder } from '@/lib/reminders';
 import SymbolText from '@/components/SymbolText';
 
 /* ---------------------------------------------------------------------
@@ -729,11 +728,10 @@ function BinderView({ binderId }: { binderId: string }) {
   }
 
   // The windows: the card's menu, "Remove card?" and "Move card to…"
-  // (each with the pocket it's about), the reminder, and Keyboard shortcuts
+  // (each with the pocket it's about), and Keyboard shortcuts
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [movingKey, setMovingKey] = useState<string | null>(null);
-  const [remindOpen, setRemindOpen] = useState(false);
   // The import window (the upload button) and the download window (the download button)
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -1193,30 +1191,9 @@ function BinderView({ binderId }: { binderId: string }) {
   });
 
   /* =====================================================================
-     REMINDERS (the bell in the header: see lib/reminders.ts)
-     ===================================================================== */
-
-  // Schedule a reminder about this binder, "seconds" from now. The first
-  // time, the phone asks whether the app may send notifications.
-  async function remind(seconds: number, when: string) {
-    setRemindOpen(false);
-    try {
-      const ok = await scheduleReminder(
-        `Time to sort your cards`,
-        `Your binder "${binderName(binderId)}" is waiting for its new cards.`,
-        seconds,
-      );
-      if (ok) { hapticTap(); announce(`Reminder set for ${when}`); }
-      else showMessage('Notifications are off', 'To get reminders, allow notifications for WUBRG\'r in your phone\'s Settings.');
-    } catch (err) {
-      showMessage('Couldn\'t set the reminder', (err as Error).message);
-    }
-  }
-
-  /* =====================================================================
      THE HEADER: the binder's name with its save check mark (green when
      everything is saved, red while it isn't), then the keyboard shortcuts
-     (computers), download, reminder and Help buttons. "useLayoutEffect"
+     (computers), download and Help buttons. "useLayoutEffect"
      sets it before the screen first shows.
      ===================================================================== */
 
@@ -1295,10 +1272,6 @@ function BinderView({ binderId }: { binderId: string }) {
               {/* Import cards into this binder, and download it (.CSV, .TXT or copy) */}
               <ToolButton icon="cloud-upload-outline" label={`Import cards into ${binder.name}`} onPress={() => setImporting(true)} />
               <ToolButton icon="download-outline" label={`Download ${binder.name}`} onPress={() => setDownloading(true)} />
-              {/* Set a reminder about this binder */}
-              <ToolButton icon="notifications-outline" label="Remind me about this binder"
-                          onPress={() => (REMINDERS_AVAILABLE ? setRemindOpen(true)
-                            : showMessage('Reminders are in the phone app', 'Open WUBRG\'r on your phone to set reminders: they arrive as phone notifications.'))} />
             </>
           )}
         />
@@ -1523,19 +1496,6 @@ function BinderView({ binderId }: { binderId: string }) {
         <DownloadDialog title="Download this binder" csv={() => downloadBinderCsv(binderId)} text={() => downloadBinderText(binderId)} copy={() => copyBinderText(binderId)}
                         onClose={() => setDownloading(false)}
                         onCopied={() => announce('List copied to the clipboard.')} />
-      )}
-
-      {/* "Remind me": when the reminder should arrive */}
-      {remindOpen && (
-        <PopupWindow title="Remind me about this binder" onClose={() => setRemindOpen(false)}
-                     buttons={[{ label: 'Cancel', onPress: () => setRemindOpen(false), kind: 'secondary' }]}>
-          <Text style={[styles.dialogText, { color: colors.text }]}>
-            Get a notification reminding you to sort new cards into "{binder.name}".
-          </Text>
-          <Button label="In 10 seconds (try it out)" icon="timer-outline" kind="secondary" onPress={() => remind(10, 'in 10 seconds')} />
-          <Button label="In 1 hour" icon="time-outline" kind="secondary" onPress={() => remind(60 * 60, 'in 1 hour')} />
-          <Button label="Tomorrow" icon="calendar-outline" kind="secondary" onPress={() => remind(24 * 60 * 60, 'tomorrow')} />
-        </PopupWindow>
       )}
 
       {/* "Go to page": type a page number (the window moves up out of the

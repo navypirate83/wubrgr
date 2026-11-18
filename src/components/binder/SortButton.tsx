@@ -8,15 +8,44 @@
    It's used by the ViewSwitch (inside an opened binder, list or deck) and by
    PRISM's Cards tab, each with its own list of sorts and its own remembered
    choice (the screen says what to do when one is picked).
-   On a very narrow screen it shows just its icon, so the buttons beside it
-   all stay on one line.
+   The button is kept small so the buttons beside it all fit on one line: it shows
+   just a little picture that suits the sort in use (a price tag for price, a
+   paint palette for colour...), a tiny arrow when the sort can be reversed (down
+   in its usual order, up when reversed) and the drop-down arrow. The menu shows
+   the same pictures beside each name, and the full name is read out for screen readers.
    ===================================================================== */
 
-import { useRef, useState, type ComponentRef } from 'react';
+import { useRef, useState, type ComponentProps, type ComponentRef } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColors } from '@/hooks/useTheme';
 import { RADIUS } from '@/theme/colors';
+
+// A picture for each way to sort, chosen to fit its name. A sort that isn't listed gets the plain
+// up-and-down arrows.
+type IconName = ComponentProps<typeof Ionicons>['name'];
+const SORT_ICONS: Record<string, IconName> = {
+  name: 'text',                  // the letters of the name
+  added: 'add-circle',           // when a card was added
+  price: 'pricetag',             // a price tag
+  color: 'color-palette',        // a paint palette
+  set: 'albums',                 // the sets, like a row of albums
+  type: 'shapes',                // different kinds of shape
+  rarity: 'diamond',             // a gem: the rarer the better
+  value: 'water',                // a drop, like a mana symbol
+  shared: 'copy',               // a card that appears more than once
+  decks: 'layers',               // a pile of decks
+  mine: 'hand-left',             // put in order by hand
+  used: 'time',                  // when it was last opened
+  made: 'sparkles',              // brand new
+  cards: 'file-tray-full',       // a full tray of cards
+  format: 'trophy',              // the format you play
+  legal: 'shield-checkmark',     // is the deck legal
+  bracket: 'podium',             // the power level
+  missing: 'alert-circle',       // cards you don't have yet
+  work: 'construct',             // work waiting to be done
+};
+const iconFor = (value: string): IconName => SORT_ICONS[value] ?? 'swap-vertical';
 
 // One way to sort: its value, its name in the menu and its short word on the
 // button, in its usual direction and (when it can be reversed) the other way
@@ -38,13 +67,12 @@ type Props = {
 export default function SortButton({ sort, reversed, options, onChoose }: Props) {
   const colors = useColors();
   const { width: windowWidth } = useWindowDimensions();
-  // A very narrow screen: the button shows just its icon (no word)
-  const tight = windowWidth < 350;
   const current = options.find((s) => s.value === sort) ?? options[0];
   // The sort's name and short word the way round it's in now
   const flipped = reversed && current.reversedName !== undefined;
   const currentName = flipped ? current.reversedName ?? current.name : current.name;
-  const currentShort = flipped ? current.reversedShort ?? current.short : current.short;
+  // Can this sort be turned round? (Then the button shows which way it's going.)
+  const canReverse = current.reversedName !== undefined;
 
   // The button (measured, so the menu can drop down right under it) and where
   // the menu is (null: closed)
@@ -66,8 +94,8 @@ export default function SortButton({ sort, reversed, options, onChoose }: Props)
           onPress={openMenu}
           style={({ pressed }) => [styles.button, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}
         >
-          <Ionicons name="swap-vertical" size={14} color={colors.muted} />
-          {!tight && <Text style={[styles.label, { color: colors.muted }]}>{currentShort}</Text>}
+          <Ionicons name={iconFor(current.value)} size={16} color={colors.muted} />
+          {canReverse && <Ionicons name={flipped ? 'arrow-up' : 'arrow-down'} size={11} color={colors.muted} />}
           <Ionicons name="chevron-down" size={12} color={colors.muted} />
         </Pressable>
       </View>
@@ -101,6 +129,7 @@ export default function SortButton({ sort, reversed, options, onChoose }: Props)
                     pressed && { backgroundColor: colors.surfaceHover },
                   ]}
                 >
+                  <Ionicons name={iconFor(option.value)} size={18} color={picked ? colors.accent : colors.muted} />
                   <View style={styles.optionName}>
                     <Text style={[styles.optionText, { color: colors.text }, picked && styles.labelOn]}>{name}</Text>
                     {picked && reversible && <Text style={[styles.optionHint, { color: colors.muted }]}>Tap again to reverse</Text>}
@@ -118,14 +147,13 @@ export default function SortButton({ sort, reversed, options, onChoose }: Props)
 
 // The look: a small rounded button; the menu floats over everything
 const styles = StyleSheet.create({
-  button: { height: 30, paddingHorizontal: 10, borderRadius: RADIUS - 4, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
-  label: { fontSize: 13, fontWeight: '600' },
+  button: { height: 30, paddingHorizontal: 8, borderRadius: RADIUS - 4, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 3 },
   labelOn: { fontWeight: '800' },
   pressed: { opacity: 0.6 },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   menu: { position: 'absolute', minWidth: 220, borderWidth: 1, borderRadius: RADIUS, overflow: 'hidden' },
   option: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 12, paddingHorizontal: 14 },
-  optionName: { flexShrink: 1 },
+  optionName: { flex: 1, flexShrink: 1 },
   optionText: { fontSize: 15 },
   optionHint: { fontSize: 11, marginTop: 1 },
 });
