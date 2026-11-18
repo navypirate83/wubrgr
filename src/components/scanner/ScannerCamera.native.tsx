@@ -7,6 +7,9 @@
    lib/scanner/ocr/ocr.native.ts). The reading goes to the scan screen exactly
    like the website's does, so everything after it (finding the card, the
    confirm sheet, the stack list) is shared.
+   LENSES: a phone with more than one lens on the back (ultra-wide, main, zoom) gets a row of small
+   buttons on the picture itself, so the change is seen live; tap one to look through that lens. Nothing
+   shows on a phone with a single lens (see core/lenses.ts).
    You can also pinch to zoom, tap to focus, turn the torch on, or pick a photo
    of a card from the phone ("Choose a photo").
    The camera is switched off whenever you leave the Scan tab or the app goes to
@@ -34,12 +37,13 @@ import { ActivityIndicator, AppState, Linking, Pressable, StyleSheet, Text, View
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
+import { Camera, useCameraDevice, useCameraDevices, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
 import { useColors } from '@/hooks/useTheme';
 import { cardOcr, finishPhoto, photoSize, readCardPhoto, readTitleOnly } from '@/lib/scanner/ocr/ocr.native';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { cardInPickedPhoto, guideInPhoto, type Fractions } from '@/lib/scanner/core/cardInPhoto';
 import { titlesAgree } from '@/lib/scanner/core/frameAgree';
+import { findLens, lensChoices } from '@/lib/scanner/core/lenses';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
@@ -62,7 +66,17 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName, queue }: ScannerCameraProps) {
   const colors = useColors();
   const { hasPermission, canRequestPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
+  const defaultDevice = useCameraDevice('back');
+  // Every camera the phone has, and the one the person picked with the lens buttons (none = the usual one)
+  const allDevices = useCameraDevices();
+  const [lensId, setLensId] = useState<string | null>(null);
+  const lenses = lensChoices(allDevices);
+  // The picked lens if the phone still has it, otherwise the usual back camera
+  const device = findLens(allDevices, lensId) ?? defaultDevice;
+  // Which button is lit: the picked lens, or (before anything is picked) the one that matches the usual camera
+  const litLens = lensId && lenses.some((l) => l.id === lensId)
+    ? lensId
+    : lenses.find((l) => l.id === defaultDevice?.id)?.id ?? lenses.find((l) => l.type === 'wide-angle')?.id ?? null;
   // The photo taker. Speed matters more than the last bit of quality: about 8 megapixels (4:3, like the
   // live picture) is plenty for the small print, and the quick mode and a little more JPEG
   // squeezing make each photo come back much sooner than a full-size, best-quality one.
@@ -341,6 +355,26 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
           : 'Line the card up in the corners')}
       </Text>
 
+      {/* The lens buttons: only on a phone with more than one lens on the back. They sit on the picture just
+          above the hint so the change can be watched live. */}
+      {lenses.length > 1 && (
+        <View pointerEvents="box-none" style={styles.lensRow}>
+          {lenses.map((lens) => {
+            const lit = lens.id === litLens;
+            return (
+              <Pressable
+                key={lens.id}
+                accessibilityRole="button" accessibilityLabel={`${lens.label} lens`} accessibilityState={{ selected: lit }}
+                onPress={() => { setLensId(lens.id); setHint(''); }}
+                style={[styles.lens, { backgroundColor: lit ? colors.accent : 'rgba(0,0,0,0.55)', borderColor: lit ? colors.accent : 'rgba(255,255,255,0.45)' }]}
+              >
+                <Text style={[styles.lensText, { color: lit ? colors.accentText : '#ffffff' }]}>{lens.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       {/* The button that switches Auto scan on and off */}
       <View pointerEvents="box-none" style={styles.topMiddle}>
         <Pressable
@@ -405,6 +439,10 @@ const styles = StyleSheet.create({
   topMiddle: { position: 'absolute', top: 10, left: 64, right: 64, height: 44, alignItems: 'center', justifyContent: 'center' },
   autoButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, borderWidth: 1.5 },
   autoText: { fontSize: 13, fontWeight: '700' },
+  // The row of lens buttons, centred just above the hint line
+  lensRow: { position: 'absolute', left: 16, right: 16, bottom: 136, flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  lens: { paddingHorizontal: 12, height: 30, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  lensText: { fontSize: 12, fontWeight: '700' },
   barSide: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
   barRight: { justifyContent: 'flex-end' },
   shutter: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
