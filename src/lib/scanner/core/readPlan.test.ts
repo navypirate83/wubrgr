@@ -80,3 +80,10 @@ test('the timings are put in a few plain words', () => {
   assert.equal(timingWords({ photo: 300, text: 450, preview: 50, lookup: 200 }), '1.0 s (photo 0.3, text 0.5, picture 0.1, look-up 0.2)');
   assert.equal(timingWords(undefined), '');
 });
+
+test('the new steps (frame, warm-up, change check, in line) are shown, and resolve is kept out of the total', () => {
+  assert.equal(
+    timingWords({ frame: 100, warm: 200, check: 50, text: 400, lookup: 160, wait: 100, resolve: 160 }),
+    '1.0 s (frame 0.1, change check 0.1, warm-up 0.2, text 0.4, look-up 0.2, in line 0.1)',
+  );
+});

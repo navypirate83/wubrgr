@@ -91,7 +91,14 @@ export async function loadMoreClues(reading: ScanReading): Promise<void> {
 // (Shown while the scanner is being tuned: easy to remove once it's quick enough.)
 export function timingWords(timings: Record<string, number> | undefined): string {
   if (!timings) return '';
-  const steps: [key: string, label: string][] = [['photo', 'photo'], ['text', 'text'], ['preview', 'picture'], ['clues', 'clues'], ['lookup', 'look-up']];
+  // (frame: grabbing the live picture; photo: the phone's still photo; check: the quick "has it changed?" look;
+  // warm: waiting for the text reader to load; wait: waiting for earlier cards' answers to be put on the list first).
+  // "resolve" (the whole work-out of the printing) is also kept in the timings but not listed here, because look-up
+  // and clues are its parts and it would be counted twice.
+  const steps: [key: string, label: string][] = [
+    ['frame', 'frame'], ['photo', 'photo'], ['check', 'change check'], ['warm', 'warm-up'], ['text', 'text'], ['preview', 'picture'],
+    ['clues', 'clues'], ['lookup', 'look-up'], ['wait', 'in line'],
+  ];
   const seconds = (ms: number) => (ms / 1000).toFixed(1);
   const shown = steps.filter(([key]) => timings[key] !== undefined);
   const total = shown.reduce((sum, [key]) => sum + timings[key], 0);

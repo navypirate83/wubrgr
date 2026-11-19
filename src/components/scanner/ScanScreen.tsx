@@ -21,7 +21,11 @@
    optional, and saved on this device. A locked set shows its code beside the gear.
    THE QUEUE: in Stack mode the camera doesn't wait for a card to be worked out before it takes the next
    photo (on Android, a few at a time). The number still being worked out is shown beside the count on the
-   list button ("12+2"), and each card joins the list as soon as it's ready.
+   list button ("12+2"). Cards are WORKED OUT at the same time, but their answers are put on the list (or the
+   confirm sheet) strictly in the order the cards were scanned (see core/resolveQueue.ts), so a quick card
+   never jumps ahead of an earlier, slower one, and none is lost or added twice.
+   WARM-UP: as soon as this screen opens, the text reader, the card-name and set lists and (if the AI option is
+   on) the AI are got ready in the background (scanWarmUp.ts), so the first scan is no slower than the rest.
    ===================================================================== */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -41,6 +45,8 @@ import type { Finish } from '@/lib/cards';
 import type { CatalogueInfo, Printing } from '@/lib/scanner/core/catalogueTypes';
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import { resolveReading, type ScanOutcome } from '@/lib/scanner/scanResolve';
+import { startWarmUp } from '@/lib/scanner/scanWarmUp';
+import { createOrderedResults } from '@/lib/scanner/core/resolveQueue';
 import { timingWords } from '@/lib/scanner/core/readPlan';
 import { changeScanOptions, getScanOptions } from '@/lib/scanner/scanSettings';
 import { finishesOf, newScanId, startingFinish, startingFinishFor, type ScanItem } from '@/lib/scanner/scanItems';
@@ -82,6 +88,8 @@ export default function ScanScreen() {
   // Every card's name in the plain form, once the catalogue is open (to tell whether some text is a name)
   const names = useRef<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Hands out a numbered ticket to each scan and puts the answers to use in ticket order (see core/resolveQueue.ts)
+  const ordered = useRef(createOrderedResults());
 
   // A short line on the camera for a few seconds
   const say = useCallback((text: string) => {
@@ -115,6 +123,16 @@ export default function ScanScreen() {
     })();
   }, [say]);
 
+  /* ----- warming up: get the reader, the name lists and (if on) the AI ready before the first scan ----- */
+  // Starts once the catalogue is open, and again if the AI option is switched on or off. Closing the screen stops
+  // it. It shows nothing and never reports a problem (a scan does that step itself if the warm-up couldn't).
+  const aiOn = options.aiArt;
+  useEffect(() => {
+    if (!catalogue) return;
+    const warm = startWarmUp(aiOn);
+    return () => warm.cancel();
+  }, [catalogue, aiOn]);
+
   /* ----- the stack list ----- */
   // Put a card on the list: scanned again, a sure card just adds a copy
   function addToList(item: ScanItem) {
@@ -130,22 +148,44 @@ export default function ScanScreen() {
   // is, and the camera (in Stack mode) may already be taking the next photo meanwhile: the queue.
   async function onReading(reading: ScanReading) {
     setPending((n) => n + 1);
+    // The ticket is taken when the scan arrives, so the answers can be put to use in this order
+    const ticket = ordered.current.ticket();
     try {
-      await handleReading(reading);
+      // The work-out (slow, may overlap with other cards') gives back what to do with the answer...
+      const use = await handleReading(reading);
+      // ...and that is done in ticket order
+      if (use) ordered.current.finish(ticket, use); else ordered.current.skip(ticket);
+    } catch (err) {
+      // A card that couldn't be worked out must not hold up the cards after it
+      ordered.current.skip(ticket);
+      say((err as Error).message || 'That card could not be worked out.');
     } finally {
       setPending((n) => n - 1);
     }
   }
 
-  // Work out one reading and put the result where it goes (the options are read as they are right now)
-  async function handleReading(reading: ScanReading) {
-    if (!catalogue) { say('Get the card catalogue first (Settings → Card catalogue).'); return; }
+  // Work out one reading (the options are read as they are right now). The slow part happens here; what to do
+  // with the answer (the list, the sheet, the messages) is handed back as a small function, run in scan order.
+  async function handleReading(reading: ScanReading): Promise<(() => void) | null> {
+    if (!catalogue) return () => say('Get the card catalogue first (Settings → Card catalogue).');
     const chosen = getScanOptions();
     const lookupStart = Date.now();
     const outcome = await resolveReading(reading, { lockedSet: chosen.lockedSet?.code ?? null, aiArt: chosen.aiArt });
-    // How long each step took (the extra clues, if they were needed, are counted as their own step), if the options say to show it
+    const doneAt = Date.now();
+    return () => putOnScreen(reading, outcome, chosen, lookupStart, doneAt);
+  }
+
+  // Put one worked-out card where it goes (runs in the order the cards were scanned)
+  function putOnScreen(reading: ScanReading, outcome: ScanOutcome, chosen: ReturnType<typeof getScanOptions>, lookupStart: number, doneAt: number) {
+    // How long each step took (the extra clues, if they were needed, are counted as their own step), if the options say to show it.
+    // "resolve" is the whole work-out, "lookup" is that without the clues, and "wait" is how long the answer waited for the
+    // cards scanned before it to be put on the list first.
     const times = { ...reading.timings };
-    times.lookup = Date.now() - lookupStart - (times.clues ?? 0);
+    const resolveMs = doneAt - lookupStart;
+    times.resolve = resolveMs;
+    times.lookup = resolveMs - (times.clues ?? 0);
+    const waited = Date.now() - doneAt;
+    if (waited >= 5) times.wait = waited;
     const timeText = chosen.showTimings ? timingWords(times) : '';
     const took = timeText ? ` · ${timeText}` : '';
     if (outcome.status === 'none') { say(`Couldn't read that card. Try again, closer and with more light.${took}`); return; }

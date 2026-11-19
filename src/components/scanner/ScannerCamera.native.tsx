@@ -22,6 +22,13 @@
    Together with Stack mode this is hands-free: slide the next card into the guide and it's added.
    Older cards get their clues read (set symbol, artwork and border colour) only when the
    scan needs them (see core/readPlan.ts), the same as on the website.
+   NOT READING THE SAME THING TWICE (Auto scan): each look is squeezed to a tiny grey signature of the guide
+   area (core/frameChange.ts) and compared with the scene at the last real reading. If nothing has changed,
+   and the answer last time can't have changed either (the card that was just scanned is still sitting there,
+   or the guide is still empty), the text reading is skipped for that look. A different card put down where
+   the scanned one was (its title clearly different, read the same twice) allows the next scan without the
+   first card having to leave. Any doubt (the signature can't be made, or 8 skipped looks in a row) means
+   the look is read as normal.
    SCAN QUEUE (Stack mode): the screen says "queue" and the camera stops waiting for each card to be
    worked out. Once a card has been READ (the text reader), the photo goes to the scan screen to be
    worked out and the camera is free for the next card straight away; up to a few cards can be
@@ -39,10 +46,11 @@ import { useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Camera, useCameraDevice, useCameraDevices, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
 import { useColors } from '@/hooks/useTheme';
-import { cardOcr, finishPhoto, photoSize, readCardPhoto, readTitleOnly } from '@/lib/scanner/ocr/ocr.native';
+import { cardOcr, cardSignature, finishPhoto, photoSize, readCardPhoto, readTitleOnly } from '@/lib/scanner/ocr/ocr.native';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { cardInPickedPhoto, guideInPhoto, type Fractions } from '@/lib/scanner/core/cardInPhoto';
-import { titlesAgree } from '@/lib/scanner/core/frameAgree';
+import { titlesAgree, titlesClearlyDiffer } from '@/lib/scanner/core/frameAgree';
+import { sameFrame } from '@/lib/scanner/core/frameChange';
 import { findLens, lensChoices } from '@/lib/scanner/core/lenses';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
@@ -56,6 +64,8 @@ const BOTTOM_ROOM = 150;
 // card it takes to count the card as taken away
 const LOOK_PAUSE_MS = 120;
 const GONE_LOOKS = 2;
+// Auto scan: after this many looks in a row skipped because nothing had changed, the next one is read anyway
+const MAX_SKIPS = 8;
 // The scan queue: how many cards may be waiting to be worked out at once (each one keeps its photo until
 // it's done, so this is kept small)
 const MAX_WAITING = 3;
@@ -229,6 +239,10 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       let armed = true;   // true until a card has been scanned, and again once it has been taken away
       let missing = 0;    // how many looks in a row found no card
       let lastTitle = ''; // the title read on the look before this one (empty if that look saw no card)
+      let handledTitle = '';                   // the title of the card that was scanned (empty until one has been)
+      let refSig: Uint8Array | null = null;    // the scene's tiny signature at the last real reading
+      let refPresent = false;                  // whether that reading found a card
+      let skips = 0;                           // looks in a row skipped because nothing had changed
       while (!stop) {
         const now = live.current;
         // Wait while something else is open over the camera, or a button press is being read
@@ -242,9 +256,31 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
           path = photo.filePath;
           const [width, height] = await photoSize(path);
           const card = guideInPhoto(now.area, now.guide, { w: width, h: height });
+          // The cheap "has anything changed?" look (see core/frameChange.ts)
+          const checkStart = Date.now();
+          const sig = await cardSignature(path, card);
+          const checkMs = Date.now() - checkStart;
+          // Nothing new to read when the scene is the same as at the last reading AND that reading's answer can't have
+          // changed: the scanned card is still there (nothing to scan until it changes), or the guide is still empty
+          // (still nothing to see). A card waiting for its second agreeing look is never skipped.
+          const unchanged = skips < MAX_SKIPS && sameFrame(sig, refSig) && ((!armed && refPresent) || (armed && !refPresent));
+          if (unchanged) {
+            skips += 1;
+            if (!refPresent) {
+              setSeeing(false);
+              lastTitle = '';
+              missing += 1;
+              if (missing >= GONE_LOOKS) armed = true;
+            }
+            await sleep(LOOK_PAUSE_MS);
+            continue;
+          }
+          skips = 0;
+          refSig = sig;
           // A quick look first: only the title bar, to see whether a real card is there
           const title = await readTitleOnly(path, card, now.looksLikeName ?? (() => true));
           const present = !!now.looksLikeName && now.looksLikeName(title);
+          refPresent = present;
           if (present) {
             missing = 0;
             setSeeing(true);
@@ -252,11 +288,15 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
             // or blurred, reads differently each time and is skipped until it settles.
             const steady = lastTitle !== '' && titlesAgree(lastTitle, title);
             lastTitle = title;
+            // A different card put down where the scanned one was, without a gap: its title is clearly not the
+            // scanned card's and has been read the same twice, so the next scan is allowed
+            if (!armed && steady && handledTitle !== '' && titlesClearlyDiffer(handledTitle, title)) { armed = true; handledTitle = ''; }
             if (armed && steady && !stop && !live.current.paused) {
               armed = false;
+              handledTitle = title;
               // A card to scan: read the rest (the title isn't read again)
               const reading = await readCardPhoto(path, card, now.looksLikeName, title);
-              reading.timings = { photo: photoMs, ...reading.timings };
+              reading.timings = { photo: photoMs, check: checkMs, ...reading.timings };
               if (now.queue) {
                 // The queue: hand it over and look for the next card; the queue deletes the photo when it's done
                 startInQueue(live.current.onReading, reading, path, true);

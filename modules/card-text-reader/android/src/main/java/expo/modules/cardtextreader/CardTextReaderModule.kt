@@ -236,6 +236,21 @@ class CardTextReaderModule : Module() {
       }
     }
 
+    // Get Google's reader loaded and ready before the first real scan, by reading a tiny blank picture.
+    // (NEW, not yet tried on a phone: the app's JavaScript only calls it if it exists, so an older build is unaffected.)
+    AsyncFunction("warmUp") { promise: Promise ->
+      worker.execute {
+        try {
+          val blank = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+          Tasks.await(recognizer.process(InputImage.fromBitmap(blank, 0)))
+          blank.recycle()
+          promise.resolve(null)
+        } catch (error: Exception) {
+          promise.reject(CodedException("ERR_CARD_WARM", error.message ?: "The reader could not be warmed up", error))
+        }
+      }
+    }
+
     // Done with a photo: let go of it, and remove the file too if the camera took it
     AsyncFunction("deletePhoto") { path: String, deleteFile: Boolean, promise: Promise ->
       worker.execute {

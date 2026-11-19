@@ -35,6 +35,7 @@ import { decideScan } from './core/decide';
 import { loadMoreClues } from './core/readPlan';
 import { applySetLock } from './core/setLock';
 import { normalizeName } from './core/text';
+import { makeBreather } from './core/timeSlice';
 import type { Printing } from './core/catalogueTypes';
 import { eraOf, type ScanReading } from './core/scannerTypes';
 import { allFrontNames, artHashFor, findPrintings, printingsNamed, setCodes, setSymbol } from './catalogue/catalogue';
@@ -61,9 +62,22 @@ export type ResolveOptions = {
 // Printings with the same set and artwork look the same in a photo, so they share a "group"
 const groupOf = (p: Printing): string => `${p.setCode}|${p.illus ?? p.id}`;
 
+// Working out a card is a lot of plain calculation on the app's one line of work, which the camera and the
+// screen share. "breathe" is called now and then inside the long stretches: it pauses for a moment once
+// about a dozen milliseconds have been used, so the next camera look and the screen keep moving while a card is
+// worked out (see core/timeSlice.ts).
+const breathe = makeBreather();
+
 // The real set codes, read once
 let realSets: Set<string> | null = null;
 const knownSets = async (): Promise<Set<string>> => (realSets ??= new Set(await setCodes()));
+
+// Get ready before the first scan: read the set-code list and the card-name list now (both are kept after the
+// first time), so the first scan doesn't pay for them. Called by the scan screen's warm-up (scanWarmUp.ts).
+export async function warmResolve(): Promise<void> {
+  await knownSets();
+  await allFrontNames();
+}
 
 // Each set's symbol, read once per set
 const symbols = new Map<string, Uint8Array | null>();
@@ -105,6 +119,7 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   const artDistances = new Map<string, number>();
   const candidates: Candidate[] = [];
   for (const p of printings) {
+    await breathe();
     const hashes = (await Promise.all([p.illus, p.illusBack].map((id) => (id ? artHashFor(id) : null)))).filter((h): h is Uint8Array => !!h);
     const distance = photo.artDistance(eraOf(p.frame), hashes);
     if (distance !== null) artDistances.set(p.id, distance);
@@ -162,6 +177,8 @@ async function resolveInner(reading: ScanReading, lockedSet: string | null, aiAr
     // A very short name found in scattered text is probably chance: it has to match exactly
     if (match && match.name.length < 5 && match.similarity < 1) continue;
     if (match && (!nameMatch || match.similarity > nameMatch.similarity)) { nameMatch = match; readName = line; }
+    // (each line is matched against about 30,000 names: let the camera and screen have a turn in between)
+    await breathe();
   }
   if (!readName && lines.length > 0) readName = lines[0];
   const name = nameMatch?.name ?? null;

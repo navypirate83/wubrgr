@@ -16,6 +16,7 @@ import { ART_BOX, ART_REGION, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_REGION
 import type { Fractions } from '../core/cardInPhoto';
 import { borderFromBrightness } from '../core/borderColor';
 import { decodeGray, meanBrightness, type PackedGray } from '../core/grayDecode';
+import { tinyFromGray } from '../core/frameChange';
 import { readCardStaged, readTitle, type PartReader } from '../core/readPlan';
 import type { CardOcr } from './ocr';
 
@@ -31,6 +32,9 @@ type CardTextReaderModule = {
   jpegCrop(path: string, card: Fractions, part: Fractions, width: number): Promise<string>;
   // Let go of a photo (and remove its file if the camera took it)
   deletePhoto(path: string, deleteFile: boolean): Promise<void>;
+  // Get Google's reader loaded and ready by reading a tiny blank picture. Only in builds made after this was added
+  // (NEW NATIVE CODE, not yet tried on a phone): older builds don't have it, so it is only called if it exists.
+  warmUp?(): Promise<void>;
 };
 
 // Found the first time it's needed (so a phone app build without the add-on says so clearly, instead of crashing at start-up)
@@ -79,6 +83,20 @@ function partsOf(path: string, card: Fractions): PartReader {
   };
 }
 
+// A tiny grey "signature" of the card area in a photo (see core/frameChange.ts), for noticing that the camera is
+// looking at the same scene as before so the text reading can be skipped. It asks the add-on for one very small
+// grey picture of the guide area, which uses what the add-on already has (no new native code). Gives null if
+// anything goes wrong, and the camera then simply reads the card as it always did.
+export async function cardSignature(path: string, card: Fractions): Promise<Uint8Array | null> {
+  try {
+    const [picture] = await reader().grayCrops(path, card, [[0, 0, 1, 1]], [32]);
+    const gray = decodeGray(picture);
+    return tinyFromGray(gray.data, gray.width, gray.height);
+  } catch {
+    return null;
+  }
+}
+
 // A quick look for the hands-free camera: just the title text (the name, and the whole band only
 // if the name box had some text but no real name). Used to see whether there is a card to scan.
 export function readTitleOnly(path: string, card: Fractions, looksLikeName: (text: string) => boolean): Promise<string> {
@@ -104,6 +122,11 @@ export async function finishPhoto(path: string, deleteFile: boolean): Promise<vo
 }
 
 export const cardOcr: CardOcr = {
-  // Nothing to load first: ML Kit's reading data is already inside the app. This only checks the add-on is there.
-  async warmUp() { reader(); },
+  // This checks the add-on is there (and says so if not). Then, only if this build's add-on has the newer "warmUp",
+  // Google's reader is loaded now by a practice read, so the first real scan doesn't pay for that. A problem with
+  // the practice read is ignored.
+  async warmUp() {
+    const add = reader();
+    if (typeof add.warmUp === 'function') { try { await add.warmUp(); } catch { /* the first scan loads it instead */ } }
+  },
 };

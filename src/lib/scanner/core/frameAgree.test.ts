@@ -31,3 +31,20 @@ test('an empty reading never agrees', () => {
   assert.equal(titlesAgree('', ''), false);
   assert.equal(titlesAgree('Exotic Orchard', ''), false);
 });
+
+// ---- "clearly different" (used to notice a new card put down where the last one was) ----
+import { titlesClearlyDiffer } from './frameAgree.ts';
+
+test('two plainly different titles are clearly different', () => {
+  assert.equal(titlesClearlyDiffer('Exotic Orchard', 'Command Tower'), true);
+});
+
+test('a wobbly reading of the same title is not clearly different', () => {
+  assert.equal(titlesClearlyDiffer('Exotic Orchard', 'Exotic Orchord'), false);
+  assert.equal(titlesClearlyDiffer('Exotic Orchard', 'Exotic'), false);
+});
+
+test('a missing title is never "clearly different"', () => {
+  assert.equal(titlesClearlyDiffer('', 'Command Tower'), false);
+  assert.equal(titlesClearlyDiffer('Exotic Orchard', ''), false);
+});

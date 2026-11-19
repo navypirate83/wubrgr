@@ -15,6 +15,7 @@
 import { hasAiScanAccess } from '../../session';
 import type { Printing } from '../core/catalogueTypes';
 import type { ScanReading } from '../core/scannerTypes';
+import { MODEL_SIZE } from '../core/modelInput';
 import { aiScoresFor } from './aiClue';
 import { aiReady, readAiFile } from './aiFiles';
 import { createAiIndex, type AiIndex } from './aiIndex';
@@ -48,4 +49,18 @@ export async function aiScoresForReading(reading: ScanReading, printings: Printi
   const pictures = await reading.aiPictures();
   if (pictures.length === 0) return null;
   return aiScoresFor(pictures, printings.map((p) => ({ id: p.id, illus: p.illus, illusBack: p.illusBack, frame: p.frame })), { embed: aiModel.embed, index: await loadAiIndex() });
+}
+
+// Get the AI ready before the first scan that needs it: load the saved fingerprints into memory, make the model's
+// session, and run it once on a blank picture (the first run is always the slowest, as it sets itself up).
+// Does nothing, quietly, whenever the AI can't be used here (no access, no model on this device, files not
+// downloaded). "isCancelled" is asked between the slow steps so closing the screen can stop it. Anything that goes
+// wrong is the caller's to ignore: a scan then just loads things itself, as it always did.
+export async function warmAi(isCancelled: () => boolean = () => false): Promise<void> {
+  if (!hasAiScanAccess() || !aiModel.available || !(await aiReady())) return;
+  if (isCancelled()) return;
+  await loadAiIndex();
+  if (isCancelled()) return;
+  // A blank (all-zero) picture the size the model takes: 3 colours x 224 x 224
+  await aiModel.embed(new Float32Array(3 * MODEL_SIZE * MODEL_SIZE));
 }

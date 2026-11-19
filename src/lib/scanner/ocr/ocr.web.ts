@@ -105,9 +105,18 @@ function worker(index: number): Promise<TesseractWorker> {
 
 // Run a job on a worker, after the jobs already waiting for it. The second worker is only used on a
 // device with room for it; otherwise its jobs go to the first, one after the other.
+// How many milliseconds reads have spent waiting for a worker to finish loading (about nothing once the warm-up
+// has done its job, so the timings after a scan show whether the warm-up worked)
+let engineWaitMs = 0;
+
 function onWorker<T>(wanted: number, job: (reader: TesseractWorker) => Promise<T>): Promise<T> {
   const index = wanted === 1 && roomForTwo() ? 1 : 0;
-  const result = queues[index].then(async () => job(await worker(index)));
+  const result = queues[index].then(async () => {
+    const asked = Date.now();
+    const ready = await worker(index);
+    engineWaitMs += Date.now() - asked;
+    return job(ready);
+  });
   queues[index] = result.catch(() => { /* the next job still runs */ });
   return result;
 }
@@ -255,5 +264,15 @@ export function readCard(
     clues: async () => readClues(source, card),
     preview: async () => artPreview(source, card),
   };
-  return readCardStaged(reader, looksLikeName);
+  engineWaitMs = 0;
+  return readCardStaged(reader, looksLikeName).then((reading) => {
+    // If the reader had to be loaded during this scan (the warm-up hadn't finished), say how long that took
+    // (that wait happened inside the "text" step, so it is taken out of there to not be counted twice)
+    if (engineWaitMs >= 5) {
+      const text = reading.timings?.text ?? 0;
+      const warm = Math.min(engineWaitMs, text);
+      reading.timings = { ...reading.timings, text: text - warm, warm };
+    }
+    return reading;
+  });
 }

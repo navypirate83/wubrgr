@@ -21,7 +21,14 @@
        held still for a moment the card is straightened into a flat upright picture
        (core/perspective.ts) and read exactly like a lined-up card. The round button
        does the same at once. After a scan, the card has to leave (or move) before it is
-       scanned again, so one card isn't read over and over.
+       scanned again, so one card isn't read over and over. A DIFFERENT card put down in the same
+       place without the first one leaving counts too: each look is squeezed to a tiny grey
+       signature (core/frameChange.ts) and when the card's signature has clearly changed and then
+       held steady for a few looks in a row, the next scan is allowed.
+   The tracker only ever looks at the small copy of the picture and reads NO text, so nothing is
+   re-read while a scanned card sits there. The live video is where each scan's picture comes from
+   (a frame is copied out of the video, there is no separate "take a photo" wait on the website);
+   how long that copy took is shown in the scan timings as "frame".
    Nothing native is imported here (Android's is ScannerCamera.native.tsx).
    ===================================================================== */
 
@@ -33,6 +40,7 @@ import { readCard, cardOcr } from '@/lib/scanner/ocr/ocr.web';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { blendQuads, findCard, quadCentre, quadShift } from '@/lib/scanner/core/cardFinder';
 import { longestSide, warpCard, type Point, type Quad } from '@/lib/scanner/core/perspective';
+import { changedFrame, signatureDifference, tinyFromRgba } from '@/lib/scanner/core/frameChange';
 import { aiCardPictures } from '@/lib/scanner/ai/aiPhoto.web';
 import { getScanOptions } from '@/lib/scanner/scanSettings';
 import type { ScannerCameraProps } from './scannerCameraTypes';
@@ -51,6 +59,10 @@ const LOOK_EVERY_MS = 140;
 const HOLD_STILL_MS = 700;
 const STILL_DRIFT = 0.015;
 const GONE_LOOKS = 8;
+// A different card put down in the same place: its look must have clearly changed (see core/frameChange.ts) and held
+// steady for this many looks in a row (a hand passing over the card moves too much to count), before it can be scanned
+const CHANGE_LOOKS = 4;
+const STEADY_BELOW = 0.06;
 // Whether the person left Track on, remembered on this device (the browser may not allow saving; then it starts off)
 const TRACK_KEY = 'wubrgr.scanner.track';
 const savedTrack = () => { try { return globalThis.localStorage?.getItem(TRACK_KEY) === '1'; } catch { return false; } };
@@ -76,7 +88,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   const [tracking, setTracking] = useState(savedTrack);
   const [found, setFound] = useState<Found | null>(null);
   // The tracking loop runs on a timer, so it reads the newest values through these notes-to-self
-  const live = useRef({ busy, paused: !!paused, found: null as Found | null, armed: true, scannedAt: null as Point | null });
+  const live = useRef({ busy, paused: !!paused, found: null as Found | null, armed: true, scannedAt: null as Point | null, scannedSig: null as Uint8Array | null });
   live.current.busy = busy;
   live.current.paused = !!paused;
   live.current.found = found;
@@ -159,12 +171,14 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     return sum / (data.length / 4);
   }
 
-  async function scan(source: HTMLCanvasElement, card: Rect) {
+  // "frameMs" is how long it took to copy the picture out of the video (for the timings shown after the scan)
+  async function scan(source: HTMLCanvasElement, card: Rect, frameMs?: number) {
     setBusy(true);
     setHint('');
     try {
       const dark = brightness(source, card) < 45;
       const reading = await readCard(source, card, looksLikeName);
+      if (frameMs !== undefined) reading.timings = { frame: frameMs, ...reading.timings };
       // With "AI art matching" on, also leave a way to make the flat card pictures the AI looks at. It does its
       // slow work only if the scan turns out to need it, and the photo is let go with the reading afterwards.
       if (getScanOptions().aiArt) reading.aiPictures = () => aiCardPictures(source, card);
@@ -185,14 +199,17 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     if (tracking) {
       const seen = live.current.found;
       if (!seen) { setHint('Can\'t see the whole card. Put it on a plain, different-coloured surface, or switch to Guide.'); return; }
+      // (a scan from the button has no saved signature, so a changed card isn't judged against an older one)
+      live.current.scannedSig = null;
       await scanTracked(seen.quad);
       return;
     }
+    const grabStart = Date.now();
     const still = document.createElement('canvas');
     still.width = video.videoWidth;
     still.height = video.videoHeight;
     still.getContext('2d')!.drawImage(video, 0, 0);
-    await scan(still, guideInVideo(video));
+    await scan(still, guideInVideo(video), Date.now() - grabStart);
   }
 
   /* ----- Track mode ----- */
@@ -229,8 +246,9 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     // Until the card leaves or moves, don't scan it again
     live.current.armed = false;
     live.current.scannedAt = quadCentre(quad);
+    const grabStart = Date.now();
     const flat = straighten(video, video.videoWidth, video.videoHeight, quad);
-    await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height });
+    await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height }, Date.now() - grabStart);
   }
 
   // The newest version of scanTracked (the timer below lives on past renders, and the scan screen
@@ -246,6 +264,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     let last: Quad | null = null;       // where the card was last time (smoothed)
     let stillSince = 0;                 // when it last stopped moving
     let missing = 0;                    // how many looks in a row found no card
+    let changedLooks = 0;               // how many looks in a row the scanned card's picture has clearly changed and held steady
+    let lastSig: Uint8Array | null = null;   // the card's tiny signature on the look before this one
     const timer = setInterval(() => {
       const video = videoRef.current;
       const state = live.current;
@@ -254,13 +274,16 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       const lookHeight = Math.round((LOOK_WIDTH * video.videoHeight) / video.videoWidth);
       if (small.width !== LOOK_WIDTH || small.height !== lookHeight) { small.width = LOOK_WIDTH; small.height = lookHeight; }
       context.drawImage(video, 0, 0, LOOK_WIDTH, lookHeight);
-      const quad = findCard(context.getImageData(0, 0, LOOK_WIDTH, lookHeight));
+      const look = context.getImageData(0, 0, LOOK_WIDTH, lookHeight);
+      const quad = findCard(look);
       const now = Date.now();
       if (!quad) {
         // No card: only believe it after a second look (one bad frame shouldn't make the outline blink)
         missing++;
         if (missing >= 2) { last = null; stillSince = 0; setFound(null); }
         if (missing >= GONE_LOOKS) state.armed = true;
+        lastSig = null;
+        changedLooks = 0;
         return;
       }
       missing = 0;
@@ -272,8 +295,27 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       const smooth = last ? blendQuads(last, quad, 0.4) : quad;
       last = smooth;
       const hold = Math.min(1, (now - stillSince) / HOLD_STILL_MS);
+      // The card's tiny signature (a box around the card, squeezed to a grid): used to notice a DIFFERENT card put
+      // down where the scanned one was, without it leaving first. Only worked out when it can matter.
+      let sig: Uint8Array | null = null;
+      if (!state.armed || hold >= 1) {
+        const xs = smooth.map((p) => p.x);
+        const ys = smooth.map((p) => p.y);
+        sig = tinyFromRgba(look.data, LOOK_WIDTH, lookHeight, [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]);
+      }
+      if (!state.armed && sig && state.scannedSig) {
+        // Clearly different from the card that was scanned, and the same as a moment ago (so not mid-move): a new card
+        const different = changedFrame(state.scannedSig, sig) && !!lastSig && signatureDifference(lastSig, sig) < STEADY_BELOW;
+        changedLooks = different ? changedLooks + 1 : 0;
+        if (changedLooks >= CHANGE_LOOKS) { state.armed = true; changedLooks = 0; }
+      }
+      lastSig = sig;
       setFound({ quad: smooth, hold, armed: state.armed });
-      if (hold >= 1 && state.armed) scanTrackedNow.current(smooth);
+      if (hold >= 1 && state.armed) {
+        // Remember what this card looked like when it was scanned
+        state.scannedSig = sig;
+        scanTrackedNow.current(smooth);
+      }
     }, LOOK_EVERY_MS);
     return () => clearInterval(timer);
   }, [tracking, problem]);
@@ -285,6 +327,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     setHint('');
     live.current.armed = true;
     live.current.scannedAt = null;
+    live.current.scannedSig = null;
     try { globalThis.localStorage?.setItem(TRACK_KEY, next ? '1' : '0'); } catch { /* not remembered, that's all */ }
   }
 
