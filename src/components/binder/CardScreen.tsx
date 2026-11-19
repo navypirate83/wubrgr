@@ -24,8 +24,8 @@
    screen only draws them and says what changed (see cardEdit.ts).
    ===================================================================== */
 
-import { useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
@@ -168,7 +168,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
         <EditRow label="Copies">
           <View style={styles.stepper}>
             <Pressable accessibilityRole="button" accessibilityLabel={copies.lessLabel} onPress={copies.onLess} hitSlop={6} style={({ pressed }) => [styles.step, pressed && styles.pressed]}>
-              <Ionicons name="remove" size={30} color={colors.accent} />
+              <Ionicons name="remove" size={22} color={colors.accent} />
             </Pressable>
             <Text style={[styles.stepNumber, { color: colors.text }]}>{copies.count}</Text>
             <Pressable
@@ -176,7 +176,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
               disabled={copies.count >= copies.max} onPress={copies.onMore} hitSlop={6}
               style={({ pressed }) => [styles.step, pressed && styles.pressed, copies.count >= copies.max && styles.dimmed]}
             >
-              <Ionicons name="add" size={30} color={colors.accent} />
+              <Ionicons name="add" size={22} color={colors.accent} />
             </Pressable>
           </View>
         </EditRow>
@@ -255,10 +255,27 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
 
   /* ---------- the screen around it ---------- */
 
+  // What the Back button (Android) and the Esc key (website) do: close an open
+  // drop box first, then leave the editor, then close the screen. (A ref keeps
+  // the newest version, so the listener below never has to be set up again.)
+  const stepBack = picker ? () => setPicker(null) : editing ? stopEditing : onClose;
+  const stepBackRef = useRef(stepBack);
+  stepBackRef.current = stepBack;
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') stepBackRef.current(); };
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+    }
+    const listener = BackHandler.addEventListener('hardwareBackPress', () => { stepBackRef.current(); return true; });
+    return () => listener.remove();
+  }, []);
+
+  // This is NOT a full-screen window: it fills just the page it's drawn on, so
+  // the tab bar along the bottom (or the side menu on a wide window) stays
+  // showing and the sheet sits above it
   return (
-    // "transparent" lets the dimmed page show around the screen; onRequestClose is
-    // Android's Back button (and Esc on the website): it leaves the editor first
-    <Modal transparent animationType={wide ? 'fade' : 'slide'} visible onRequestClose={editing ? stopEditing : onClose}>
+    <View style={styles.overlay}>
       <View style={styles.fill}>
         {/* The dimmed area: tapping it closes the screen */}
         <Pressable style={[styles.backdrop, { backgroundColor: 'rgba(0, 0, 0, 0.55)' }]} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
@@ -293,7 +310,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
               </View>
               {editing && (
                 <Pressable accessibilityRole="button" accessibilityLabel="Done editing" onPress={stopEditing} hitSlop={6} style={({ pressed }) => [styles.tick, pressed && styles.pressed]}>
-                  <Ionicons name="checkmark" size={30} color={colors.accent} />
+                  <Ionicons name="checkmark" size={24} color={colors.accent} />
                 </Pressable>
               )}
             </View>
@@ -308,7 +325,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
       </View>
       {/* The open drop box's list, floating over everything */}
       {pickerList}
-    </Modal>
+    </View>
   );
 }
 
@@ -323,10 +340,10 @@ function IconButton({ label, icon, plus, danger, onPress }: {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
       <View>
-        <Ionicons name={icon} size={30} color={color} />
+        <Ionicons name={icon} size={24} color={color} />
         {plus && (
           <View style={[styles.badge, { backgroundColor: colors.accent, borderColor: colors.surface }]}>
-            <Ionicons name="add" size={13} color={colors.accentText} />
+            <Ionicons name="add" size={11} color={colors.accentText} />
           </View>
         )}
       </View>
@@ -348,6 +365,8 @@ function EditRow({ label, children }: { label: string; children: ReactNode }) {
 // The look: a dimmed backdrop, then either a pop-up in the middle (wide) or
 // a sheet along the bottom (phone), with rounded corners
 const styles = StyleSheet.create({
+  // Covers the page it's on (above everything on it, like the red + button)
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 100, elevation: 100 },
   fill: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFill },
   centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
@@ -355,16 +374,16 @@ const styles = StyleSheet.create({
   popup: { width: '100%', maxWidth: 660, maxHeight: '90%', borderWidth: 1, borderRadius: RADIUS * 2.2, padding: 24, gap: 14 },
   sheet: {
     width: '100%', maxHeight: '92%', borderTopWidth: 1,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 24, gap: 12,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 16, gap: 12,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerText: { flex: 1, minWidth: 0, gap: 4 },
-  name: { fontSize: 22, fontWeight: '700' },
+  name: { fontSize: 20, fontWeight: '700' },
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   subtitle: { fontSize: 13 },
   foilTag: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 1 },
   foilText: { fontSize: 12, fontWeight: '700' },
-  tick: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  tick: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   bodyWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 24, paddingBottom: 8 },
   bodyNarrow: { gap: 14, paddingBottom: 8 },
   pictureCenter: { alignItems: 'center' },
@@ -374,10 +393,10 @@ const styles = StyleSheet.create({
   details: { minWidth: 0, gap: 12 },
   detailsWide: { flex: 1 },
   owned: { fontSize: 15, lineHeight: 22 },
-  iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
-  iconButton: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', right: -9, bottom: -7, width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
+  iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
+  iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', right: -8, bottom: -6, width: 15, height: 15, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
   rowLabel: { fontSize: 15, fontWeight: '600' },
   dropBox: { minWidth: 200 },
   pickerNote: { fontSize: 14, padding: 14 },
@@ -386,7 +405,7 @@ const styles = StyleSheet.create({
   valueText: { fontSize: 16 },
   stepper: { flexDirection: 'row', alignItems: 'center' },
   step: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  stepNumber: { minWidth: 36, textAlign: 'center', fontSize: 22, fontWeight: '700' },
+  stepNumber: { minWidth: 32, textAlign: 'center', fontSize: 18, fontWeight: '700' },
   pressed: { opacity: 0.7 },
   dimmed: { opacity: 0.4 },
 });
