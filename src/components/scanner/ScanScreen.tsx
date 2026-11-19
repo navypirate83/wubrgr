@@ -142,7 +142,7 @@ export default function ScanScreen() {
     if (!catalogue) { say('Get the card catalogue first (Settings → Card catalogue).'); return; }
     const chosen = getScanOptions();
     const lookupStart = Date.now();
-    const outcome = await resolveReading(reading, { lockedSet: chosen.lockedSet?.code ?? null });
+    const outcome = await resolveReading(reading, { lockedSet: chosen.lockedSet?.code ?? null, aiArt: chosen.aiArt });
     // How long each step took (the extra clues, if they were needed, are counted as their own step), if the options say to show it
     const times = { ...reading.timings };
     times.lookup = Date.now() - lookupStart - (times.clues ?? 0);

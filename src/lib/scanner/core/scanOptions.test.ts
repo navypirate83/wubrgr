@@ -16,8 +16,8 @@ test('nothing saved gives the usual options, with no lock', () => {
 });
 
 test('good saved values are kept', () => {
-  const kept = cleanScanOptions({ lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false });
-  assert.deepEqual(kept, { lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false });
+  const kept = cleanScanOptions({ lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false, aiArt: true });
+  assert.deepEqual(kept, { lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false, aiArt: true });
 });
 
 test('a bad value falls back to the usual one without spoiling the others', () => {

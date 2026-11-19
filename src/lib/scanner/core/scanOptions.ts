@@ -15,6 +15,10 @@
    - startFinish: which finish a scanned card starts with, "nonfoil" or
      "foil" (a card that doesn't come in foil is still non-foil).
    - showTimings: show how long each scan took, after the scan.
+   - aiArt: "AI art matching" (website only for now): also compare the photo's
+     artwork with the saved artworks using an AI model, which needs extra files
+     downloaded once (see ai/). Off by default; with it off, or with the files
+     missing, the scanner works exactly as before.
    The options are saved on the device (see ../scanSettings.ts). Anything
    saved that isn't one of these values is ignored and the usual choice is
    used instead.
@@ -31,6 +35,7 @@ export type ScanOptions = {
   unsure: UnsureAction;
   startFinish: StartFinish;
   showTimings: boolean;
+  aiArt: boolean;
 };
 
 // What every option is until it's changed
@@ -39,6 +44,7 @@ export const DEFAULT_SCAN_OPTIONS: ScanOptions = {
   unsure: 'ask',
   startFinish: 'nonfoil',
   showTimings: true,
+  aiArt: false,
 };
 
 // Turn whatever was saved (anything at all, even junk) into a proper set of options,
@@ -52,5 +58,6 @@ export function cleanScanOptions(raw: unknown): ScanOptions {
     unsure: saved.unsure === 'guess' ? 'guess' : 'ask',
     startFinish: saved.startFinish === 'foil' ? 'foil' : 'nonfoil',
     showTimings: typeof saved.showTimings === 'boolean' ? saved.showTimings : DEFAULT_SCAN_OPTIONS.showTimings,
+    aiArt: typeof saved.aiArt === 'boolean' ? saved.aiArt : DEFAULT_SCAN_OPTIONS.aiArt,
   };
 }

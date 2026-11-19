@@ -11,6 +11,8 @@
       (copyright year, border colour, the set symbol compared only against the sets this card was
       printed in, and the artwork's fingerprint compared only against these printings, each printing
       judged with the crops for its own frame era; see core/rank.ts and core/clueMatch.ts).
+      With the optional "AI art matching" on (website only for now; see ai/), the artwork is also compared by
+      an AI model, which adds one more clue; if its files or model are missing it is skipped without a word.
       One clearly ahead: "likely". Otherwise "pick" (the person chooses, most likely first, with their
       photo's art beside the candidates). Never "sure": this path never adds a card by itself.
    If the name can't be read either, the answer is "none".
@@ -36,6 +38,7 @@ import { normalizeName } from './core/text';
 import type { Printing } from './core/catalogueTypes';
 import { eraOf, type ScanReading } from './core/scannerTypes';
 import { allFrontNames, artHashFor, findPrintings, printingsNamed, setCodes, setSymbol } from './catalogue/catalogue';
+import { aiScoresForReading } from './ai/aiRun';
 
 export type ScanOutcome = {
   status: 'sure' | 'likely' | 'pick' | 'none';
@@ -52,6 +55,7 @@ export type ScanOutcome = {
 // What can change how a reading is worked out
 export type ResolveOptions = {
   lockedSet?: string | null;      // the code of the set the scanner is locked to, if any
+  aiArt?: boolean;                // the "AI art matching" option: also compare the artwork with the AI (if its files are here)
 };
 
 // Printings with the same set and artwork look the same in a photo, so they share a "group"
@@ -69,7 +73,7 @@ async function symbolOf(code: string): Promise<Uint8Array | null> {
 }
 
 // The fallback, from the name. "nameSimilarity" is how well the title bar matched the name (0 to 1).
-async function fromName(reading: ScanReading, name: string, info: InfoLine, lang: string | null, nameSimilarity: number, lockedSet: string | null): Promise<ScanOutcome> {
+async function fromName(reading: ScanReading, name: string, info: InfoLine, lang: string | null, nameSimilarity: number, lockedSet: string | null, aiArt: boolean): Promise<ScanOutcome> {
   const everyPrinting = await printingsNamed(name);
   const base = { reading, info, lang, name };
   if (everyPrinting.length === 0) return { ...base, status: 'none', printing: null, candidates: [], reason: 'No printing of that card was found' };
@@ -111,11 +115,20 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
     candidates.push({ id: p.id, setCode: p.setCode, year: p.year, border: p.border, group: groupOf(p) });
   }
 
+  // The AI's view of the artwork, when the option is on and everything it needs is here. Any problem at all
+  // (files missing, the model won't run, no picture from the camera) just means no AI clue: the ranking below
+  // then works exactly as it did before the AI existed.
+  let aiScores: Map<string, number> | undefined;
+  if (aiArt) {
+    try { aiScores = (await aiScoresForReading(reading, printings)) ?? undefined; } catch { aiScores = undefined; }
+  }
+
   const ranked = rankCandidates(candidates, {
     years: parseCopyrightYears(reading.bottomText),
     border: reading.extras?.border ?? null,
     symbolScores,
     artDistances,
+    aiScores,
   });
   const byId = new Map(printings.map((p) => [p.id, p]));
   // Most likely first (then, with a lock, the card's printings in other sets)
@@ -130,13 +143,14 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
 // and a reading is kept in the stack list for a long time afterwards)
 export async function resolveReading(reading: ScanReading, options: ResolveOptions = {}): Promise<ScanOutcome> {
   try {
-    return await resolveInner(reading, options.lockedSet?.toLowerCase() || null);
+    return await resolveInner(reading, options.lockedSet?.toLowerCase() || null, !!options.aiArt);
   } finally {
     reading.moreClues = undefined;
+    reading.aiPictures = undefined;
   }
 }
 
-async function resolveInner(reading: ScanReading, lockedSet: string | null): Promise<ScanOutcome> {
+async function resolveInner(reading: ScanReading, lockedSet: string | null, aiArt: boolean): Promise<ScanOutcome> {
   const info = parseInfoLine(reading.infoText);
   // The name text may be several lines (the title band's scattered text): the line that matches a real card name best
   const names = await allFrontNames();
@@ -171,13 +185,13 @@ async function resolveInner(reading: ScanReading, lockedSet: string | null): Pro
     if (found.length >= 1 && nameAgrees !== false) return { ...base, status: 'likely', printing: found[0], candidates: found, reason: verdict.reason };
     // The name disagrees with the set and number (or nothing was found): trust the name and try the clues
     if (name) {
-      const fallback = await fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet);
+      const fallback = await fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet, aiArt);
       return fallback;
     }
     return { ...base, status: 'none', printing: null, candidates: found, reason: verdict.reason };
   }
 
   // 2. The fallback: the name, and the clues
-  if (name) return fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet);
+  if (name) return fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet, aiArt);
   return { reading, info, lang: info.lang, name: null, status: 'none', printing: null, candidates: [], reason: 'Neither the info line nor the name could be read' };
 }

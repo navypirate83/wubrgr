@@ -33,6 +33,8 @@ import { readCard, cardOcr } from '@/lib/scanner/ocr/ocr.web';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { blendQuads, findCard, quadCentre, quadShift } from '@/lib/scanner/core/cardFinder';
 import { longestSide, warpCard, type Point, type Quad } from '@/lib/scanner/core/perspective';
+import { aiCardPictures } from '@/lib/scanner/ai/aiPhoto.web';
+import { getScanOptions } from '@/lib/scanner/scanSettings';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
@@ -163,6 +165,9 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     try {
       const dark = brightness(source, card) < 45;
       const reading = await readCard(source, card, looksLikeName);
+      // With "AI art matching" on, also leave a way to make the flat card pictures the AI looks at. It does its
+      // slow work only if the scan turns out to need it, and the photo is let go with the reading afterwards.
+      if (getScanOptions().aiArt) reading.aiPictures = () => aiCardPictures(source, card);
       if (dark) setHint('It is dark. Light the card better (or use the torch) and scan again.');
       onReading(reading);
     } catch (err) {

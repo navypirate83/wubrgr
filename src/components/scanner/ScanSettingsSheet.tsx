@@ -10,6 +10,9 @@
      printing and carries on; you can still change a card in the list.
    - START CARDS AS: non-foil or foil, so a pile of foils isn't fixed one by one.
    - SHOW SCAN TIMES: the "Read in 1.2 s" line after each scan.
+   - AI ART MATCHING (website only for now): an optional extra way of telling printings apart by their
+     artwork, using an AI model. It needs some files downloaded once; the sheet says whether they are here
+     and has the Download button. With it off, or the files missing, nothing changes.
    Each change is saved straight away, on this device (see lib/scanner/scanSettings.ts).
    ===================================================================== */
 
@@ -23,6 +26,10 @@ import { useColors } from '@/hooks/useTheme';
 import { allSets } from '@/lib/scanner/catalogue/catalogue';
 import type { SetInfo } from '@/lib/scanner/core/catalogueTypes';
 import type { ScanOptions } from '@/lib/scanner/core/scanOptions';
+import Button from '@/components/Button';
+import { aiModel } from '@/lib/scanner/ai/aiModel';
+import { aiReady, downloadAiFiles } from '@/lib/scanner/ai/aiFiles';
+import { forgetAiIndex } from '@/lib/scanner/ai/aiRun';
 import { RADIUS } from '@/theme/colors';
 
 type Props = {
@@ -70,6 +77,45 @@ function SetRow({ set, bold }: { set: Pick<SetInfo, 'code' | 'name' | 'icon'>; b
       <Text style={[styles.setCode, { color: colors.text }]}>{set.code.toUpperCase()}</Text>
       <Text style={[styles.setName, { color: colors.text }, bold && styles.bold]} numberOfLines={1}>{set.name}</Text>
     </>
+  );
+}
+
+// The line under the AI switch: whether the AI files are on this device, and a Download button if not.
+// (The files are big, about 42 MB, so they are only downloaded when you tap the button.)
+function AiFilesStatus() {
+  const colors = useColors();
+  // undefined: still looking; true: the files are here; false: they are not
+  const [ready, setReady] = useState<boolean | undefined>(undefined);
+  // How far the download is (0 to 1), while one is going
+  const [progress, setProgress] = useState<number | null>(null);
+  const [problem, setProblem] = useState('');
+  useEffect(() => { aiReady().then(setReady).catch(() => setReady(false)); }, []);
+
+  // Download the files, showing the progress, and say so if it fails
+  async function download() {
+    setProblem('');
+    setProgress(0);
+    try {
+      await downloadAiFiles(setProgress);
+      forgetAiIndex();
+      setReady(await aiReady());
+    } catch (err) {
+      setProblem((err as Error).message);
+    } finally {
+      setProgress(null);
+    }
+  }
+
+  const status = ready === undefined ? 'Checking the AI files…'
+    : ready ? 'AI files: ready'
+    : progress !== null ? `Downloading the AI files… ${Math.round(progress * 100)}%`
+    : 'AI files not downloaded';
+  return (
+    <View style={styles.aiStatus}>
+      <Text style={[styles.aiStatusText, { color: colors.text }]}>{status}</Text>
+      {problem !== '' && <Text style={[styles.aiStatusText, { color: colors.muted }]}>{problem}</Text>}
+      {ready === false && <Button label="Download AI files" kind="secondary" icon="download-outline" onPress={download} disabled={progress !== null} />}
+    </View>
   );
 }
 
@@ -121,6 +167,18 @@ export default function ScanSettingsSheet({ options, onChange, onClose }: Props)
         </SettingBlock>
 
         <SwitchRow name="Show how long each scan took" value={options.showTimings} onChange={(showTimings) => onChange({ showTimings })} />
+
+        {/* AI art matching: only where this build can run the AI model (the website for now) */}
+        {aiModel.available && (
+          <>
+            <SwitchRow
+              name="AI art matching (experimental)"
+              description="Also compares the card's artwork using an AI model, to tell printings of the same card apart. Needs a one-time download."
+              value={options.aiArt} onChange={(aiArt) => onChange({ aiArt })}
+            />
+            <AiFilesStatus />
+          </>
+        )}
       </ScrollView>
 
       {/* The list of sets, drawn only while it's open: "Off" at the top, then every set, newest first */}
@@ -164,5 +222,7 @@ const styles = StyleSheet.create({
   setCode: { flexShrink: 0, fontSize: 15, fontWeight: '600', fontFamily: 'monospace', marginHorizontal: 8 },
   setName: { flex: 1, minWidth: 0, fontSize: 15 },
   bold: { fontWeight: '700' },
+  aiStatus: { paddingHorizontal: 16, paddingBottom: 8, gap: 8, alignItems: 'flex-start' },
+  aiStatusText: { fontSize: 14, lineHeight: 20 },
   offRow: { minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' },
 });

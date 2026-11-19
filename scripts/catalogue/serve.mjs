@@ -8,6 +8,10 @@
    "localhost"). Websites may only fetch from another address if it allows it,
    so this sends the "allow anyone" header: fine for trying things, and the
    reason this isn't how the real catalogue would be shared.
+   It also shares the AI files for the scanner's "AI art matching" option: anything
+   asked for under /ai/ (like /ai/model.onnx) comes from the ./out-ai folder that
+   build-ai-files.mjs makes, so the app can download them from
+   http://localhost:4200/ai/ too.
    Run it with:  node serve.mjs [folder]     (the folder defaults to ./out)
    ===================================================================== */
 
@@ -18,15 +22,21 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(process.argv[2] ?? join(here, 'out'));
+// The AI files folder (see build-ai-files.mjs), shared under /ai/
+const aiRoot = resolve(join(here, 'out-ai'));
 const PORT = 4200;
 
-const types = { '.json': 'application/json', '.gz': 'application/octet-stream', '.db': 'application/octet-stream' };
+// What kind of file each ending is (anything else is sent as plain bytes)
+const types = { '.json': 'application/json', '.gz': 'application/octet-stream', '.db': 'application/octet-stream', '.txt': 'text/plain', '.onnx': 'application/octet-stream', '.bin': 'application/octet-stream' };
 
 createServer((request, response) => {
   const name = normalize(decodeURIComponent((request.url ?? '/').split('?')[0])).replace(/^([/\\])+/, '');
-  const file = join(root, name);
+  // Anything under ai/ comes from the AI folder, everything else from the catalogue folder
+  const inAi = /^ai[/\\]/.test(name);
+  const base = inAi ? aiRoot : root;
+  const file = join(base, inAi ? name.slice(3) : name);
   response.setHeader('Access-Control-Allow-Origin', '*');
-  if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) {
+  if (!file.startsWith(base) || !existsSync(file) || !statSync(file).isFile()) {
     response.statusCode = 404;
     response.end('Not found');
     return;

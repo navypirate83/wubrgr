@@ -578,7 +578,11 @@ export const helpTopics: HelpTopic[] = [
               printings from it, which is quicker and surer; the gear turns orange and shows the set's code, and a card that has no printing in that set is
               still found but is never added without you checking it), <Strong>When it isn't sure</Strong> (<Strong>Ask me</Strong> shows the printing
               choices, <Strong>Best guess</Strong> takes the most likely printing and carries on, and you can still change a card in the list),
-              <Strong>Start cards as</Strong> (non-foil or foil) and <Strong>Show how long each scan took</Strong>. Once the catalogue is on the device, and you've opened the
+              <Strong>Start cards as</Strong> (non-foil or foil), <Strong>Show how long each scan took</Strong> and, on the website only for now,
+              <Strong>AI art matching (experimental)</Strong>: an extra way of telling printings of the same card apart by comparing their artwork
+              with an AI model. It is off until you turn it on, and needs a one-time download of about 42 MB (the line under the switch says
+              <Strong>AI files not downloaded</Strong> and has a <Strong>Download AI files</Strong> button, then <Strong>AI files: ready</Strong>);
+              without the files it does nothing and the scanner works as usual. Once the catalogue is on the device, and you've opened the
               scanner once with a connection, it works with no internet.
             </Bullet>
             <Bullet>

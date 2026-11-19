@@ -12,7 +12,7 @@
    - The app's scripts and pictures (their names change with every version, so a
      saved one is never out of date): saved the first time they're used, then used from
      the saved copy.
-   - The scanner's text reader and database library (public/tesseract and public/sqljs;
+   - The scanner's text reader, database library and AI runtime (public/tesseract, public/sqljs and public/onnx;
      large, and they change only when someone replaces them): saved the first time
      they're used, then used from the saved copy.
    - Everything else on this site (icons, the manifest): the saved copy is used and
@@ -96,7 +96,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(pageOrSaved(request));
-  } else if (path.startsWith('tesseract/') || path.startsWith('sqljs/')) {
+  } else if (path.startsWith('tesseract/') || path.startsWith('sqljs/') || path.startsWith('onnx/')) {
     event.respondWith(savedFirst(request, BIG_FILES));
   } else if (path.startsWith('_expo/static/') || path.startsWith('assets/')) {
     event.respondWith(savedFirst(request, SHELL));

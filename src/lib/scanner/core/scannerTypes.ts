@@ -31,6 +31,11 @@ export type ScanReading = {
   // up front: most cards are told apart by the info line alone. This reads them if the fallback turns out to need
   // them (see readPlan.ts). It is dropped once the reading has been worked out, so the photo can be let go.
   moreClues?: () => Promise<{ bottomText: string; extras: ScanExtras }>;
+  // Only the website's camera sets this, and only while the "AI art matching" option is on: when called, it finds the
+  // card in the photo with the outline finder and gives back flat, upright pictures of it (the best guesses at where
+  // the card is: red, green, blue, alpha for every pixel) for the AI to look at. It does the slow work only when called,
+  // and is dropped with the photo once the reading has been worked out, like moreClues.
+  aiPictures?: () => Promise<{ data: ArrayLike<number>; width: number; height: number }[]>;
   // How long each step took, in milliseconds (the camera adds "photo", the reader adds "text" and so on).
   // Shown briefly after a scan so it's easy to see what is slow.
   timings?: Record<string, number>;
