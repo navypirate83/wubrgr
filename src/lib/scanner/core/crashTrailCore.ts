@@ -57,6 +57,21 @@ export function wasInterrupted(list: Crumb[]): boolean {
   return list.length > 0 && list[list.length - 1].s !== CLEAN_EXIT;
 }
 
+// The steps written after the last "clean exit" (everything, if there was none): what the app was doing when it stopped
+export function stepsSinceCleanExit(list: Crumb[]): Crumb[] {
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].s === CLEAN_EXIT) return list.slice(i + 1);
+  return list;
+}
+
+// The steps that mean "the camera's code is being loaded or the camera is being started"
+export const CAMERA_STEPS: readonly string[] = ['camera code loading', 'camera code loaded', 'camera starting'];
+
+// Did the last run stop (no clean exit) while the camera was loading, starting or running? Then the Scan screen
+// starts with the camera OFF ("safe mode") and a button to start it, so the screen stays usable if the camera is the problem.
+export function cameraWasActive(list: Crumb[]): boolean {
+  return wasInterrupted(list) && stepsSinceCleanExit(list).some((line) => CAMERA_STEPS.includes(line.s));
+}
+
 // The last few steps (oldest first)
 export function lastSteps(list: Crumb[], count: number): Crumb[] {
   return count <= 0 ? [] : list.slice(-count);
@@ -75,5 +90,15 @@ export function reportText(list: Crumb[]): string {
     const when = Number.isFinite(line.t) ? new Date(line.t).toISOString().replace('T', ' ').slice(0, 19) : '?';
     return `${when} UTC  ${line.s}`;
   });
-  return ["WUBRG'r scanner did not close properly. Steps reached (oldest first):", ...lines].join('\n');
+  return ["WUBRG'r did not close properly. Steps reached (oldest first):", ...lines].join('\n');
+}
+
+// The sign-in diary (why the app thought you were signed in or out) as plain text to add under a report
+export function sessionReportText(list: Crumb[]): string {
+  if (!list.length) return '';
+  const lines = list.map((line) => {
+    const when = Number.isFinite(line.t) ? new Date(line.t).toISOString().replace('T', ' ').slice(0, 19) : '?';
+    return `${when} UTC  ${line.s}`;
+  });
+  return ['Sign-in steps (oldest first):', ...lines].join('\n');
 }

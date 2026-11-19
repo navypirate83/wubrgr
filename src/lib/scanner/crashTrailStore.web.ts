@@ -19,6 +19,14 @@ export const trailStore: TrailStore = {
       return null;
     }
   },
+  // The same read, answered on the spot (local storage never makes anyone wait)
+  getSync(name) {
+    try {
+      return typeof localStorage === 'undefined' ? null : localStorage.getItem(keyFor(name));
+    } catch {
+      return null;
+    }
+  },
   // Write the entry at once
   set(name, text) {
     try {

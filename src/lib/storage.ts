@@ -20,6 +20,7 @@
    ===================================================================== */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { markSession } from './scanner/crashTrail';
 
 // What goes in front of every saved name
 const PREFIX = 'wubrgrexpo:';
@@ -31,17 +32,37 @@ const values = new Map<string, string>();
 // Then storageSet says so, so the page can warn.
 let lastWriteFailed = false;
 
+// Did reading the saved values at start-up fail (even after trying again)? Then the app runs with nothing loaded, and
+// to be safe nothing is written to AsyncStorage this time, so the real saved values can't be overwritten by empty ones.
+let loadFailed = false;
+export function storageLoadFailed(): boolean {
+  return loadFailed;
+}
+
+// Read every saved value once. Throws if AsyncStorage can't be read.
+async function readAll(): Promise<void> {
+  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
+  const pairs = await AsyncStorage.multiGet(keys);
+  for (const [key, value] of pairs) {
+    if (value !== null) values.set(key.slice(PREFIX.length), value);
+  }
+}
+
 // Read every saved value into memory. Called once, when the app starts.
-// If AsyncStorage can't be read at all, the app starts with nothing saved.
+// If AsyncStorage can't be read it is tried once more a moment later. If it still can't be read, that is written in the
+// crash diary and the app starts with nothing loaded, but writing is switched off for this run (see loadFailed above).
 export async function loadStorage(): Promise<void> {
   try {
-    const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
-    const pairs = await AsyncStorage.multiGet(keys);
-    for (const [key, value] of pairs) {
-      if (value !== null) values.set(key.slice(PREFIX.length), value);
-    }
+    await readAll();
   } catch {
-    /* storage unreadable: start empty */
+    markSession('saved values unreadable, trying again');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      await readAll();
+    } catch {
+      loadFailed = true;
+      markSession('saved values unreadable: nothing loaded, saving switched off this run');
+    }
   }
 }
 
@@ -54,6 +75,7 @@ export function storageGet(key: string): string | null {
 // false if the last background save failed, so the page can warn.
 export function storageSet(key: string, value: string): boolean {
   values.set(key, value);
+  if (loadFailed) return false;
   AsyncStorage.setItem(PREFIX + key, value).then(
     () => { lastWriteFailed = false; },
     () => { lastWriteFailed = true; },
@@ -61,9 +83,25 @@ export function storageSet(key: string, value: string): boolean {
   return !lastWriteFailed;
 }
 
+// Save a value and WAIT until AsyncStorage has really written it (for the few values that must survive an app
+// crash a moment later, like who is signed in). Gives false if it could not be written.
+export async function storageSetNow(key: string, value: string): Promise<boolean> {
+  values.set(key, value);
+  if (loadFailed) return false;
+  try {
+    await AsyncStorage.setItem(PREFIX + key, value);
+    lastWriteFailed = false;
+    return true;
+  } catch {
+    lastWriteFailed = true;
+    return false;
+  }
+}
+
 // Forget a saved value.
 export function storageRemove(key: string): void {
   values.delete(key);
+  if (loadFailed) return;
   AsyncStorage.removeItem(PREFIX + key).catch(() => { /* already gone */ });
 }
 

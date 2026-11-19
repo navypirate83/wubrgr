@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useColors } from '@/hooks/useTheme';
+import { sessionText } from '@/lib/scanner/crashTrail';
 import { reportText, stepsInWords, type Crumb } from '@/lib/scanner/core/crashTrailCore';
 
 export default function CrashTrailNotice({ report, onDismiss }: { report: Crumb[]; onDismiss: () => void }) {
@@ -22,7 +23,8 @@ export default function CrashTrailNotice({ report, onDismiss }: { report: Crumb[
   // Put the whole diary on the clipboard. If the phone refuses, the button just stays as it was.
   async function copy() {
     try {
-      await Clipboard.setStringAsync(reportText(report));
+      // (the sign-in diary goes under the steps, so a signed-out mystery can be traced too)
+      await Clipboard.setStringAsync([reportText(report), sessionText()].filter(Boolean).join('\n\n'));
       setCopied(true);
     } catch {
       /* nothing more can be done */
@@ -31,7 +33,7 @@ export default function CrashTrailNotice({ report, onDismiss }: { report: Crumb[
 
   return (
     <View style={[styles.box, { backgroundColor: colors.surface, borderColor: colors.border }]} accessibilityRole="alert">
-      <Text style={[styles.title, { color: colors.text }]}>The scanner did not close properly last time</Text>
+      <Text style={[styles.title, { color: colors.text }]}>The app did not close properly last time</Text>
       <Text style={[styles.steps, { color: colors.muted }]}>Last steps it reached: {stepsInWords(report, 4)}.</Text>
       <View style={styles.buttons}>
         <Pressable

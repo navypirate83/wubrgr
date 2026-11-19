@@ -36,6 +36,7 @@ import HelpButton from '@/components/HelpButton';
 import SyncChoiceHost from '@/components/SyncChoiceHost';
 import MergeChoiceHost from '@/components/MergeChoiceHost';
 import DialogHost from '@/components/DialogHost';
+import CrashReportHost from '@/components/CrashReportHost';
 
 // Keep the splash screen showing until we say it can go (below)
 SplashScreen.preventAutoHideAsync().catch(() => { /* already hidden */ });
@@ -179,6 +180,8 @@ function ThemedStack() {
       {/* The app's own message and yes/no window: invisible until some code
           calls showMessage or askYesNo (see lib/dialogs.ts) */}
       <DialogHost />
+      {/* After a crash, asks (once) whether to copy the details; draws nothing otherwise (Android only) */}
+      <CrashReportHost />
     </ThemeProvider>
   );
 }

@@ -22,6 +22,15 @@ export const trailStore: TrailStore = {
       return null;
     }
   },
+  // Read the file's text right now, or null (the file API has a version that doesn't make the caller wait)
+  getSync(name) {
+    try {
+      const file = fileFor(name);
+      return file.exists ? file.textSync() : null;
+    } catch {
+      return null;
+    }
+  },
   // Write the text at once (making the file first if it isn't there yet)
   set(name, text) {
     try {

@@ -11,6 +11,8 @@
 export type TrailStore = {
   // The text kept under this name (null if nothing, or it can't be read)
   get(name: string): Promise<string | null>;
+  // The same as get, but answers on the spot (no waiting). Only some stores can; used at the very start of the app.
+  getSync?(name: string): string | null;
   // Keep this text under this name, right away (the app may close a moment later). Never throws.
   set(name: string, text: string): void;
   // Forget what is kept under this name. Never throws.

@@ -18,10 +18,12 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { ApiError, apiRequest, refreshOnce, setAccessToken, setAuthHandlers } from './api';
 import { accountChanged } from './accountEvents';
-import { storageGet, storageRemove, storageSet } from './storage';
+import { storageGet, storageRemove, storageSet, storageSetNow } from './storage';
+import { isLoginOver, normalizeUser, parseSavedUser, restorePlan, type ServerUser } from './sessionCore';
+import { markSession } from './scanner/crashTrail';
 
-// Who is signed in (what the server tells us about the account)
-export type ServerUser = { id: string; username: string; email: string; name: string; roles: string[] };
+// Who is signed in (what the server tells us about the account; defined in sessionCore.ts)
+export type { ServerUser };
 
 // What the server sends back after any sign-in
 type SessionReply = { accessToken: string; refreshToken: string; user: ServerUser };
@@ -36,10 +38,11 @@ let refreshToken: string | null = null;
 
 /* ---------- keeping the refresh token safely ---------- */
 
-// Save it (phone: secure vault; website: saved values)
+// Save it (phone: secure vault; website: saved values) and WAIT until it is really written. This is the very first
+// thing done with a new sign-in reply, so if the app closes a moment later the newest code is already kept.
 async function saveRefreshToken(token: string): Promise<void> {
   refreshToken = token;
-  if (Platform.OS === 'web') storageSet(REFRESH_KEY, token);
+  if (Platform.OS === 'web') await storageSetNow(REFRESH_KEY, token);
   else await SecureStore.setItemAsync(REFRESH_KEY, token);
 }
 
@@ -52,17 +55,18 @@ async function forgetRefreshToken(): Promise<void> {
 
 // Read it back when the app starts. The phone's secure vault can fail to answer the first time (right after
 // the phone starts up, say), and that would look exactly like being signed out even though the token is
-// still saved, so if it fails it is asked again a couple of times before giving up.
-async function readRefreshToken(): Promise<string | null> {
-  if (Platform.OS === 'web') return storageGet(REFRESH_KEY);
+// still saved, so if it fails it is asked again a couple of times before giving up. The answer says
+// whether the vault FAILED (so "no token" can be told apart from "could not look"): a failure must never sign anyone out.
+async function readRefreshToken(): Promise<{ token: string | null; failed: boolean }> {
+  if (Platform.OS === 'web') return { token: storageGet(REFRESH_KEY), failed: false };
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await SecureStore.getItemAsync(REFRESH_KEY);
+      return { token: await SecureStore.getItemAsync(REFRESH_KEY), failed: false };
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
   }
-  return null;
+  return { token: null, failed: true };
 }
 
 /* ---------- what screens can ask ---------- */
@@ -103,9 +107,11 @@ async function startSession(reply: SessionReply): Promise<ServerUser> {
   setAccessToken(reply.accessToken);
   await saveRefreshToken(reply.refreshToken);
   // Make sure the rights are a list of text (anything else counts as no rights)
-  const roles = Array.isArray(reply.user.roles) ? reply.user.roles.filter((r) => typeof r === 'string') : [];
-  user = { ...reply.user, roles };
-  storageSet(USER_KEY, JSON.stringify(user));
+  user = normalizeUser(reply.user);
+  // Who is signed in is written and WAITED for (not left to finish in the background), so an app that closes right after
+  // signing in still knows who it is next time. If it can't be written, the app still carries on: the next start
+  // asks the server who it is (see loadSession).
+  await storageSetNow(USER_KEY, JSON.stringify(user)).catch(() => false);
   accountChanged();
   return user;
 }
@@ -178,15 +184,31 @@ export async function deleteAccount(password: string): Promise<void> {
 // return false. If the server just can't be reached, the error is passed
 // on and you stay signed in (offline use must keep working).
 async function refreshSession(): Promise<boolean> {
-  if (!refreshToken) return false;
+  if (!refreshToken) {
+    // Not in memory: ask the vault again (it may have failed to answer at start-up)
+    const again = await readRefreshToken();
+    refreshToken = again.token;
+    if (!refreshToken) {
+      if (again.failed) {
+        markSession('refresh: secure vault unreadable, staying signed in');
+        throw new Error('The saved login could not be read just now. Try again in a moment.');
+      }
+      markSession('refresh: no refresh token saved');
+      return false;
+    }
+  }
   try {
     await startSession(await apiRequest<SessionReply>('/auth/refresh', { method: 'POST', body: { refreshToken }, auth: false }));
     return true;
   } catch (err) {
-    if (err instanceof ApiError && err.status === 401) {
+    // Only the server saying "that login is finished" signs you out. Anything else (no signal, a slow or sleeping
+    // server, a server error) is passed on, and you stay signed in.
+    if (err instanceof ApiError && isLoginOver(err.status)) {
+      markSession('refresh rejected 401: signed out');
       await endSession();
       return false;
     }
+    markSession(`refresh failed, staying signed in (${(err as Error).message ?? 'no reply'})`.slice(0, 80));
     throw err;
   }
 }
@@ -194,24 +216,60 @@ async function refreshSession(): Promise<boolean> {
 // Run once when the app starts: pick up a saved login and renew it in
 // the background. It doesn't wait for the internet: the app opens
 // straight away as "signed in" if a login was saved.
+// Every outcome is written in the diary (markSession) so it can be seen later why the app thought you were signed
+// in or out. A missing saved account (the app closed before it was written) or an unreadable vault or saved-values
+// store no longer counts as signed out: see restorePlan in sessionCore.ts.
 export async function loadSession(): Promise<void> {
   // Let api.ts renew expired access tokens through us, and sign us out
   // here when the server says the login is over
   setAuthHandlers({ refresh: refreshSession, signedOut: () => { void endSession(); } });
 
-  refreshToken = await readRefreshToken();
-  const saved = storageGet(USER_KEY);
-  if (!refreshToken || !saved) return;
+  const read = await readRefreshToken();
+  refreshToken = read.token;
   // An account saved by an older version has no list of rights: it counts as having none, and the
   // refresh just below fetches the real list from the server
-  try {
-    const parsed = JSON.parse(saved) as ServerUser;
-    user = { ...parsed, roles: Array.isArray(parsed.roles) ? parsed.roles : [] };
-  } catch { return; }
-  accountChanged();
-  // Get a fresh access token now; if there's no internet it waits until
-  // the first request needs one
-  // (Through refreshOnce, so it shares a refresh already running instead
-  // of starting a second one with the same refresh token)
-  refreshOnce().catch(() => { /* offline: stay signed in */ });
+  const saved = parseSavedUser(storageGet(USER_KEY));
+  const plan = restorePlan({ hasToken: !!refreshToken, vaultFailed: read.failed, hasSavedUser: !!saved });
+
+  if (plan === 'signed-out') {
+    markSession('session restore: no refresh token (signed out)');
+    return;
+  }
+  if (plan === 'keep-waiting') {
+    markSession('session restore: secure vault unreadable, keeping the saved account');
+    if (saved) { user = saved; accountChanged(); }
+    return;
+  }
+  if (plan === 'use-saved' && saved) {
+    markSession('session restore: restored');
+    user = saved;
+    accountChanged();
+    // Get a fresh access token now; if there's no internet it waits until
+    // the first request needs one
+    // (Through refreshOnce, so it shares a refresh already running instead
+    // of starting a second one with the same refresh token)
+    refreshOnce().catch(() => { /* offline: stay signed in */ });
+    return;
+  }
+  // The login code is there but who you are was not saved (or can't be read): ask the server, in the background
+  // (the app must not wait for the internet), and try again a few times if there is no signal.
+  markSession('session restore: no saved user, asking the server');
+  void rebuildUserFromServer();
+}
+
+// Ask the server who is signed in by renewing the login (the reply carries the account). Without a reply it tries
+// again after 5, 20 and 60 seconds. A "login is over" answer signs out (refreshSession does that); nothing else does.
+async function rebuildUserFromServer(): Promise<void> {
+  for (const wait of [0, 5000, 20000, 60000]) {
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+    if (user) return;
+    try {
+      const ok = await refreshOnce();
+      markSession(ok ? 'session restore: account rebuilt from the server' : 'session restore: server said sign in again');
+      return;
+    } catch {
+      /* no reply: try again after the next wait */
+    }
+  }
+  markSession('session restore: server not reached, will retry when a request needs it');
 }

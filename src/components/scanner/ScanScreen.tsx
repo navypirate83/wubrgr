@@ -26,6 +26,8 @@
    never jumps ahead of an earlier, slower one, and none is lost or added twice.
    WARM-UP: as soon as this screen opens, the text reader, the card-name and set lists and (if the AI option is
    on) the AI are got ready in the background (scanWarmUp.ts), so the first scan is no slower than the rest.
+   CAMERA SAFE MODE: the camera code is only loaded when the camera is switched on (see ScannerCamera.native.tsx). If the app closed
+   by itself while the camera was starting last time, the camera stays off with a "Start camera" button.
    CRASH TRAIL: the screen keeps a small diary of the steps it reaches (lib/scanner/crashTrail.ts); if the app closed by
    itself last time, a message at the top shows the last steps with a "Copy details" button (CrashTrailNotice.tsx).
    ===================================================================== */

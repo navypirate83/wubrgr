@@ -5,7 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CLEAN_EXIT, MAX_CRUMBS, addCrumb, decodeTrail, encodeTrail, lastSteps, reportText, stepsInWords, wasInterrupted, type Crumb } from './crashTrailCore.ts';
+import { CLEAN_EXIT, MAX_CRUMBS, addCrumb, decodeTrail, encodeTrail, lastSteps, reportText, cameraWasActive, stepsSinceCleanExit, sessionReportText, stepsInWords, wasInterrupted, type Crumb } from './crashTrailCore.ts';
 
 test('adding a step puts it at the end and leaves the old list alone', () => {
   const before: Crumb[] = [{ t: 1, s: 'a' }];
@@ -60,4 +60,19 @@ test('the copied report has one line per step with a date', () => {
   const lines = text.split('\n');
   assert.equal(lines.length, 2);
   assert.equal(lines[1], '2026-11-19 12:30:05 UTC  photo taken');
+});
+
+test('the camera counts as active only when the last run stopped without a clean exit after a camera step', () => {
+  const c = (...steps: string[]): Crumb[] => steps.map((s, i) => ({ t: i, s }));
+  assert.equal(cameraWasActive(c('scan screen opened', 'camera code loading')), true);
+  assert.equal(cameraWasActive(c('camera starting', CLEAN_EXIT)), false);
+  assert.equal(cameraWasActive(c('camera starting', CLEAN_EXIT, 'scan screen opened')), false);
+  assert.equal(cameraWasActive(c('scan screen opened')), false);
+  assert.equal(cameraWasActive([]), false);
+  assert.deepEqual(stepsSinceCleanExit(c('a', CLEAN_EXIT, 'b')).map((x) => x.s), ['b']);
+});
+
+test('the sign-in diary text is empty for no steps and lists the steps otherwise', () => {
+  assert.equal(sessionReportText([]), '');
+  assert.match(sessionReportText([{ t: 0, s: 'restored' }]), /Sign-in steps[\s\S]*restored/);
 });

@@ -10,6 +10,8 @@
    camera also has Auto scan (it looks for a card by itself) for hands-free stacks.
    ===================================================================== */
 
+// This import MUST stay first: it writes "scan route loading" in the crash diary before anything heavy is loaded
+import '@/lib/scanner/scanRouteStart';
 import ScanScreen from '@/components/scanner/ScanScreen';
 
 export default function ScanTab() {

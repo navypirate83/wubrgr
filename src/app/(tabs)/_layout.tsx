@@ -27,6 +27,7 @@ import SideMenu from '@/components/SideMenu';
 import { useMenuStyle } from '@/hooks/useMenuStyle';
 import { useColors } from '@/hooks/useTheme';
 import { shelfHref, shelfRootHref } from '@/lib/shelfMemory';
+import { mark } from '@/lib/scanner/crashTrail';
 
 // One tab's icon: an outline normally, filled in when it's the tab you're on
 function tabIcon(name: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) {
@@ -107,6 +108,9 @@ export default function TabsLayout() {
           title: 'Scan',
           tabBarIcon: tabIcon('camera-outline', 'camera'),
         }}
+        // Write "scan tab pressed" in the crash diary the moment the tab is tapped, before the Scan screen
+        // starts loading (so a crash while it loads leaves a trace)
+        listeners={{ tabPress: () => mark('scan tab pressed') }}
       />
       {/* Settings */}
       <Tabs.Screen

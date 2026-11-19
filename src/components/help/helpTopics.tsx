@@ -586,6 +586,7 @@ export const helpTopics: HelpTopic[] = [
               <Strong>AI files not downloaded</Strong> and has a <Strong>Download AI files</Strong> button, then <Strong>AI files: ready</Strong>);
               without the files it does nothing and the scanner works as usual. Once the catalogue is on the device, and you've opened the
               scanner once with a connection, it works with no internet.
+              If the app closed by itself while the camera was starting, the Scan screen opens next time with the camera switched off and a <Strong>Start camera</Strong> button (the picture button still works, so you can scan from a photo). A message offers to copy the last steps to send to the developer; in the phone app, Settings, About also shows a <Strong>Last crash report</Strong> row with the same details when the phone recorded one.
             </Bullet>
             <Bullet>
               <Strong>Settings</Strong> (the gear): the theme (light or dark) and more

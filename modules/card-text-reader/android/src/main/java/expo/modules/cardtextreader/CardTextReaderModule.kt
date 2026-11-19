@@ -214,6 +214,30 @@ class CardTextReaderModule : Module() {
     // The name the app's JavaScript uses to find this add-on
     Name("CardTextReader")
 
+    // Runs when the app starts (Expo calls every add-on's OnCreate as the app's JavaScript engine is set up, not on first use):
+    // puts the crash watcher on (see CrashReport.kt). It can never stop the app starting: any failure is ignored.
+    OnCreate {
+      try { CrashReport.install(appContext.persistentFilesDirectory) } catch (ignored: Throwable) { /* no watcher then */ }
+    }
+
+    // The text of the last crash report ("" if there is none; the first line is "id=<number>"). NEW: older builds don't have it,
+    // so the app's JavaScript only calls it if it exists.
+    AsyncFunction("lastCrashReport") { promise: Promise ->
+      Thread {
+        try {
+          promise.resolve(CrashReport.report(appContext.reactContext, appContext.persistentFilesDirectory))
+        } catch (error: Throwable) {
+          promise.resolve("")
+        }
+      }.start()
+    }
+
+    // Forget the saved crash file (Android's own record of earlier runs can't be erased; the app remembers what it has shown)
+    AsyncFunction("clearCrashReport") { promise: Promise ->
+      try { CrashReport.clear(appContext.persistentFilesDirectory) } catch (ignored: Throwable) { /* nothing to clear */ }
+      promise.resolve(null)
+    }
+
     // How big the photo is once it's upright: [width, height]. Only the file's header is read.
     AsyncFunction("photoSize") { path: String, promise: Promise ->
       worker.execute {

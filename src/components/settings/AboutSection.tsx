@@ -12,13 +12,16 @@
    Links open in the phone's web browser (or a new browser tab).
    ===================================================================== */
 
-import { createElement } from 'react';
+import { createElement, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
+import * as Clipboard from 'expo-clipboard';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColors } from '@/hooks/useTheme';
 import { SPACE } from '@/theme/colors';
 import { SITE_NAME, SITE_URL } from '@/lib/site';
+import { clearCrashReport, clearedId, readCrashReport, type CrashReportInfo } from '@/lib/crashReport';
+import { shouldList } from '@/lib/crashReportCore';
 import { SettingRow, SettingsSection } from './SettingsParts';
 
 // The web addresses linked to
@@ -101,10 +104,51 @@ function ServerStatusRow() {
   );
 }
 
+/* ----- The last crash report (Android only, and only when there is one) ----- */
+
+// (Its parent decides whether to show it at all.) Shown when the phone's record says the app closed by itself and the report has not been cleared. "Copy" puts the
+// details on the clipboard to send to the developer; "Clear" removes the row. (The same details are offered in a
+// pop-up the first time; this row keeps them available.)
+function CrashReportRow({ report, onGone }: { report: CrashReportInfo; onGone: () => void }) {
+  const colors = useColors();
+  // Whether the details were just copied (the button says so)
+  const [copied, setCopied] = useState(false);
+  return (
+    <SettingRow name="Last crash report" description="The app closed unexpectedly. Copy the details to send to the developer.">
+      <View style={styles.crashButtons}>
+        <Pressable
+          accessibilityRole="button" accessibilityLabel="Copy the crash details"
+          onPress={() => { Clipboard.setStringAsync(report.text).then(() => setCopied(true)).catch(() => { /* the button stays as it was */ }); }}
+          style={[styles.crashButton, { backgroundColor: colors.accent }]}
+        >
+          <Text style={[styles.crashButtonText, { color: colors.accentText }]}>{copied ? 'Copied' : 'Copy'}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button" accessibilityLabel="Clear the crash report"
+          onPress={() => { clearCrashReport(report.id).finally(onGone); }}
+          style={[styles.crashButton, { borderColor: colors.border, borderWidth: 1 }]}
+        >
+          <Text style={[styles.crashButtonText, { color: colors.text }]}>Clear</Text>
+        </Pressable>
+      </View>
+    </SettingRow>
+  );
+}
+
 /* ----- The section ----- */
 
 export default function AboutSection() {
   const colors = useColors();
+  // The last crash report, if the phone has one that has not been cleared (Android only; found once when this opens)
+  const [crash, setCrash] = useState<CrashReportInfo | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    let alive = true;
+    readCrashReport().then((found) => {
+      if (alive && found && shouldList(found.id, clearedId())) setCrash(found);
+    }).catch(() => { /* no row then */ });
+    return () => { alive = false; };
+  }, []);
   return (
     <SettingsSection title="About">
       {/* Which version this is */}
@@ -122,6 +166,9 @@ export default function AboutSection() {
       {Platform.OS === 'web'
         ? <ServerStatusRow />
         : <LinkRow name="Server status" description="wubrgr-server.onrender.com" url={STATUS_PAGE_URL} />}
+
+      {/* After an unexpected close: the report to copy (Android only; nothing shows when there is none) */}
+      {crash && <CrashReportRow report={crash} onGone={() => setCrash(null)} />}
 
       {/* The fan content notice, with a link to Wizards' policy */}
       <View style={styles.notice}>
@@ -153,6 +200,9 @@ const styles = StyleSheet.create({
   statusText: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   name: { fontSize: 16, fontWeight: '600' },
   description: { fontSize: 14, marginTop: 2 },
+  crashButtons: { flexDirection: 'row', gap: SPACE.s },
+  crashButton: { paddingHorizontal: 14, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  crashButtonText: { fontSize: 13, fontWeight: '700' },
   notice: { paddingHorizontal: SPACE.l, paddingVertical: SPACE.m },
   noticeText: { fontSize: 13, lineHeight: 19 },
 });
