@@ -34,12 +34,20 @@
    worked out and the camera is free for the next card straight away; up to a few cards can be
    waiting at once (MAX_WAITING). Each photo is kept until the screen has finished with it, then deleted.
    If that many are already waiting, the button says so and the camera holds back until one finishes.
-   SPEED: photos are taken in the quick mode (where the phone has it) at about 8 megapixels (plenty for the small
-   print), and every scan notes how long each step took (shown after the scan).
+   SPEED: photos are taken in the quick mode (where the phone has it) at about 5 megapixels (PHOTO_TARGET in
+   core/liveFrames.ts works out why that is still plenty for the small print), and every scan notes how long each
+   step took (shown after the scan).
+   LIVE FRAMES (switched OFF until the new Android build has been tried; see useLiveFrames.native.ts): instead of
+   taking a full photo for every Auto scan look, the camera can borrow a picture from its live preview, which is
+   much quicker. The looks (has anything changed? is a card there? what is its title?) use frames; the real reading
+   of a card still uses a photo (its small print and set symbol are read better from a photo) unless
+   READ_CARDS_FROM_FRAMES is also on. Frames are used only after a check against a real photo has shown they come
+   out the right way up, and any trouble at all (no frame, wrong shape, too small, a camera error) quietly goes
+   back to taking photos, as before. The sums and safety rules are in core/liveFrames.ts (with tests).
    Nothing from the website's camera (video, canvas) is used here.
    ===================================================================== */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
@@ -48,11 +56,16 @@ import { Camera, useCameraDevice, useCameraDevices, useCameraPermission, usePhot
 import { useColors } from '@/hooks/useTheme';
 import { cardOcr, cardSignature, finishPhoto, photoSize, readCardPhoto, readTitleOnly } from '@/lib/scanner/ocr/ocr.native';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
-import { cardInPickedPhoto, guideInPhoto, type Fractions } from '@/lib/scanner/core/cardInPhoto';
+import { cardInPickedPhoto, guideInPhoto, type Fractions, type Rect } from '@/lib/scanner/core/cardInPhoto';
+import {
+  INFO_CAP_MM, NEW_TRUST, PHOTO_TARGET, TITLE_CAP_MM,
+  bigEnoughFor, framesReady, judgeFrameTurn, needsCheck, sameShape, trustAfterCheck, trustAfterGrab, type FrameTrust,
+} from '@/lib/scanner/core/liveFrames';
 import { titlesAgree, titlesClearlyDiffer } from '@/lib/scanner/core/frameAgree';
 import { sameFrame } from '@/lib/scanner/core/frameChange';
 import { findLens, lensChoices } from '@/lib/scanner/core/lenses';
 import type { ScannerCameraProps } from './scannerCameraTypes';
+import { READ_CARDS_FROM_FRAMES, useLiveFrames } from './useLiveFrames.native';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
 // These match the website's guide so the two look the same
@@ -69,8 +82,11 @@ const MAX_SKIPS = 8;
 // The scan queue: how many cards may be waiting to be worked out at once (each one keeps its photo until
 // it's done, so this is kept small)
 const MAX_WAITING = 3;
-// The photo size asked for (a target: the camera gives the nearest it has, in the same shape)
-const PHOTO_SIZE = { width: 2448, height: 3264 };
+// (The photo size asked for is PHOTO_TARGET, in core/liveFrames.ts, where the numbers behind it are worked out.)
+// One look at the camera: the file (a photo or a frame), where the card is in it, how long it took to get, and which it is
+type Look = { path: string; card: Fractions; ms: number; key: 'photo' | 'frame' };
+// Where the guide is on the screen: the camera area and the card-shaped box in it (in screen pixels)
+type GuideView = { area: { w: number; h: number }; guide: Rect };
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName, queue }: ScannerCameraProps) {
@@ -87,17 +103,28 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   const litLens = lensId && lenses.some((l) => l.id === lensId)
     ? lensId
     : lenses.find((l) => l.id === defaultDevice?.id)?.id ?? lenses.find((l) => l.type === 'wide-angle')?.id ?? null;
-  // The photo taker. Speed matters more than the last bit of quality: about 8 megapixels (4:3, like the
-  // live picture) is plenty for the small print, and the quick mode and a little more JPEG
+  // The photo taker. Speed matters more than the last bit of quality: about 5 megapixels (4:3, like the
+  // live picture) is plenty for the small print (see PHOTO_TARGET), and the quick mode and a little more JPEG
   // squeezing make each photo come back much sooner than a full-size, best-quality one.
   // The quick mode only exists on phones whose camera supports it (the camera library throws an error, which
   // closes the app, when it's asked for on one that doesn't), so ask the phone first and use the middle
   // setting ("balanced") when it can't.
   const photoOutput = usePhotoOutput({
-    targetResolution: PHOTO_SIZE,
+    targetResolution: PHOTO_TARGET,
     qualityPrioritization: device?.supportsSpeedQualityPrioritization ? 'speed' : 'balanced',
     quality: 0.85,
   });
+  // The live frames (see useLiveFrames.native.ts): does nothing at all while its switch is off. "framesNow" is a
+  // note-to-self that always holds the newest version, because the Auto scan loop below lives on past renders.
+  const frames = useLiveFrames();
+  const framesNow = useRef(frames);
+  framesNow.current = frames;
+  // What has been learned about whether frames can be trusted (see core/liveFrames.ts), and the size and shape of the
+  // last real photo (a frame must have the same shape to be used)
+  const trust = useRef<FrameTrust>(NEW_TRUST);
+  const stillShape = useRef<{ w: number; h: number } | null>(null);
+  // The camera's list of outputs: the photo taker, plus the live-frame output while frames are in use
+  const outputs = useMemo(() => (frames.output ? [photoOutput, frames.output] : [photoOutput]), [photoOutput, frames.output]);
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [torchOn, setTorchOn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -140,25 +167,119 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
 
   /* ----- scanning ----- */
 
-  // Read the card in a photo file and hand the reading over. "card" is where the card is in it,
-  // "fresh" is whether the camera just took it (its file is then deleted afterwards)
-  // "photoMs" is how long the camera took to take the photo (for the timings shown after the scan)
-  async function scanPhoto(path: string, card: Fractions, fresh: boolean, photoMs?: number) {
+  // Take a full photo and work out where the guide is in it
+  async function takeStill(view: GuideView): Promise<Look> {
+    const startedAt = Date.now();
+    const photo = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
+    const ms = Date.now() - startedAt;
+    try {
+      const [width, height] = await photoSize(photo.filePath);
+      // (remembered: a live frame must have this same shape to be used)
+      stillShape.current = { w: width, h: height };
+      return { path: photo.filePath, card: guideInPhoto(view.area, view.guide, { w: width, h: height }), ms, key: 'photo' };
+    } catch (err) {
+      await finishPhoto(photo.filePath, true);
+      throw err;
+    }
+  }
+
+  // Note whether getting a frame worked. Several failures in a row, and frames are given up on (photos are used instead).
+  function noteGrab(ok: boolean) {
+    trust.current = trustAfterGrab(trust.current, ok);
+    if (trust.current.off) framesNow.current.giveUp();
+  }
+
+  // Take the next live frame and work out where the guide is in it. Gives null (and the caller takes a photo) if there is
+  // no frame, if its shape is not the photo's shape (the guide would not line up), or if it is too small for the text
+  // to be read ("forReading": the small print of the info line; otherwise just the big title letters). Never throws.
+  async function takeFrame(view: GuideView, extraTurn: 0 | 180, forReading: boolean): Promise<Look | null> {
+    const shape = stillShape.current;
+    if (!framesNow.current.output || !shape) return null;
+    const got = await framesNow.current.grab(extraTurn);
+    if (!got) { noteGrab(false); return null; }
+    try {
+      const [width, height] = await photoSize(got.path);
+      const card = guideInPhoto(view.area, view.guide, { w: width, h: height });
+      if (!sameShape({ w: width, h: height }, shape) || !bigEnoughFor(width, card[2], TITLE_CAP_MM)) {
+        await finishPhoto(got.path, true);
+        noteGrab(false);
+        return null;
+      }
+      // Fine for the title but too small for the info line: not a fault, a photo is just needed for the reading
+      if (forReading && !bigEnoughFor(width, card[2], INFO_CAP_MM)) {
+        await finishPhoto(got.path, true);
+        return null;
+      }
+      noteGrab(true);
+      return { path: got.path, card, ms: got.ms, key: 'frame' };
+    } catch {
+      await finishPhoto(got.path, true);
+      noteGrab(false);
+      return null;
+    }
+  }
+
+  // One look at the camera: a live frame if frames are in use and have been checked (and allowed for this purpose),
+  // otherwise a full photo. "purpose" is "look" (the repeated Auto scan looks) or "read" (a card to be read for real).
+  async function takeLook(view: GuideView, purpose: 'look' | 'read'): Promise<Look> {
+    if (framesReady(trust.current) && (purpose === 'look' || READ_CARDS_FROM_FRAMES)) {
+      const frame = await takeFrame(view, trust.current.checkedExtra ?? 0, purpose === 'read');
+      if (frame) return frame;
+    }
+    return takeStill(view);
+  }
+
+  // Frames are not trusted until they are checked against a real photo: take a frame right after a photo, squeeze both
+  // to tiny grey signatures and see whether the frame matches the photo as it is or turned half a turn (see
+  // judgeFrameTurn). A scene with too little in it (an empty table) can't tell, so the check is tried again on a
+  // later look. Never throws.
+  async function checkFrames(view: GuideView, photoSignature: Uint8Array | null) {
+    if (!framesNow.current.output || !needsCheck(trust.current) || !photoSignature) return;
+    try {
+      const frame = await takeFrame(view, 0, false);
+      if (!frame) return;
+      try {
+        const frameSignature = await cardSignature(frame.path, frame.card);
+        trust.current = trustAfterCheck(trust.current, judgeFrameTurn(frameSignature, photoSignature));
+        if (trust.current.off) framesNow.current.giveUp();
+      } finally {
+        await finishPhoto(frame.path, true);
+      }
+    } catch { /* the check is simply tried again on a later look */ }
+  }
+
+  // Read the card in a photo (or frame) file and hand the reading over. "card" is where the card is in it,
+  // "fresh" is whether the camera just took it (its file is then deleted afterwards).
+  // "shotMs" is how long the camera took to get it (for the timings shown after the scan) and "key" says whether
+  // it was a photo or a frame. A card read from a FRAME whose name does not come out as a real card name is read
+  // again from a real photo, so a rough frame can never make a scan worse than before.
+  async function scanPhoto(path: string, card: Fractions, fresh: boolean, shotMs?: number, key: 'photo' | 'frame' = 'photo') {
     // True once the photo has been given to the queue, which then deletes it when it's finished with it
     let handedOver = false;
+    // The file the reading finally comes from (a photo taken instead, if the frame was no good)
+    let usePath = path;
     try {
-      const reading = await readCardPhoto(path, card, looksLikeName);
-      if (photoMs !== undefined) reading.timings = { photo: photoMs, ...reading.timings };
+      let reading = await readCardPhoto(path, card, looksLikeName);
+      if (key === 'frame' && looksLikeName && !looksLikeName(reading.nameText)) {
+        const now = live.current;
+        const still = await takeStill({ area: now.area, guide: now.guide });
+        usePath = still.path;
+        await finishPhoto(path, fresh);
+        reading = await readCardPhoto(still.path, still.card, looksLikeName);
+        shotMs = still.ms;
+        key = 'photo';
+      }
+      if (shotMs !== undefined) reading.timings = { [key]: shotMs, ...reading.timings };
       if (queue) {
         // The queue: the screen works the card out in the background and this camera is free for the next one
         handedOver = true;
-        startInQueue(onReading, reading, path, fresh);
+        startInQueue(onReading, reading, usePath, fresh);
       } else {
         // Wait until the reading has been worked out, because the extra clues are read from the photo then
         await onReading(reading);
       }
     } finally {
-      if (!handedOver) await finishPhoto(path, fresh);
+      if (!handedOver) await finishPhoto(usePath, fresh);
     }
   }
 
@@ -184,14 +305,16 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     setBusy(true);
     setHint('');
     try {
-      const startedAt = Date.now();
-      const photo = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
-      const photoMs = Date.now() - startedAt;
+      // A photo (or, only if READ_CARDS_FROM_FRAMES is on and frames have been checked, a live frame)
+      const look = await takeLook({ area, guide }, 'read');
       try {
-        const [width, height] = await photoSize(photo.filePath);
-        await scanPhoto(photo.filePath, guideInPhoto(area, guide, { w: width, h: height }), true, photoMs);
+        // Frames are only checked here when they may be used for this button (otherwise Auto scan does the checking)
+        if (READ_CARDS_FROM_FRAMES && look.key === 'photo' && needsCheck(trust.current)) {
+          await checkFrames({ area, guide }, await cardSignature(look.path, look.card));
+        }
+        await scanPhoto(look.path, look.card, true, look.ms, look.key);
       } catch (err) {
-        await finishPhoto(photo.filePath, true);
+        await finishPhoto(look.path, true);
         throw err;
       }
     } catch (err) {
@@ -248,18 +371,22 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         // Wait while something else is open over the camera, or a button press is being read
         // (or, with the queue, while as many cards as it holds are still waiting to be worked out)
         if (now.paused || now.busy || now.area.w === 0 || (now.queue && waiting.current >= MAX_WAITING)) { await sleep(300); continue; }
+        // The file of this round's look (a photo, or a live frame when frames are in use), and a separate photo
+        // taken for the real reading when the look was a frame; both are deleted at the end unless handed over
         let path = '';
+        let scanPath = '';
         try {
-          const startedAt = Date.now();
-          const photo = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
-          const photoMs = Date.now() - startedAt;
-          path = photo.filePath;
-          const [width, height] = await photoSize(path);
-          const card = guideInPhoto(now.area, now.guide, { w: width, h: height });
+          const view = { area: now.area, guide: now.guide };
+          const look = await takeLook(view, 'look');
+          path = look.path;
+          const { card } = look;
           // The cheap "has anything changed?" look (see core/frameChange.ts)
           const checkStart = Date.now();
           const sig = await cardSignature(path, card);
           const checkMs = Date.now() - checkStart;
+          // After a real photo: a good moment to check that live frames come out the right way up (only does anything
+          // while frames are switched on and not yet checked)
+          if (look.key === 'photo') await checkFrames(view, sig);
           // Nothing new to read when the scene is the same as at the last reading AND that reading's answer can't have
           // changed: the scanned card is still there (nothing to scan until it changes), or the guide is still empty
           // (still nothing to see). A card waiting for its second agreeing look is never skipped.
@@ -292,15 +419,28 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
             // scanned card's and has been read the same twice, so the next scan is allowed
             if (!armed && steady && handledTitle !== '' && titlesClearlyDiffer(handledTitle, title)) { armed = true; handledTitle = ''; }
             if (armed && steady && !stop && !live.current.paused) {
+              // The card is read from this look, unless the look was a live frame and frames are not allowed for the
+              // real reading: then a full photo is taken now (its small print and set symbol read better). If taking
+              // it fails, nothing has been marked as scanned yet, so the next look tries again.
+              let from = look;
+              if (look.key === 'frame' && !READ_CARDS_FROM_FRAMES) {
+                from = await takeStill(view);
+                scanPath = from.path;
+              }
               armed = false;
               handledTitle = title;
               // A card to scan: read the rest (the title isn't read again)
-              const reading = await readCardPhoto(path, card, now.looksLikeName, title);
-              reading.timings = { photo: photoMs, check: checkMs, ...reading.timings };
+              const reading = await readCardPhoto(from.path, from.card, now.looksLikeName, title);
+              reading.timings = {
+                ...(look.key === 'frame' ? { frame: look.ms } : {}),
+                ...(from.key === 'photo' ? { photo: from.ms } : {}),
+                check: checkMs,
+                ...reading.timings,
+              };
               if (now.queue) {
-                // The queue: hand it over and look for the next card; the queue deletes the photo when it's done
-                startInQueue(live.current.onReading, reading, path, true);
-                path = '';
+                // The queue: hand it over and look for the next card; the queue deletes the file when it's done
+                startInQueue(live.current.onReading, reading, from.path, true);
+                if (from === look) path = ''; else scanPath = '';
               } else {
                 await live.current.onReading(reading);
               }
@@ -316,6 +456,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
           await sleep(1500);
         } finally {
           if (path) await finishPhoto(path, true);
+          if (scanPath) await finishPhoto(scanPath, true);
         }
         await sleep(LOOK_PAUSE_MS);
       }
@@ -370,12 +511,21 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={focused && appActive}
-        outputs={[photoOutput]}
+        outputs={outputs}
         resizeMode="cover"
         torchMode={torchOn ? 'on' : 'off'}
         enableNativeZoomGesture
         enableNativeTapToFocusGesture
-        onError={(error) => setHint(error.message)}
+        onError={(error) => {
+          // If the live-frame output is on the camera, it may be the cause (some phones can't run it beside the photo taker):
+          // drop it and carry on with photos only. Any later error is shown as usual.
+          if (framesNow.current.output) {
+            trust.current = { ...trust.current, off: true };
+            framesNow.current.giveUp();
+            return;
+          }
+          setHint(error.message);
+        }}
       />
 
       {/* The card-shaped guide, with its four corners */}
