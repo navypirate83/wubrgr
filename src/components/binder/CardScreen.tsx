@@ -207,7 +207,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   const identity = (
     <View style={styles.identity}>
       <View style={styles.nameRow}>
-        <Text style={[styles.name, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">{card.name}</Text>
+        <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">{card.name}</Text>
         {card.foil ? (
           <View style={[styles.foilTag, { borderColor: colors.accent }]}>
             <Text style={[styles.foilText, { color: colors.accent }]}>{finish === 'etched' ? 'Etched' : 'Foil'}</Text>
@@ -223,52 +223,80 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
     </View>
   );
 
-  const view = (
-    <View style={[styles.details, wide && styles.detailsWide]}>
-      {/* The bar: language, condition, where this card is (a small binder, list or
-          deck drawing with its name), and, a little further along, how many copies
-          of it you own in your binders */}
-      <View style={styles.infoBar}>
-        <Text style={[styles.infoText, { color: colors.text }]}>{langCode.toUpperCase()}</Text>
-        <Text style={[styles.infoText, { color: colors.muted }]}>·</Text>
-        <Text style={[styles.infoText, { color: colors.text }]}>{conditionAbbr}</Text>
-        {where && (
-          <>
-            <Text style={[styles.infoText, { color: colors.muted }]}>·</Text>
-            <Image source={WHERE_ICON[where.kind]} style={styles.smallDrawing} contentFit="contain" tintColor={colors.muted} />
-            <Text style={[styles.infoText, styles.infoName, { color: colors.text }]} numberOfLines={1}>{where.name}</Text>
-          </>
-        )}
-        {ownedTotal > 0 && (
-          <>
-            <View style={styles.infoSpace} />
-            <Image source={BINDER_ICON} style={styles.smallDrawing} contentFit="contain" tintColor={colors.muted} accessibilityLabel="Owned in your binders" />
-            <Text style={[styles.infoText, { color: colors.text }]} accessibilityLabel={`${ownedTotal} owned in your binders`}>{ownedTotal}</Text>
-          </>
-        )}
-      </View>
+  // The bar: language, condition, where this card is (a small binder, list or
+  // deck drawing with its name), and, a little further along, how many copies
+  // of it you own in your binders
+  const bar = (
+    <View style={styles.infoBar}>
+      <Text style={[styles.infoText, { color: colors.text }]}>{langCode.toUpperCase()}</Text>
+      <Text style={[styles.infoText, { color: colors.muted }]}>·</Text>
+      <Text style={[styles.infoText, { color: colors.text }]}>{conditionAbbr}</Text>
+      {where && (
+        <>
+          <Text style={[styles.infoText, { color: colors.muted }]}>·</Text>
+          <Image source={WHERE_ICON[where.kind]} style={styles.smallDrawing} contentFit="contain" tintColor={colors.muted} />
+          <Text style={[styles.infoText, styles.infoName, { color: colors.text }]} numberOfLines={1}>{where.name}</Text>
+        </>
+      )}
+      {ownedTotal > 0 && (
+        <>
+          <View style={styles.infoSpace} />
+          <Image source={BINDER_ICON} style={styles.smallDrawing} contentFit="contain" tintColor={colors.muted} accessibilityLabel="Owned in your binders" />
+          <Text style={[styles.infoText, { color: colors.text }]} accessibilityLabel={`${ownedTotal} owned in your binders`}>{ownedTotal}</Text>
+        </>
+      )}
+    </View>
+  );
 
-      {/* Whatever the page wants to add here */}
+  // The row of icons, centered: Edit first, then the page's own, then the red trash can
+  const iconRowEl = (
+    <View style={[styles.iconRow, { borderTopColor: colors.border }]}>
+      <IconButton label="Edit this card" icon="create-outline" size={iconSize} onPress={() => setEditing(true)} />
+      {normalActions.map((action) => (
+        <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} />
+      ))}
+      {dangerActions.map((action) => (
+        <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} danger />
+      ))}
+    </View>
+  );
+
+  // PHONES: the strip you slide up (or tap) to bring up the rules
+  const stripEl = (
+    <View {...slideUp.panHandlers}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Show the rules" onPress={openRules} style={({ pressed }) => [styles.rulesStrip, pressed && styles.pressed]}>
+        <View style={[styles.grip, { backgroundColor: colors.border }]} />
+        <Text style={[styles.rulesHint, { color: colors.muted }]}>Slide up for rules</Text>
+      </Pressable>
+    </View>
+  );
+
+  // WIDE WINDOWS: the rules text, always showing (there's room for it)
+  const rulesInline = (
+    <View style={styles.rulesInline}>
+      <Text style={[styles.rulesInlineTitle, { color: colors.muted }]}>RULES</Text>
+      <CardRules card={card} />
+    </View>
+  );
+
+  // What goes beside or under the picture when you're just looking.
+  // - Wide: the info is BESIDE the card (name, set line, the bar, the page's own
+  //   extras, then the rules); the icons are pinned along the bottom of the pop-up.
+  // - Phone: the name and set line are under the picture, then the bar, the icons
+  //   and the slide-up rules strip.
+  const view = wide ? (
+    <View style={[styles.details, styles.detailsWide]}>
+      {identity}
+      {bar}
       {children}
-
-      {/* The row of icons, centered: Edit first, then the page's own, then the red trash can */}
-      <View style={[styles.iconRow, { borderTopColor: colors.border }]}>
-        <IconButton label="Edit this card" icon="create-outline" size={iconSize} onPress={() => setEditing(true)} />
-        {normalActions.map((action) => (
-          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} />
-        ))}
-        {dangerActions.map((action) => (
-          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} danger />
-        ))}
-      </View>
-
-      {/* The strip you slide up (or tap) to bring up the rules */}
-      <View {...slideUp.panHandlers}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Show the rules" onPress={openRules} style={({ pressed }) => [styles.rulesStrip, pressed && styles.pressed]}>
-          <View style={[styles.grip, { backgroundColor: colors.border }]} />
-          <Text style={[styles.rulesHint, { color: colors.muted }]}>Slide up for rules</Text>
-        </Pressable>
-      </View>
+      {rulesInline}
+    </View>
+  ) : (
+    <View style={styles.details}>
+      {bar}
+      {children}
+      {iconRowEl}
+      {stripEl}
     </View>
   );
 
@@ -418,7 +446,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
                 name under it) on the left, details right. Phone: one column. */}
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={wide ? styles.bodyWide : styles.bodyNarrow}>
               {wide ? (
-                <View style={styles.leftColumn}>{picture}{!editing && identity}</View>
+                <View style={styles.leftColumn}>{picture}</View>
               ) : (
                 <>
                   <View style={styles.pictureCenter}>{picture}</View>
@@ -427,6 +455,9 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
               )}
               {editing ? edit : view}
             </ScrollView>
+
+            {/* Wide windows: the icons stay along the bottom of the pop-up while the rest scrolls */}
+            {wide && !editing && iconRowEl}
           </View>
         </View>
       </View>
@@ -516,21 +547,23 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerText: { flex: 1, minWidth: 0 },
   name: { fontSize: 20, fontWeight: '700', flexShrink: 1 },
-  // Under the picture: the name with its pill, then the set line
-  identity: { gap: 6 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  setLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  setIcon: { width: 18, height: 18 },
-  setText: { fontSize: 14, fontWeight: '600' },
+  // The card's own information (the name with its pill, the set line, and the bar of
+  // language, condition, where it is and how many you own). Every size here is half
+  // of what it was; the Edit screen's title (styles.name) keeps its full size.
+  identity: { gap: 3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  cardName: { fontSize: 10, fontWeight: '700', flexShrink: 1 },
+  setLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  setIcon: { width: 9, height: 9 },
+  setText: { fontSize: 7, fontWeight: '600' },
   leftColumn: { width: 230, gap: 12 },
-  // The bar of language, condition, where it is and how many you own
-  infoBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  infoText: { fontSize: 15 },
+  infoBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
+  infoText: { fontSize: 7.5 },
   infoName: { flexShrink: 1 },
-  infoSpace: { width: 16 },
-  smallDrawing: { width: 17, height: 15 },
-  foilTag: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 1 },
-  foilText: { fontSize: 12, fontWeight: '700' },
+  infoSpace: { width: 8 },
+  smallDrawing: { width: 9, height: 8 },
+  foilTag: { borderWidth: 1, borderRadius: 5, paddingHorizontal: 4, paddingVertical: 0.5 },
+  foilText: { fontSize: 6, fontWeight: '700' },
   tick: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   bodyWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 24, paddingBottom: 8 },
   bodyNarrow: { gap: 14, paddingBottom: 8 },
@@ -545,6 +578,8 @@ const styles = StyleSheet.create({
   // or six still fit on a narrow phone
   iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
   iconButton: { flex: 1, maxWidth: 84, minWidth: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
+  rulesInline: { gap: 6, marginTop: 4 },
+  rulesInlineTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8 },
   rulesStrip: { minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 6 },
   grip: { width: 40, height: 4, borderRadius: 2 },
   rulesHint: { fontSize: 12 },
