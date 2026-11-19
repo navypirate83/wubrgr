@@ -50,7 +50,6 @@
       ],
       "@react-native-google-signin/google-signin",
       "expo-secure-store",
-      "expo-sqlite",
       [
         "expo-build-properties",
         {

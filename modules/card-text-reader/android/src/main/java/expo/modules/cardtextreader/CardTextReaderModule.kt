@@ -6,6 +6,8 @@
 //   grayCrops(...)         -> parts of the card as grey pictures (for telling older printings apart)
 //   jpegCrop(...)          -> one part of the card as a small JPEG picture (to show on screen)
 //   deletePhoto(path)      -> tidy up a photo the camera took
+//   catalogueOpen / catalogueQuery / catalogueClose -> the card catalogue (a SQLite file), see CatalogueReader.kt
+//   readStoredValue(key)   -> rescue a saved value too big for AsyncStorage's own reading, see CatalogueReader.kt
 // Reading is done by Google's ML Kit, which runs on the phone itself (no
 // internet needed). The photo is opened here, in the phone's own code, rather
 // than sent through the app's JavaScript, because photos are big and this is much faster.
@@ -58,6 +60,15 @@ class CardTextReaderModule : Module() {
   // One helper thread, so opening and reading photos never freezes the screen
   // (and two scans never run on top of each other)
   private val worker = Executors.newSingleThreadExecutor()
+
+  // A second helper thread just for the card catalogue, so catalogue questions never wait behind a photo being read
+  private val catalogueWorker = Executors.newSingleThreadExecutor()
+
+  // The card catalogue, once opened
+  private val catalogue = CatalogueReader()
+
+  // A third one for rescuing saved values (reading a huge value can take a moment)
+  private val storedWorker = Executors.newSingleThreadExecutor()
 
   // The photo most recently opened, kept for the next request
   private var open: OpenPhoto? = null
@@ -210,6 +221,12 @@ class CardTextReaderModule : Module() {
     return mapOf("width" to width, "height" to height, "data" to Base64.encodeToString(gray, Base64.NO_WRAP))
   }
 
+  // Answer the app with an error for the catalogue and saved-value requests (any failure, even running out of memory)
+  private fun reject(promise: Promise, code: String, fallback: String, error: Throwable) {
+    val message = if (error is OutOfMemoryError) "The phone ran out of memory" else (error.message ?: fallback)
+    promise.reject(CodedException(code, message, error))
+  }
+
   override fun definition() = ModuleDefinition {
     // The name the app's JavaScript uses to find this add-on
     Name("CardTextReader")
@@ -308,6 +325,54 @@ class CardTextReaderModule : Module() {
           promise.resolve(null)
         } catch (error: Throwable) {
           fail(promise, "ERR_CARD_WARM", "The reader could not be warmed up", error)
+        }
+      }
+    }
+
+    // Open the card catalogue file (full path, no "file://") for reading. Gives true when it is open.
+    AsyncFunction("catalogueOpen") { path: String, promise: Promise ->
+      catalogueWorker.execute {
+        try {
+          promise.resolve(catalogue.open(path))
+        } catch (error: Throwable) {
+          reject(promise, "ERR_CATALOGUE_OPEN", "The catalogue could not be opened", error)
+        }
+      }
+    }
+
+    // Close the card catalogue (the file stays)
+    AsyncFunction("catalogueClose") { promise: Promise ->
+      catalogueWorker.execute {
+        try {
+          catalogue.close()
+          promise.resolve(null)
+        } catch (error: Throwable) {
+          reject(promise, "ERR_CATALOGUE_CLOSE", "The catalogue could not be closed", error)
+        }
+      }
+    }
+
+    // Ask the catalogue a question. "paramsJson" is the values for the question's "?" places, as JSON text (a list).
+    // Gives back JSON text: {"columns":[...],"rows":[[...]]}
+    AsyncFunction("catalogueQuery") { sql: String, paramsJson: String, promise: Promise ->
+      catalogueWorker.execute {
+        try {
+          promise.resolve(catalogue.query(sql, paramsJson))
+        } catch (error: Throwable) {
+          reject(promise, "ERR_CATALOGUE_QUERY", "The catalogue could not be asked", error)
+        }
+      }
+    }
+
+    // The saved value under this full name ("wubrgrexpo:..."), read in pieces so it works even when it is too big
+    // for AsyncStorage to read. Null if there is no such value.
+    AsyncFunction("readStoredValue") { key: String, promise: Promise ->
+      storedWorker.execute {
+        try {
+          val context = appContext.reactContext ?: throw IllegalStateException("The app is not ready")
+          promise.resolve(StoredValue.read(context, key))
+        } catch (error: Throwable) {
+          reject(promise, "ERR_STORED_VALUE", "The saved value could not be read", error)
         }
       }
     }

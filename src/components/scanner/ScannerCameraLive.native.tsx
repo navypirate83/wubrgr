@@ -69,7 +69,7 @@ import {
 } from '@/lib/scanner/core/liveFrames';
 import { titlesAgree, titlesClearlyDiffer } from '@/lib/scanner/core/frameAgree';
 import { sameFrame } from '@/lib/scanner/core/frameChange';
-import { findLens, lensChoices } from '@/lib/scanner/core/lenses';
+import { findLens, lensChoices, type LensChoice } from '@/lib/scanner/core/lenses';
 import { mark, markCameraRunning, markCleanExit } from '@/lib/scanner/crashTrail';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 import { READ_CARDS_FROM_FRAMES, useLiveFrames } from './useLiveFrames.native';
@@ -147,6 +147,19 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
   const outputs = useMemo(() => (frames.output ? [photoOutput, frames.output] : [photoOutput]), [photoOutput, frames.output]);
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [torchOn, setTorchOn] = useState(false);
+  // LENS SWITCHING. While a new lens is being switched to, "pendingLens" holds its id (the camera is then not used for
+  // photos), "pendingRef" is the same note for code that lives on past renders, and "lensBefore" is the lens to go back to
+  // if the new one can't be used. Every step goes in the crash trail, so a crash can be traced.
+  const [pendingLens, setPendingLens] = useState<string | null>(null);
+  const pendingRef = useRef<string | null>(null);
+  const lensBefore = useRef<string | null>(null);
+  // If the new lens neither starts nor reports an error within a few seconds, treat it as failed and go back
+  useEffect(() => {
+    if (!pendingLens) return;
+    const timer = setTimeout(() => endSwitch('no answer from the new lens after 6 seconds'), 6000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingLens]);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState('');
   // Auto scan: on or off, and whether a card is being looked at right now (for the hint)
@@ -328,7 +341,7 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
 
   // The round button: take a photo, then read the card under the guide
   async function takePicture() {
-    if (busy || paused || !device || auto) return;
+    if (busy || paused || !device || auto || pendingLens) return;
     // The queue is full: wait for one of the waiting cards to be finished
     if (queue && waiting.current >= MAX_WAITING) { setHint('Still reading the earlier cards. One moment.'); return; }
     setBusy(true);
@@ -530,26 +543,67 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
     );
   }
 
+  /* ----- switching lens ----- */
+
+  // The switch is over. "failed" is null when the new lens works; otherwise it is the reason it didn't, and the camera goes
+  // back to the lens it was using before (with a short message), so a lens that can't be used never leaves a dead camera.
+  function endSwitch(failed: string | null) {
+    if (!pendingRef.current) return;
+    pendingRef.current = null;
+    setPendingLens(null);
+    if (failed === null) {
+      mark('lens switch ok');
+      setHint('');
+      return;
+    }
+    mark(`lens switch failed: ${failed}`);
+    setLensId(lensBefore.current);
+    setHint('That lens could not be used, so the camera went back to the one before.');
+  }
+
+  // A lens button was tapped. Auto scan and the torch are switched off first (the new lens may have no torch, and nothing
+  // should be taking photos while the camera is being set up again). The Camera below is rebuilt for the new lens (see its "key").
+  function chooseLens(lens: LensChoice) {
+    if (lens.id === litLens || pendingRef.current) return;
+    try {
+      mark(`lens switch to ${lens.label}`);
+      lensBefore.current = lensId;
+      pendingRef.current = lens.id;
+      setPendingLens(lens.id);
+      setAuto(false);
+      setTorchOn(false);
+      setHint(`Switching to the ${lens.label.toLowerCase()} lens…`);
+      setLensId(lens.id);
+    } catch (err) {
+      endSwitch((err as Error).message);
+    }
+  }
+
   /* ----- the camera ----- */
 
   const blocked = busy || !!paused || auto;
   return (
     <View style={styles.area} onLayout={onLayout}>
-      {/* The live picture. Pinch to zoom, tap to focus. "cover" fills the area, cutting off the edges. */}
+      {/* The live picture. Pinch to zoom, tap to focus. "cover" fills the area, cutting off the edges.
+          "key" makes a brand-new camera session for each lens (switching lens on the same session crashed the app on a
+          phone), and the torch is only asked for on a lens that has one (the ultra-wide usually hasn't). */}
       <Camera
+        key={device.id}
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={focused && appActive}
         outputs={outputs}
         resizeMode="cover"
-        torchMode={torchOn ? 'on' : 'off'}
+        torchMode={torchOn && device.hasTorch ? 'on' : 'off'}
         enableNativeZoomGesture
         enableNativeTapToFocusGesture
         onConfigured={() => mark('camera set up')}
         onPreviewStarted={() => mark('camera preview showing')}
-        onStarted={() => markCameraRunning()}
+        onStarted={() => { markCameraRunning(); endSwitch(null); }}
         onError={(error) => {
           mark(`camera error: ${error.message}`);
+          // An error while switching lens: go back to the lens before (and nothing else is tried)
+          if (pendingRef.current) { endSwitch(error.message); return; }
           // The first error with the chosen photo settings: remake the photo taker with plain defaults and try again once
           if (!plainPhoto && !framesNow.current.output) { setPlainPhoto(true); setHint('The camera is trying again with simpler photo settings.'); return; }
           // If the live-frame output is on the camera, it may be the cause (some phones can't run it beside the photo taker):
@@ -590,7 +644,7 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
               <Pressable
                 key={lens.id}
                 accessibilityRole="button" accessibilityLabel={`${lens.label} lens`} accessibilityState={{ selected: lit }}
-                onPress={() => { setLensId(lens.id); setHint(''); }}
+                onPress={() => chooseLens(lens)}
                 style={[styles.lens, { backgroundColor: lit ? colors.accent : 'rgba(0,0,0,0.55)', borderColor: lit ? colors.accent : 'rgba(255,255,255,0.45)' }]}
               >
                 <Text style={[styles.lensText, { color: lit ? colors.accentText : '#ffffff' }]}>{lens.label}</Text>

@@ -19,6 +19,8 @@
    Plain TypeScript with no React in it.
    ===================================================================== */
 
+import { Platform } from 'react-native';
+import { requireOptionalNativeModule } from 'expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { markSession } from './scanner/crashTrail';
 
@@ -37,6 +39,27 @@ let lastWriteFailed = false;
 let loadFailed = false;
 export function storageLoadFailed(): boolean {
   return loadFailed;
+}
+
+// Names (without the prefix) of saved values that exist on the device but could not be read at all, even by the rescue
+// below. Such a value is NEVER overwritten by this run (see storageSet): a copy of it that looks empty must not replace the real one.
+const unreadableKeys = new Set<string>();
+
+// The Android add-on's way of reading a saved value in pieces (only in builds that have it)
+type StoredValueAddOn = { readStoredValue?: (key: string) => Promise<string | null> };
+
+// Try to read one saved value (its FULL name, with the prefix) through the add-on, which reads it in pieces so a value
+// bigger than AsyncStorage's reading window still works. Android only. Never throws: gives null when it can't.
+async function rescueValue(fullKey: string): Promise<string | null> {
+  if (Platform.OS !== 'android') return null;
+  try {
+    const addOn = requireOptionalNativeModule<StoredValueAddOn>('CardTextReader');
+    if (!addOn || typeof addOn.readStoredValue !== 'function') return null;
+    const text = await addOn.readStoredValue(fullKey);
+    return typeof text === 'string' ? text : null;
+  } catch {
+    return null;
+  }
 }
 
 // The words of an error, for the crash diary (never any saved value, only what went wrong)
@@ -58,14 +81,26 @@ async function readAll(): Promise<string[]> {
   } catch (err) {
     markSession(`saved values: reading them all at once failed (${whatWentWrong(err)}), reading one by one`);
     const unreadable: string[] = [];
+    const rescued: string[] = [];
     for (const key of keys) {
+      const name = key.slice(PREFIX.length);
       try {
         const value = await AsyncStorage.getItem(key);
-        if (value !== null) values.set(key.slice(PREFIX.length), value);
+        if (value !== null) values.set(name, value);
       } catch {
-        unreadable.push(key.slice(PREFIX.length));
+        // AsyncStorage can't read this one (too big, say): try reading it in pieces through the add-on
+        const text = await rescueValue(key);
+        if (text !== null) {
+          values.set(name, text);
+          rescued.push(name);
+        } else {
+          unreadable.push(name);
+          unreadableKeys.add(name);
+        }
       }
     }
+    // Only the names are written in the diary, never the contents
+    if (rescued.length > 0) markSession(`saved values: ${rescued.length} read in pieces (${rescued.slice(0, 6).join(', ')})`);
     return unreadable;
   }
 }
@@ -102,6 +137,8 @@ export function storageGet(key: string): string | null {
 // Save a value: in memory straight away, then in AsyncStorage. Returns
 // false if the last background save failed, so the page can warn.
 export function storageSet(key: string, value: string): boolean {
+  // A value that exists but could not be read is left alone (writing would replace the real one with this run's empty guess)
+  if (unreadableKeys.has(key)) return false;
   values.set(key, value);
   if (loadFailed) return false;
   AsyncStorage.setItem(PREFIX + key, value).then(
@@ -114,6 +151,7 @@ export function storageSet(key: string, value: string): boolean {
 // Save a value and WAIT until AsyncStorage has really written it (for the few values that must survive an app
 // crash a moment later, like who is signed in). Gives false if it could not be written.
 export async function storageSetNow(key: string, value: string): Promise<boolean> {
+  if (unreadableKeys.has(key)) return false;
   values.set(key, value);
   if (loadFailed) return false;
   try {
@@ -128,6 +166,8 @@ export async function storageSetNow(key: string, value: string): Promise<boolean
 
 // Forget a saved value.
 export function storageRemove(key: string): void {
+  // (removing is allowed even for an unreadable value: it only happens when the user deletes something on purpose)
+  unreadableKeys.delete(key);
   values.delete(key);
   if (loadFailed) return;
   AsyncStorage.removeItem(PREFIX + key).catch(() => { /* already gone */ });
