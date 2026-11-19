@@ -71,6 +71,7 @@ import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
 import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckBracket, setDeckCardCount, setDeckCards, updateDeckCard, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
 import CommandZone from '@/components/decks/CommandZone';
+import CollapseBar from '@/components/decks/CollapseBar';
 import SlotSearchDialog from '@/components/decks/SlotSearchDialog';
 import { allowedInSlot, deckCardFromPrint, secondSpotShows, slotHint, slotName, slotQuery, zoneExtraOf } from '@/lib/deckZones';
 import { deckFormat, skipsCopyWarning } from '@/lib/deckFormats';
@@ -155,6 +156,18 @@ export default function DeckScreen() {
   const reversed = useSyncExternalStore(onBinderViewChange, deckSortReversed, deckSortReversed);
   const gridZoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
   const headersOn = useSyncExternalStore(onBinderViewChange, sortHeadersOn, sortHeadersOn);
+  // Folding sections away: the command zone, the power bracket, and any group of cards
+  // (Creature, Land...) whose bar was tapped. They start open and are remembered while you're on this deck.
+  const [zoneOpen, setZoneOpen] = useState(true);
+  const [bracketOpen, setBracketOpen] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((groupId: string) => {
+    setCollapsedGroups((now) => {
+      const next = new Set(now);
+      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      return next;
+    });
+  }, []);
   const contentWidth = useContentWidth();
 
   // Game Changers (Commander only): marked with a yellow border, and they set the lowest bracket the deck may have
@@ -601,6 +614,32 @@ export default function DeckScreen() {
   // The printings you own that this card could switch to
   const menuChoices = menuIndex !== null ? choicesFor(deck.cards, menuIndex, owned) : [];
 
+  // The power bracket button (and the Game Changers filter), shown in the list's top part under the command zone
+  const bracketRow = (
+    <View style={styles.chipRow}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Power bracket: ${bracket ? bracketText(bracket) : 'not rated'}${gameChangers > 0 ? `, ${gameChangers} Game Changers` : ''}. Tap to change.`}
+                     onPress={() => setPicking(true)}
+                     style={[styles.bracketChip, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+            <Ionicons name="flame-outline" size={16} color={bracket ? colors.accent : colors.muted} />
+            <Text style={[styles.bracketText, { color: bracket ? colors.text : colors.muted }]}>
+              {bracket ? bracketText(bracket) : 'Set power bracket'}
+              {gameChangers > 0 ? ` · ${gameChangers} Game Changer${gameChangers === 1 ? '' : 's'}` : ''}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.muted} />
+          </Pressable>
+          {/* Show just the Game Changer cards (only offered when the deck has some, or while it's on) */}
+          {(gameChangers > 0 || onlyGameChangers) && (
+            <Pressable accessibilityRole="button" accessibilityState={{ selected: onlyGameChangers }}
+                       accessibilityLabel={onlyGameChangers ? 'Showing only Game Changers. Tap to show every card.' : 'Show only Game Changers'}
+                       onPress={() => setOnlyGameChangers((on) => !on)}
+                       style={[styles.bracketChip, { borderColor: onlyGameChangers ? colors.gameChanger : colors.border, backgroundColor: onlyGameChangers ? colors.gameChanger : colors.surface }]}>
+              <Ionicons name="star" size={14} color={onlyGameChangers ? '#1a1206' : colors.gameChanger} />
+              <Text style={[styles.bracketText, { color: onlyGameChangers ? '#1a1206' : colors.text }]}>Game Changers only</Text>
+            </Pressable>
+          )}
+          </View>
+  );
+
   return (
     // The keyboard pushes everything up instead of covering the search bar
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -625,31 +664,6 @@ export default function DeckScreen() {
             </>
           )}
         />
-        {/* Commander decks: the power bracket. Tap to choose one (or to say it isn't rated). */}
-        {hasBrackets(format.code) && (
-          <View style={styles.chipRow}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Power bracket: ${bracket ? bracketText(bracket) : 'not rated'}${gameChangers > 0 ? `, ${gameChangers} Game Changers` : ''}. Tap to change.`}
-                     onPress={() => setPicking(true)}
-                     style={[styles.bracketChip, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-            <Ionicons name="flame-outline" size={16} color={bracket ? colors.accent : colors.muted} />
-            <Text style={[styles.bracketText, { color: bracket ? colors.text : colors.muted }]}>
-              {bracket ? bracketText(bracket) : 'Set power bracket'}
-              {gameChangers > 0 ? ` · ${gameChangers} Game Changer${gameChangers === 1 ? '' : 's'}` : ''}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color={colors.muted} />
-          </Pressable>
-          {/* Show just the Game Changer cards (only offered when the deck has some, or while it's on) */}
-          {(gameChangers > 0 || onlyGameChangers) && (
-            <Pressable accessibilityRole="button" accessibilityState={{ selected: onlyGameChangers }}
-                       accessibilityLabel={onlyGameChangers ? 'Showing only Game Changers. Tap to show every card.' : 'Show only Game Changers'}
-                       onPress={() => setOnlyGameChangers((on) => !on)}
-                       style={[styles.bracketChip, { borderColor: onlyGameChangers ? colors.gameChanger : colors.border, backgroundColor: onlyGameChangers ? colors.gameChanger : colors.surface }]}>
-              <Ionicons name="star" size={14} color={onlyGameChangers ? '#1a1206' : colors.gameChanger} />
-              <Text style={[styles.bracketText, { color: onlyGameChangers ? '#1a1206' : colors.text }]}>Game Changers only</Text>
-            </Pressable>
-          )}
-          </View>
-        )}
         {/* Formats with a sideboard: switch between the main deck and the sideboard */}
         {format.sideboard > 0 && (
           <View style={styles.tabs}>
@@ -688,9 +702,27 @@ export default function DeckScreen() {
           warn={problems.length > 0 ? problems.join(', ') : undefined}
           // THE COMMAND ZONE (formats that have one) is the top of the list, so it scrolls up out of the way, and
           // the commanders are counted in the line of totals
-          header={format.command
-            ? <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} gameChanger={hasBrackets(format.code) ? isGameChanger : undefined} />
+          header={format.command || hasBrackets(format.code)
+            ? (
+              <View>
+                {/* The command zone and the power bracket each fold away under their own bar */}
+                {format.command && (
+                  <CollapseBar title="Command zone" open={zoneOpen} onToggle={() => setZoneOpen((open) => !open)}
+                               summary={deck.cards.filter((c) => c.zone === 'command').map((c) => c.name).join(', ') || 'Empty'}>
+                    <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} gameChanger={hasBrackets(format.code) ? isGameChanger : undefined} />
+                  </CollapseBar>
+                )}
+                {hasBrackets(format.code) && (
+                  <CollapseBar title="Power bracket" open={bracketOpen} onToggle={() => setBracketOpen((open) => !open)}
+                               summary={bracket ? bracketText(bracket) : 'Not rated'}>
+                    {bracketRow}
+                  </CollapseBar>
+                )}
+              </View>
+            )
             : undefined}
+          collapsedGroups={collapsedGroups}
+          onToggleGroup={toggleGroup}
           alsoCounted={commandEntries}
           // The format, at the end of the line of totals (and how many cards aren't in your binders, and the card just dropped)
           note={[format.name, deck.cards.some((c) => c.zone === 'command') ? `${deck.cards.filter((c) => c.zone === 'command').length} in command zone, included` : '', deck.cards.some((c) => isMissing(c) === 'card') ? `${deck.cards.filter((c) => isMissing(c) === 'card').reduce((sum, c) => sum + cardCount(c), 0)} not in your binders` : '', addedNote].filter(Boolean).join(' · ')}

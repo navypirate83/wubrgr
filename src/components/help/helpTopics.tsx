@@ -256,11 +256,14 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet><Strong>Open it</Strong>: tap it.</Bullet>
             <Bullet>
+              <Strong>Fold a group away</Strong>: in a deck, the cards are grouped by type (Creature, Instant, Land...) with a bar above each group. Tap a bar to hide that group's cards (the bar shows how many there are); tap it again to show them.
+            </Bullet>
+            <Bullet>
               <Strong>Rename or delete it</Strong>: hold it for a moment, then tap <Strong>Rename</Strong> or <Strong>Delete</Strong> (it asks first).
             </Bullet>
             <Bullet>
-              <Strong>Power bracket</Strong> (Commander decks only): open the deck and tap the button under the sort bar
-              ("Set power bracket"). Choose one of the five Commander Brackets: <Strong>1 Exhibition</Strong>, <Strong>2 Core</Strong>,
+              <Strong>Power bracket</Strong> (Commander decks only): open the deck and tap the button under the command zone
+              ("Set power bracket"). The command zone and the power bracket each have a bar you can tap to fold them away. Choose one of the five Commander Brackets: <Strong>1 Exhibition</Strong>, <Strong>2 Core</Strong>,
               <Strong> 3 Upgraded</Strong>, <Strong>4 Optimized</Strong> or <Strong>5 cEDH</Strong>, or <Strong>Not rated</Strong>. You
               choose it yourself (the app doesn't work it out from the cards). It then shows on the deck's row on the Decks page
               ("Bracket 3 · Upgraded"), is saved with the deck in your account, and the Decks page's Sort button can put the highest bracket first.
