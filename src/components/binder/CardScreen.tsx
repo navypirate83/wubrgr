@@ -340,20 +340,27 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
         </EditRow>
       )}
 
-      {/* Finish: tap to step through the finishes this printing comes in */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Finish: ${FINISH_WORDS[finish]}.${canCycleFinish ? ' Tap to change.' : ''}`}
-        disabled={!canCycleFinish}
-        onPress={() => print.data && onChange?.(finishEdit(nextFinish(print.data, finish)))}
-        style={({ pressed }) => [styles.row, { borderBottomColor: colors.border }, pressed && styles.pressed]}
-      >
-        <Text style={[styles.rowLabel, { color: colors.text }]}>Finish</Text>
-        <View style={styles.rowValue}>
-          <Text style={[styles.valueText, { color: finish === 'nonfoil' ? colors.text : colors.accent, fontWeight: '700' }]}>{FINISH_WORDS[finish]}</Text>
-          {canCycleFinish && <Ionicons name="swap-horizontal" size={15} color={colors.accent} />}
-        </View>
-      </Pressable>
+      {/* Finish: the same button as in the Card Finder. Not foil is see-through with a
+          dashed outline, Foil is filled with the rainbow and Etched with silver (black
+          text on both). Each tap steps to the next finish this printing comes in. */}
+      <EditRow label="Finish">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Finish: ${FINISH_WORDS[finish]}.${canCycleFinish ? ' Tap to change.' : ''}`}
+          disabled={!canCycleFinish}
+          onPress={() => print.data && onChange?.(finishEdit(nextFinish(print.data, finish)))}
+          style={({ pressed }) => [
+            styles.finishPill,
+            finish === 'nonfoil' && { borderColor: colors.border, borderStyle: 'dashed', borderWidth: 1 },
+            finish === 'nonfoil' && !canCycleFinish && styles.dimmed,
+            pressed && styles.pressed,
+          ]}
+        >
+          {finish === 'foil' && <LinearGradient colors={[...FOIL_COLORS]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
+          {finish === 'etched' && <LinearGradient colors={['#f4f5f7', '#aeb3bc', '#e6e8ec', '#8f959f']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
+          <Text style={[styles.finishText, { color: finish === 'nonfoil' ? colors.text : '#000000' }]}>{finish === 'etched' ? 'Etched' : 'Foil'}</Text>
+        </Pressable>
+      </EditRow>
 
       {/* Language: a drop box, the same as in the Card Finder. Its list opens right
           under the box and floats over the screen, so nothing moves. */}
@@ -576,25 +583,25 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, minWidth: 0 },
   name: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
   // The card's own information (the name with its pill, the set line, and the bar of
-  // language, condition, where it is and how many you own). Every size here is half
+  // language, condition, where it is and how many you own). Sizes here were halved, then raised 3 points (the Edit screen's title is separate)
   // of what it was; the Edit screen's title (styles.name) keeps its full size.
   identity: { gap: 3 },
   infoGroup: { gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  cardName: { fontSize: 10, fontWeight: '700', flexShrink: 1 },
+  cardName: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
   setLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  setIcon: { width: 9, height: 9 },
-  setText: { fontSize: 7, fontWeight: '600' },
+  setIcon: { width: 12, height: 12 },
+  setText: { fontSize: 10, fontWeight: '600' },
   leftColumn: { width: 230, gap: 12 },
   infoBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
-  infoText: { fontSize: 7.5 },
+  infoText: { fontSize: 10.5 },
   infoName: { flexShrink: 1 },
   infoSpace: { width: 8 },
-  smallDrawing: { width: 9, height: 8 },
+  smallDrawing: { width: 12, height: 11 },
   // The Foil pill is filled with the rainbow and the Etched pill with silver (like the
   // Card Finder's finish button), with black text so it reads on either
   foilTag: { borderRadius: 5, overflow: 'hidden', paddingHorizontal: 4, paddingVertical: 0.5 },
-  foilText: { fontSize: 6, fontWeight: '700', color: '#000000' },
+  foilText: { fontSize: 9, fontWeight: '700', color: '#000000' },
   tick: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center' },
   bodyWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 24, paddingBottom: 8 },
   bodyNarrow: { gap: 14, paddingBottom: 8 },
@@ -629,6 +636,9 @@ const styles = StyleSheet.create({
   setBoxIcon: { width: 14, height: 14 },
   pickerNote: { fontSize: 14, padding: 14 },
   abbr: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  // The Finish button in the editor (like the Card Finder's): a rounded pill
+  finishPill: { minHeight: 30, minWidth: 80, borderRadius: 15, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  finishText: { fontSize: 12, fontWeight: '700' },
   rowValue: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   valueText: { fontSize: 12 },
   stepper: { flexDirection: 'row', alignItems: 'center' },
