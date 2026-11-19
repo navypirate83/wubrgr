@@ -10,7 +10,8 @@
      - set: the set's symbol, its code, and its name
    ===================================================================== */
 
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import SymbolText from '@/components/SymbolText';
 import { useColors } from '@/hooks/useTheme';
@@ -41,12 +42,20 @@ function spokenName(header: SortHeader): string {
 type Props = {
   header: SortHeader;
   setIcon?: string;        // for a set bar: the set's symbol picture, once it has downloaded
+  // Collapsing: give "onToggle" to make the bar a button that hides or shows its group's cards.
+  // "collapsed" says which way it is now, and "count" is how many cards are in the group.
+  collapsed?: boolean;
+  onToggle?: () => void;
+  count?: number;
+  unit?: string;           // what is counted ("deck", "card"): shown after the number, with an s when it isn't 1
 };
 
-export default function SortHeaderBar({ header, setIcon }: Props) {
+export default function SortHeaderBar({ header, setIcon, collapsed, onToggle, count, unit = 'card' }: Props) {
   const colors = useColors();
-  return (
-    <View style={styles.bar} accessible accessibilityRole="header" accessibilityLabel={spokenName(header)}>
+  const bar = (
+    <View style={styles.bar} accessible={!onToggle} accessibilityRole={onToggle ? undefined : 'header'} accessibilityLabel={onToggle ? undefined : spokenName(header)}>
+      {/* A bar that can collapse shows a small arrow: down when open, right when collapsed */}
+      {onToggle && <Ionicons name={collapsed ? 'chevron-forward' : 'chevron-down'} size={16} color={colors.muted} />}
       {/* What the group is */}
       {header.kind === 'text' && <SymbolText style={[styles.text, { color: colors.text }]}>{header.text}</SymbolText>}
       {header.kind === 'land' && <Image source={MOUNTAIN_PICTURE} style={styles.mountain} contentFit="contain" tintColor={colors.iconTint} />}
@@ -66,7 +75,20 @@ export default function SortHeaderBar({ header, setIcon }: Props) {
       )}
       {/* The thin line that carries on to the right edge */}
       <View style={[styles.line, { backgroundColor: colors.border }]} />
+      {/* How many cards are in the group (shown on bars that can collapse) */}
+      {onToggle && count !== undefined && <Text style={[styles.count, { color: colors.muted }]}>{count}{unit !== 'card' ? ` ${unit}${count === 1 ? '' : 's'}` : ''}</Text>}
     </View>
+  );
+  // A collapsible bar is a button: tap it to hide or show the group's cards
+  if (!onToggle) return bar;
+  return (
+    <Pressable
+      accessibilityRole="button" accessibilityState={{ expanded: !collapsed }}
+      accessibilityLabel={`${spokenName(header)}, ${count ?? 0} ${count === 1 ? unit : unit + 's'}. ${collapsed ? 'Tap to show them.' : 'Tap to hide them.'}`}
+      onPress={onToggle}
+    >
+      {bar}
+    </Pressable>
   );
 }
 
@@ -79,5 +101,6 @@ const styles = StyleSheet.create({
   mountain: { width: 30, height: 20 },
   setIcon: { width: 20, height: 20, marginRight: 2 },
   setName: { fontSize: 14, flexShrink: 1, marginLeft: 4 },
+  count: { fontSize: 13, fontWeight: '600' },
   line: { flex: 1, height: StyleSheet.hairlineWidth * 2, minWidth: 12 },
 });

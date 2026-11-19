@@ -256,6 +256,9 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet><Strong>Open it</Strong>: tap it.</Bullet>
             <Bullet>
+              <Strong>Fold a group of decks away</Strong>: when the Sort button groups your decks (by format, by power bracket, legal or not), each group has a bar. Tap it to hide that group's decks (the bar says how many decks are in it); tap it again to show them.
+            </Bullet>
+            <Bullet>
               <Strong>Rename or delete it</Strong>: hold it for a moment, then tap <Strong>Rename</Strong> or <Strong>Delete</Strong> (it asks first).
             </Bullet>
             <Bullet>

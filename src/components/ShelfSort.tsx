@@ -62,7 +62,8 @@ export function ShelfSortBar({ area }: { area: ShelfArea }) {
   );
 }
 
-// The bar above a group of items
-export function ShelfHeaderBar({ text }: { text: string }) {
-  return <SortHeaderBar header={{ id: `shelf-${text}`, kind: 'text', text }} />;
+// The bar above a group of items. Give "onToggle" and it becomes a button that folds the
+// group away (with an arrow, and how many items are in the group).
+export function ShelfHeaderBar({ text, collapsed, count, onToggle }: { text: string; collapsed?: boolean; count?: number; onToggle?: () => void }) {
+  return <SortHeaderBar header={{ id: `shelf-${text}`, kind: 'text', text }} collapsed={collapsed} count={count} unit="deck" onToggle={onToggle} />;
 }

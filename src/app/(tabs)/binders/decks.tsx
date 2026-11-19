@@ -163,6 +163,31 @@ export default function DecksScreen() {
   }, [decks, sortSaved, headersOn, bannedIn, isGameChanger, gameChangersLoaded]);
   const ownOrder = isOwnOrder('decks', sortSaved);
 
+  // Folding a group of decks away (like all the Bracket 3 decks, or all the Commander decks):
+  // the names of the groups that are folded. They all start open.
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  function toggleGroup(text: string) {
+    setFolded((now) => {
+      const next = new Set(now);
+      if (next.has(text)) next.delete(text); else next.add(text);
+      return next;
+    });
+  }
+  // The rows to draw: each group's bar knows how many decks are in the group, and the decks of a folded group are left out
+  const shownRows = useMemo(() => {
+    const counts = new Map<string, number>();
+    let group = '';
+    for (const row of rows) {
+      if (row.kind === 'header') { group = row.text; counts.set(group, 0); } else if (group) counts.set(group, (counts.get(group) ?? 0) + 1);
+    }
+    const out: ((typeof rows)[number] & { count?: number })[] = [];
+    group = '';
+    for (const row of rows) {
+      if (row.kind === 'header') { group = row.text; out.push({ ...row, count: counts.get(group) }); } else if (!group || !folded.has(group)) out.push(row);
+    }
+    return out;
+  }, [rows, folded]);
+
   // Move up / Move down in a held deck's options
   function move(id: string, by: -1 | 1) {
     moveDeck(id, by);
@@ -180,7 +205,7 @@ export default function DecksScreen() {
                           keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       <FlatList
         showsVerticalScrollIndicator={false}
-        data={rows}
+        data={shownRows}
         keyExtractor={(row) => (row.kind === 'header' ? row.id : row.item.id)}
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
@@ -205,7 +230,7 @@ export default function DecksScreen() {
         }
         renderItem={({ item: row }) => {
           // A header bar between groups
-          if (row.kind === 'header') return <ShelfHeaderBar text={row.text} />;
+          if (row.kind === 'header') return <ShelfHeaderBar text={row.text} count={row.count} collapsed={folded.has(row.text)} onToggle={() => toggleGroup(row.text)} />;
           const item = row.item.deck;
           return (
           // One deck: tap to open, hold for its options

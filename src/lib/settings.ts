@@ -231,8 +231,7 @@ const SORT_KEYS: Record<SortArea, { sort: string; reversed: string }> = {
   deck: { sort: DECK_SORT_KEY, reversed: DECK_SORT_REVERSED_KEY },
 };
 export function savedSortFor(area: SortArea): BinderSort {
-  // A deck starts sorted by card type (Creature, Instant, Land...), so its groups have separators
-  return cleanBinderSort(storageGet(SORT_KEYS[area].sort) ?? (area === 'deck' ? 'type' : storageGet(BINDER_SORT_KEY)));
+  return cleanBinderSort(storageGet(SORT_KEYS[area].sort) ?? storageGet(BINDER_SORT_KEY));
 }
 export function savedSortReversedFor(area: SortArea): boolean {
   return (storageGet(SORT_KEYS[area].reversed) ?? storageGet(SORT_REVERSED_KEY)) === '1';
