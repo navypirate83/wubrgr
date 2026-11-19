@@ -86,7 +86,8 @@ class CatalogueReader {
       bindAll(query, params)
       SQLiteCursor(driver, editTable, query)
     }
-    val cursor = database.rawQueryWithFactory(factory, sql, null, null)
+    // (The last value is the name of the table to change, for cursors that can edit. This one only reads, so it is empty.)
+    val cursor = database.rawQueryWithFactory(factory, sql, null, "")
     try {
       val columns = cursor.columnCount
       val out = StringBuilder()
