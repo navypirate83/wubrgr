@@ -19,6 +19,7 @@ import { decodeGray, meanBrightness, type PackedGray } from '../core/grayDecode'
 import { tinyFromGray } from '../core/frameChange';
 import { readCardStaged, readTitle, type PartReader } from '../core/readPlan';
 import type { CardOcr } from './ocr';
+import { mark } from '../crashTrail';
 
 // What the add-on offers (see CardTextReaderModule.kt)
 type CardTextReaderModule = {
@@ -49,6 +50,8 @@ function reader(): CardTextReaderModule {
 
 // How big a photo is, turned upright
 export function photoSize(path: string): Promise<[number, number]> {
+  // (each step is written in the crash trail, so a crash inside the add-on can be traced afterwards)
+  mark('asking the reader for the photo size');
   return reader().photoSize(path);
 }
 
@@ -63,6 +66,7 @@ async function readClues(path: string, card: Fractions): Promise<ScanExtras> {
   const boxes = [asFractions(ART_REGION), asFractions(SYMBOL_REGION), asFractions(BORDER_STRIP)];
   // The art only needs to be fingerprinted from a small picture; the symbol is tiny, so it keeps more detail
   const widths = [288, 300, 16];
+  mark('reading the clue pictures');
   const [artRegion, symbolRegion, strip] = (await reader().grayCrops(path, card, boxes, widths)).map(decodeGray);
   return { artRegion, symbolRegion, border: borderFromBrightness(meanBrightness(strip)) };
 }
@@ -71,7 +75,12 @@ async function readClues(path: string, card: Fractions): Promise<ScanExtras> {
 // (core/readPlan.ts) wants. "card" is where the card is in the photo (shares of the photo).
 function partsOf(path: string, card: Fractions): PartReader {
   // The text in one part of the card
-  const text = async (box: Box) => (await reader().readParts(path, card, [asFractions(box)]))[0];
+  const text = async (box: Box) => {
+    mark('reading text from the photo');
+    const answer = (await reader().readParts(path, card, [asFractions(box)]))[0];
+    mark('text read');
+    return answer;
+  };
   return {
     name: () => text(CARD_PARTS.name),
     band: () => text(NAME_BAND),
@@ -79,7 +88,10 @@ function partsOf(path: string, card: Fractions): PartReader {
     bottom: () => text(CARD_PARTS.bottomLine),
     clues: () => readClues(path, card),
     // A small picture of the art to show beside the candidates
-    preview: async () => `data:image/jpeg;base64,${await reader().jpegCrop(path, card, asFractions(ART_BOX), 240)}`,
+    preview: async () => {
+      mark('cutting the art picture');
+      return `data:image/jpeg;base64,${await reader().jpegCrop(path, card, asFractions(ART_BOX), 240)}`;
+    },
   };
 }
 
@@ -127,6 +139,7 @@ export const cardOcr: CardOcr = {
   // the practice read is ignored.
   async warmUp() {
     const add = reader();
+    mark('warming up the text reader');
     if (typeof add.warmUp === 'function') { try { await add.warmUp(); } catch { /* the first scan loads it instead */ } }
   },
 };

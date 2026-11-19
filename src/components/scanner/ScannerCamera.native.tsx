@@ -44,6 +44,9 @@
    READ_CARDS_FROM_FRAMES is also on. Frames are used only after a check against a real photo has shown they come
    out the right way up, and any trouble at all (no frame, wrong shape, too small, a camera error) quietly goes
    back to taking photos, as before. The sums and safety rules are in core/liveFrames.ts (with tests).
+   SAFETY NET: if the camera can't be set up with the chosen photo settings (an error from the camera), the photo taker is
+   remade with the camera library's own plain settings and tried again once, instead of leaving a dead screen. Each step the
+   camera reaches is also written in the crash trail (lib/scanner/crashTrail.ts) so a crash can be traced afterwards.
    Nothing from the website's camera (video, canvas) is used here.
    ===================================================================== */
 
@@ -64,6 +67,7 @@ import {
 import { titlesAgree, titlesClearlyDiffer } from '@/lib/scanner/core/frameAgree';
 import { sameFrame } from '@/lib/scanner/core/frameChange';
 import { findLens, lensChoices } from '@/lib/scanner/core/lenses';
+import { mark, markCleanExit } from '@/lib/scanner/crashTrail';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 import { READ_CARDS_FROM_FRAMES, useLiveFrames } from './useLiveFrames.native';
 
@@ -109,7 +113,10 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   // The quick mode only exists on phones whose camera supports it (the camera library throws an error, which
   // closes the app, when it's asked for on one that doesn't), so ask the phone first and use the middle
   // setting ("balanced") when it can't.
-  const photoOutput = usePhotoOutput({
+  // "plainPhoto" turns true if the camera reports an error while set up with these settings: the photo taker is then
+  // remade with the camera library's own plain defaults (its most tried and tested settings) and tried once more.
+  const [plainPhoto, setPlainPhoto] = useState(false);
+  const photoOutput = usePhotoOutput(plainPhoto ? {} : {
     targetResolution: PHOTO_TARGET,
     qualityPrioritization: device?.supportsSpeedQualityPrioritization ? 'speed' : 'balanced',
     quality: 0.85,
@@ -139,10 +146,17 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   const [focused, setFocused] = useState(true);
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
 
+  // Write the steps reached in the crash trail: leaving the tab is a normal exit, coming back starts the trail going again
   useFocusEffect(useCallback(() => {
     setFocused(true);
-    return () => setFocused(false);
+    mark('scan tab in front');
+    return () => { setFocused(false); markCleanExit(); };
   }, []));
+  useEffect(() => { mark(hasPermission ? 'camera permission ok' : 'camera permission not given yet'); }, [hasPermission]);
+  useEffect(() => { mark(device ? `camera found (${device.type ?? 'unknown'})` : 'no camera found yet'); }, [device?.id]);
+  // The camera picture is only put on the screen once there is permission and a camera (see the early return below)
+  const cameraShown = hasPermission && !!device;
+  useEffect(() => { if (cameraShown) mark('camera view mounted'); }, [cameraShown]);
   useEffect(() => {
     const watch = AppState.addEventListener('change', (state) => setAppActive(state === 'active'));
     return () => watch.remove();
@@ -170,8 +184,10 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   // Take a full photo and work out where the guide is in it
   async function takeStill(view: GuideView): Promise<Look> {
     const startedAt = Date.now();
+    mark('taking a photo');
     const photo = await photoOutput.capturePhotoToFile({ enableShutterSound: false }, {});
     const ms = Date.now() - startedAt;
+    mark('photo taken');
     try {
       const [width, height] = await photoSize(photo.filePath);
       // (remembered: a live frame must have this same shape to be used)
@@ -516,7 +532,13 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         torchMode={torchOn ? 'on' : 'off'}
         enableNativeZoomGesture
         enableNativeTapToFocusGesture
+        onConfigured={() => mark('camera set up')}
+        onPreviewStarted={() => mark('camera preview showing')}
+        onStarted={() => mark('camera running')}
         onError={(error) => {
+          mark(`camera error: ${error.message}`);
+          // The first error with the chosen photo settings: remake the photo taker with plain defaults and try again once
+          if (!plainPhoto && !framesNow.current.output) { setPlainPhoto(true); setHint('The camera is trying again with simpler photo settings.'); return; }
           // If the live-frame output is on the camera, it may be the cause (some phones can't run it beside the photo taker):
           // drop it and carry on with photos only. Any later error is shown as usual.
           if (framesNow.current.output) {

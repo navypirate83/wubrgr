@@ -14,6 +14,9 @@
 // upright as a whole (that would copy every pixel): each small piece that is cut out is
 // turned instead. The last photo opened is kept in memory, so asking for several
 // things from the same photo only opens it once.
+// SAFETY: every request catches ANY failure, including the phone running out of memory (OutOfMemoryError), and answers
+// the app with an error message it can show, instead of letting the helper thread crash the whole app. A photo is
+// never opened bigger than MAX_OPENED_PIXELS, and if even that runs out of memory it is opened at half that size.
 // =====================================================================
 
 package expo.modules.cardtextreader
@@ -40,6 +43,10 @@ import java.util.concurrent.Executors
 // and uses much less memory.
 private const val CARD_WIDTH_WANTED = 1700
 
+// The most pixels a photo may have once opened (about 16 million: roughly 64 MB in memory). A bigger picture is
+// opened smaller still, so a huge photo from the phone's gallery can't use up all the memory.
+private const val MAX_OPENED_PIXELS = 16_000_000L
+
 // The photo as opened: the picture itself (possibly shrunk), how many times it was shrunk,
 // and how it must be turned to be upright (0, 90, 180 or 270 degrees)
 private class OpenPhoto(val path: String, val picture: Bitmap?, val shrunkBy: Int, val turn: Int, val rawWidth: Int, val rawHeight: Int)
@@ -61,9 +68,22 @@ class CardTextReaderModule : Module() {
     open = null
   }
 
+  // Answer the app with an error instead of crashing. "error" can be anything that went wrong, even running out of
+  // memory (which is not an Exception, so a plain "catch Exception" would let it through and close the app).
+  // On running out of memory the kept photo is let go first, so the next request starts with more room.
+  private fun fail(promise: Promise, code: String, fallback: String, error: Throwable) {
+    val noMemory = error is OutOfMemoryError
+    if (noMemory) {
+      try { forget() } catch (ignored: Throwable) { /* nothing more to free */ }
+    }
+    val message = if (noMemory) "The phone ran out of memory reading the photo" else (error.message ?: fallback)
+    promise.reject(CodedException(code, message, error))
+  }
+
   // How the photo's file says it must be turned to be upright (phones usually save photos sideways),
   // and its size as stored. Reads only the file's small header, not the picture.
   private fun look(path: String): OpenPhoto {
+    if (!File(path).exists()) throw IllegalStateException("The photo file is missing")
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(path, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IllegalStateException("The photo could not be opened")
@@ -89,13 +109,26 @@ class CardTextReaderModule : Module() {
     val cardWidth = card[2] * uprightSize(seen).first
     var shrink = 1
     while (cardWidth / (shrink * 2) >= CARD_WIDTH_WANTED) shrink *= 2
+    // Never open more pixels than MAX_OPENED_PIXELS, whatever the card's size in the photo
+    while (seen.rawWidth.toLong() / shrink * (seen.rawHeight.toLong() / shrink) > MAX_OPENED_PIXELS) shrink *= 2
     if (seen.picture != null && seen.shrunkBy == shrink) return seen
     seen.picture?.recycle()
-    val picture = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = shrink })
-      ?: throw IllegalStateException("The photo could not be opened")
+    val picture = decode(path, shrink)
     val opened = OpenPhoto(path, picture, shrink, seen.turn, seen.rawWidth, seen.rawHeight)
     open = opened
     return opened
+  }
+
+  // The photo opened at one-in-"shrink" size. If the phone runs out of memory doing it, it is tried once more at half
+  // that size (a smaller picture is better than a closed app); a second failure is passed on to the caller's "catch".
+  private fun decode(path: String, shrink: Int): Bitmap {
+    var picture: Bitmap? = null
+    try {
+      picture = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = shrink })
+    } catch (noMemory: OutOfMemoryError) {
+      picture = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = shrink * 2 })
+    }
+    return picture ?: throw IllegalStateException("The photo could not be opened")
   }
 
   // A box inside the card, as shares of the whole photo. "card" and "part" are both
@@ -145,10 +178,14 @@ class CardTextReaderModule : Module() {
       if (bigger !== piece) piece.recycle()
       piece = bigger
     }
-    // Wait here for Google's answer (fine: this runs on our helper thread, not the screen's)
-    val result = Tasks.await(recognizer.process(InputImage.fromBitmap(piece, 0)))
-    piece.recycle()
-    return result.text.trim()
+    // Wait here for Google's answer (fine: this runs on our helper thread, not the screen's). The piece is let go
+    // afterwards even if the reader fails, so a failure doesn't leave pictures piling up in memory.
+    try {
+      val result = Tasks.await(recognizer.process(InputImage.fromBitmap(piece, 0)))
+      return result.text.trim()
+    } finally {
+      piece.recycle()
+    }
   }
 
   // One box as a grey picture no wider than "maxWidth": its size, and one number from 0 to 255 for
@@ -184,8 +221,8 @@ class CardTextReaderModule : Module() {
           val photo = open?.takeIf { it.path == path } ?: look(path).also { forget(); open = it }
           val (width, height) = uprightSize(photo)
           promise.resolve(listOf(width, height))
-        } catch (error: Exception) {
-          promise.reject(CodedException("ERR_CARD_PHOTO", error.message ?: "The photo could not be read", error))
+        } catch (error: Throwable) {
+          fail(promise, "ERR_CARD_PHOTO", "The photo could not be read", error)
         }
       }
     }
@@ -198,8 +235,8 @@ class CardTextReaderModule : Module() {
         try {
           val photo = openFor(path, card)
           promise.resolve(parts.map { readBox(photo, inPhoto(card, it)) })
-        } catch (error: Exception) {
-          promise.reject(CodedException("ERR_CARD_TEXT", error.message ?: "The card could not be read", error))
+        } catch (error: Throwable) {
+          fail(promise, "ERR_CARD_TEXT", "The card could not be read", error)
         }
       }
     }
@@ -211,8 +248,8 @@ class CardTextReaderModule : Module() {
         try {
           val photo = openFor(path, card)
           promise.resolve(parts.mapIndexed { index, part -> grayBox(photo, inPhoto(card, part), maxWidths[index]) })
-        } catch (error: Exception) {
-          promise.reject(CodedException("ERR_CARD_CROP", error.message ?: "The card could not be cropped", error))
+        } catch (error: Throwable) {
+          fail(promise, "ERR_CARD_CROP", "The card could not be cropped", error)
         }
       }
     }
@@ -230,8 +267,8 @@ class CardTextReaderModule : Module() {
           small.compress(Bitmap.CompressFormat.JPEG, 80, bytes)
           small.recycle()
           promise.resolve(Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP))
-        } catch (error: Exception) {
-          promise.reject(CodedException("ERR_CARD_CROP", error.message ?: "The card could not be cropped", error))
+        } catch (error: Throwable) {
+          fail(promise, "ERR_CARD_CROP", "The card could not be cropped", error)
         }
       }
     }
@@ -245,8 +282,8 @@ class CardTextReaderModule : Module() {
           Tasks.await(recognizer.process(InputImage.fromBitmap(blank, 0)))
           blank.recycle()
           promise.resolve(null)
-        } catch (error: Exception) {
-          promise.reject(CodedException("ERR_CARD_WARM", error.message ?: "The reader could not be warmed up", error))
+        } catch (error: Throwable) {
+          fail(promise, "ERR_CARD_WARM", "The reader could not be warmed up", error)
         }
       }
     }
@@ -258,8 +295,8 @@ class CardTextReaderModule : Module() {
           if (path == open?.path) forget()
           if (deleteFile) File(path).delete()
           promise.resolve(null)
-        } catch (error: Exception) {
-          promise.reject(CodedException("ERR_CARD_PHOTO", error.message ?: "The photo could not be removed", error))
+        } catch (error: Throwable) {
+          fail(promise, "ERR_CARD_PHOTO", "The photo could not be removed", error)
         }
       }
     }

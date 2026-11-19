@@ -26,10 +26,12 @@
    never jumps ahead of an earlier, slower one, and none is lost or added twice.
    WARM-UP: as soon as this screen opens, the text reader, the card-name and set lists and (if the AI option is
    on) the AI are got ready in the background (scanWarmUp.ts), so the first scan is no slower than the rest.
+   CRASH TRAIL: the screen keeps a small diary of the steps it reaches (lib/scanner/crashTrail.ts); if the app closed by
+   itself last time, a message at the top shows the last steps with a "Copy details" button (CrashTrailNotice.tsx).
    ===================================================================== */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ScannerCamera from './ScannerCamera';
 import ScanSettingsSheet from './ScanSettingsSheet';
@@ -37,6 +39,7 @@ import ConfirmSheet from './ConfirmSheet';
 import PrintingPicker from './PrintingPicker';
 import StackList from './StackList';
 import AddToBinderDialog from './AddToBinderDialog';
+import CrashTrailNotice from './CrashTrailNotice';
 import { useColors } from '@/hooks/useTheme';
 import { useScanOptions } from '@/hooks/useScanOptions';
 import { askYesNo } from '@/lib/dialogs';
@@ -46,6 +49,8 @@ import type { CatalogueInfo, Printing } from '@/lib/scanner/core/catalogueTypes'
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import { resolveReading, type ScanOutcome } from '@/lib/scanner/scanResolve';
 import { startWarmUp } from '@/lib/scanner/scanWarmUp';
+import { beginRun, clearReport, endRun, mark, markCleanExit } from '@/lib/scanner/crashTrail';
+import type { Crumb } from '@/lib/scanner/core/crashTrailCore';
 import { createOrderedResults } from '@/lib/scanner/core/resolveQueue';
 import { timingWords } from '@/lib/scanner/core/readPlan';
 import { changeScanOptions, getScanOptions } from '@/lib/scanner/scanSettings';
@@ -86,6 +91,24 @@ export default function ScanScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pending, setPending] = useState(0);
   const options = useScanOptions();
+  // THE CRASH TRAIL (see lib/scanner/crashTrail.ts). The diary of this visit is started while the screen is first drawn
+  // (before the camera below starts writing its own steps), and the diary of the visit before is read in the background.
+  // "report" is that earlier visit's steps if it did not end properly (null: nothing to show, which is the usual case).
+  const [firstLook] = useState(() => { const earlier = beginRun(); mark('scan screen opened'); return earlier; });
+  const [report, setReport] = useState<Crumb[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    firstLook.then((earlier) => { if (alive && earlier) setReport(earlier); }).catch(() => { /* no report then */ });
+    return () => { alive = false; endRun(); };
+  }, [firstLook]);
+  // The app going to the background counts as a normal exit; coming back to the front starts the trail going again
+  useEffect(() => {
+    const watch = AppState.addEventListener('change', (state) => {
+      if (state === 'active') mark('app back in front');
+      else markCleanExit();
+    });
+    return () => watch.remove();
+  }, []);
   // Every card's name in the plain form, once the catalogue is open (to tell whether some text is a name)
   const names = useRef<string[]>([]);
   // The quick-lookup version of the same list (core/nameIndex.ts); if it isn't ready the plain list is used
@@ -93,6 +116,7 @@ export default function ScanScreen() {
   // Reads the name list and its quick-lookup index once the catalogue is open (a scan reports any problem itself)
   const loadNames = () => {
     allFrontNames().then((list) => {
+      mark('names loaded');
       names.current = list;
       allFrontNameIndex().then((index) => { nameIndex.current = index; }).catch(() => { /* the plain list still works */ });
     }).catch(() => { /* a scan reports it */ });
@@ -114,6 +138,7 @@ export default function ScanScreen() {
     (async () => {
       let info: CatalogueInfo | null = null;
       try { info = await openCatalogue(); } catch (err) { say((err as Error).message); }
+      mark(info ? 'catalogue opened' : 'no catalogue on this device');
       setCatalogue(info);
       if (info) loadNames();
       if (info || !catalogueConfigured()) return;
@@ -180,8 +205,10 @@ export default function ScanScreen() {
     if (!catalogue) return () => say('Get the card catalogue first (Settings → Card catalogue).');
     const chosen = getScanOptions();
     const lookupStart = Date.now();
+    mark('looking the card up');
     const outcome = await resolveReading(reading, { lockedSet: chosen.lockedSet?.code ?? null, aiArt: chosen.aiArt });
     const doneAt = Date.now();
+    mark('card looked up');
     return () => putOnScreen(reading, outcome, chosen, lookupStart, doneAt);
   }
 
@@ -284,6 +311,9 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* The message shown only when the scanner stopped in the middle of something last time */}
+      {report && <CrashTrailNotice report={report} onDismiss={() => { clearReport(); setReport(null); }} />}
+
       <ScannerCamera
         onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding || settingsOpen}
         queue={mode === 'stack'}

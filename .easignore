@@ -41,3 +41,10 @@ expo-env.d.ts
 code-only/
 legacy-web/
 server/
+
+# Also kept off Expo's build servers: the scanner's catalogue and AI test files (gigabytes of
+# downloaded pictures and models that only the catalogue scripts use), the server-class notes
+# file that holds a password, and any old installers
+scripts/catalogue/
+weds.md
+*.apk
