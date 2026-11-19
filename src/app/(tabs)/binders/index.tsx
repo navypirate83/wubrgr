@@ -32,6 +32,7 @@
    ===================================================================== */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import SymbolText from '@/components/SymbolText';
 import {
   FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Text,
   View,
@@ -787,7 +788,7 @@ export default function ShelfScreen() {
         // The message line under the shelf
         ListFooterComponent={
           message.text
-            ? <Text style={[styles.message, { color: message.error ? colors.error : colors.muted }]} accessibilityLiveRegion="polite">{message.text}</Text>
+            ? <SymbolText inline style={[styles.message, { color: message.error ? colors.error : colors.muted }]} accessibilityLiveRegion="polite">{message.text}</SymbolText>
             : undefined
         }
         // Redraw the binders as one is dragged, and when the mouse or

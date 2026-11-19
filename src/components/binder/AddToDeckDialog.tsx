@@ -109,9 +109,9 @@ export default function AddToDeckDialog({ card, onDone, onCancel }: Props) {
             ))}
           </View>
           {(message || decks.length === 0) && (
-            <Text style={[styles.message, { color: message ? colors.error : colors.muted }]}>
+            <SymbolText inline style={[styles.message, { color: message ? colors.error : colors.muted }]}>
               {message || 'You have no decks yet. Make one on the Decks page first.'}
-            </Text>
+            </SymbolText>
           )}
         </View>
       }

@@ -35,6 +35,7 @@ import AppHeader from '@/components/AppHeader';
 import HelpButton from '@/components/HelpButton';
 import SyncChoiceHost from '@/components/SyncChoiceHost';
 import MergeChoiceHost from '@/components/MergeChoiceHost';
+import DialogHost from '@/components/DialogHost';
 
 // Keep the splash screen showing until we say it can go (below)
 SplashScreen.preventAutoHideAsync().catch(() => { /* already hidden */ });
@@ -175,6 +176,9 @@ function ThemedStack() {
           the account finds a binder or list that is on this device and in
           the account with different cards (see lib/serverSync.ts) */}
       <MergeChoiceHost />
+      {/* The app's own message and yes/no window: invisible until some code
+          calls showMessage or askYesNo (see lib/dialogs.ts) */}
+      <DialogHost />
     </ThemeProvider>
   );
 }

@@ -28,6 +28,7 @@
    ===================================================================== */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import SymbolText from '@/components/SymbolText';
 import { Animated, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -233,7 +234,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
         <>
           <Text style={[styles.infoText, { color: colors.muted }]}>·</Text>
           <Image source={WHERE_ICON[where.kind]} style={styles.smallDrawing} contentFit="contain" tintColor={colors.muted} />
-          <Text style={[styles.infoText, styles.infoName, { color: colors.text }]} numberOfLines={1}>{where.name}</Text>
+          <SymbolText style={[styles.infoText, styles.infoName, { color: colors.text }]} numberOfLines={1} size={11}>{where.name}</SymbolText>
         </>
       )}
       {ownedTotal > 0 && (

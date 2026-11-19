@@ -209,9 +209,9 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel, mode
             </View>
           )}
           {message.text ? (
-            <Text style={[styles.message, { color: message.error ? colors.error : colors.muted }]} accessibilityLiveRegion="polite">
+            <SymbolText inline style={[styles.message, { color: message.error ? colors.error : colors.muted }]} accessibilityLiveRegion="polite">
               {message.text}
-            </Text>
+            </SymbolText>
           ) : null}
         </>
       }

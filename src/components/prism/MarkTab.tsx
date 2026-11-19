@@ -17,6 +17,7 @@
    ===================================================================== */
 
 import { useMemo, useState } from 'react';
+import SymbolText from '@/components/SymbolText';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Button from '@/components/Button';
@@ -158,7 +159,7 @@ export default function MarkTab({ set, plan, decks, changes, selected, onChanged
               return slot === null ? null : (
                 <View key={deckId} style={styles.mark}>
                   <DeckSquare slot={slot} size={24} />
-                  <Text style={[styles.markName, { color: colors.text }]} numberOfLines={1}>{deck?.name ?? 'A deck'}</Text>
+                  <SymbolText style={[styles.markName, { color: colors.text }]} numberOfLines={1}>{deck?.name ?? 'A deck'}</SymbolText>
                   <Text style={[styles.markSlot, { color: colors.muted }]}>slot {slot}</Text>
                 </View>
               );
