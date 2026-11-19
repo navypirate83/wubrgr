@@ -1,6 +1,6 @@
 /* =====================================================================
    TESTS: PRISM ROUTES
-   PRISM sets are saved with the account. Only accounts with the prism role
+   PRISM sets are saved with the account. Only accounts with the prism right
    (and admins) may use the routes, a set is only ever seen and changed by
    its owner, a bad set is refused whole, and deleting the account deletes
    its sets.
@@ -29,7 +29,7 @@ const SET = {
 };
 
 async function prismPerson() {
-  const user = await makeUser({ role: 'prism' });
+  const user = await makeUser({ roles: ['prism'] });
   const auth = bearer(user);
   return {
     user,
@@ -51,7 +51,7 @@ describe('who may use it', () => {
     expect((await request(app).put('/prism/abc').set('Authorization', bearer(plain)).send(SET)).status).toBe(403);
     const prismAccount = await prismPerson();
     expect((await prismAccount.get('/prism')).status).toBe(200);
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     expect((await request(app).get('/prism').set('Authorization', bearer(admin))).status).toBe(200);
     // and nothing was saved for the one turned away
     expect(await PrismSet.countDocuments()).toBe(0);

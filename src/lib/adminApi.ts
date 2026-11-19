@@ -3,7 +3,7 @@
    Only an account with the Admin right can use these (the server refuses
    everyone else, whatever the app does). They are:
      - listPeople: everyone with an account, with their rights and when they last used it
-     - setRights: give or take away PRISM, AIScan or Admin
+     - setRights: change which of PRISM, AIScan and Admin a person has
      - deletePerson: delete a person and everything they own (the person's
        name has to be sent too: the page makes you type it)
    The server also refuses to change or delete your own account, and to take
@@ -13,29 +13,30 @@
 
 import { apiRequest } from './api';
 
-// The four levels of rights. Admin includes PRISM and AIScan (and everything else).
-export type Rights = 'user' | 'prism' | 'aiscan' | 'admin';
+// The special rights an account can hold, in the order they are shown. An account can hold
+// any mix of them (or none). Admin includes PRISM and AIScan (and everything else).
+export type Right = 'prism' | 'aiscan' | 'admin';
+export const RIGHTS: Right[] = ['prism', 'aiscan', 'admin'];
 
 export type Person = {
   id: string;
   email: string;
   username: string;
   name: string;
-  role: Rights;
+  roles: Right[];         // the rights this account holds (an empty list = the normal app only)
   createdAt: string;      // when the account was made (as the server sends dates)
   lastAccessAt: string;   // when the account was last used (empty if the server has no record yet)
 };
 
 // What the server sends for one person
-type ServerPerson = { _id: string; email: string; username?: string; name?: string; role?: string; createdAt?: string; lastAccessAt?: string };
+type ServerPerson = { _id: string; email: string; username?: string; name?: string; roles?: unknown; createdAt?: string; lastAccessAt?: string };
 
-// The words for each level, shown on the page
-export const RIGHTS_LABEL: Record<Rights, string> = { user: 'No extra rights', prism: 'PRISM', aiscan: 'AIScan', admin: 'Admin' };
-export const RIGHTS_ABOUT: Record<Rights, string> = {
-  user: 'The normal app: shelf, binders, lists, decks, scanner and Card Finder.',
-  prism: 'Everything above, plus the PRISM section.',
-  aiscan: 'Everything above, plus the AI art matching option in the scanner (it downloads the AI files).',
-  admin: 'Everything, PRISM and AIScan included, plus the Admin page.',
+// The words for each right, shown on the page
+export const RIGHTS_LABEL: Record<Right, string> = { prism: 'PRISM', aiscan: 'AIScan', admin: 'Admin' };
+export const RIGHTS_ABOUT: Record<Right, string> = {
+  prism: 'The PRISM section.',
+  aiscan: 'The AI art matching option in the scanner (it downloads the AI files).',
+  admin: 'Everything: PRISM and AIScan included, plus the Admin page.',
 };
 
 const PAGE = 100;       // the server sends at most 100 people at a time
@@ -51,7 +52,8 @@ export async function listPeople(): Promise<Person[]> {
         email: p.email,
         username: p.username ?? p.email,
         name: p.name?.trim() || p.username || p.email,
-        role: p.role === 'admin' || p.role === 'prism' || p.role === 'aiscan' ? p.role : 'user',
+        // Keep only known rights (a missing or damaged list counts as none)
+        roles: Array.isArray(p.roles) ? RIGHTS.filter((r) => (p.roles as unknown[]).includes(r)) : [],
         createdAt: p.createdAt ?? '',
         lastAccessAt: p.lastAccessAt ?? '',
       });
@@ -61,9 +63,9 @@ export async function listPeople(): Promise<Person[]> {
   return people;
 }
 
-// Give someone another level of rights
-export async function setRights(id: string, role: Rights): Promise<void> {
-  await apiRequest(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: { role } });
+// Replace someone's list of rights with a new one
+export async function setRights(id: string, roles: Right[]): Promise<void> {
+  await apiRequest(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: { roles } });
 }
 
 // Delete a person and everything they own. "name" is what was typed to confirm.

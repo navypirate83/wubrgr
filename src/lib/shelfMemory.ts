@@ -1,7 +1,7 @@
 /* =====================================================================
    WHERE YOU WERE IN THE SHELF
    The shelf has three sections: Binders, Lists and Decks (and a fourth, PRISM,
-   for accounts that have the PRISM role). Each page you
+   for accounts that have the PRISM right). Each page you
    open inside it is remembered, so coming back puts you where you left
    off instead of at the top:
    - the Binders / Lists / Decks buttons (in the header on a phone, in the

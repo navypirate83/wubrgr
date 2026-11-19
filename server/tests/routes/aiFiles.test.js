@@ -1,6 +1,6 @@
 /* =====================================================================
    TESTS: AI SCANNER FILE ROUTES
-   The AI files are only handed to accounts with the aiscan role (and
+   The AI files are only handed to accounts with the aiscan right (and
    admins). These tests store tiny fake files in the test database (never
    the real model), then check who may download them and that only the
    five known names exist.
@@ -57,8 +57,8 @@ describe('who may download', () => {
 
   test('an ordinary account and a prism account are 403', async () => {
     await storeFakes();
-    for (const role of ['user', 'prism']) {
-      const res = await download('/ai/model.onnx', await makeUser({ role }));
+    for (const roles of [[], ['prism']]) {
+      const res = await download('/ai/model.onnx', await makeUser({ roles }));
       expect(res.status).toBe(403);
       expect(res.body.toString()).toContain('AI scanner access required');
     }
@@ -66,7 +66,7 @@ describe('who may download', () => {
 
   test('an aiscan account gets every file with the right bytes and length, privately', async () => {
     await storeFakes();
-    const person = await makeUser({ role: 'aiscan' });
+    const person = await makeUser({ roles: ['aiscan'] });
     for (const name of AI_ALLOWED) {
       const res = await download(`/ai/${name}`, person);
       expect(res.status).toBe(200);
@@ -78,7 +78,7 @@ describe('who may download', () => {
 
   test('an admin gets a file too', async () => {
     await storeFakes();
-    const res = await download('/ai/projection.bin', await makeUser({ role: 'admin' }));
+    const res = await download('/ai/projection.bin', await makeUser({ roles: ['admin'] }));
     expect(res.status).toBe(200);
     expect(Buffer.compare(res.body, FAKE['projection.bin'])).toBe(0);
   });
@@ -87,7 +87,7 @@ describe('who may download', () => {
 describe('only the known names exist', () => {
   test('any other name is 404, even with access', async () => {
     await storeFakes();
-    const person = await makeUser({ role: 'aiscan' });
+    const person = await makeUser({ roles: ['aiscan'] });
     for (const name of ['secret.txt', 'model.onnx.bak', '..%2Fpackage.json', '%2e%2e%2fapp.js', 'MODEL.ONNX', 'ai.json%00']) {
       expect((await download(`/ai/${name}`, person)).status).toBe(404);
     }
@@ -96,37 +96,37 @@ describe('only the known names exist', () => {
   });
 
   test('a known name that was never uploaded is 404', async () => {
-    const res = await download('/ai/ai.json', await makeUser({ role: 'aiscan' }));
+    const res = await download('/ai/ai.json', await makeUser({ roles: ['aiscan'] }));
     expect(res.status).toBe(404);
   });
 
   test('when a file was uploaded twice, the newest copy is sent', async () => {
     await storeFakes();
     await store('projection.bin', Buffer.from([1, 1]));
-    const res = await download('/ai/projection.bin', await makeUser({ role: 'aiscan' }));
+    const res = await download('/ai/projection.bin', await makeUser({ roles: ['aiscan'] }));
     expect([...res.body]).toEqual([1, 1]);
   });
 });
 
-describe('giving and taking the role', () => {
-  test('an admin can give aiscan and take it away, and the new role works on the files', async () => {
+describe('giving and taking the right', () => {
+  test('an admin can give aiscan and take it away, and the new right works on the files', async () => {
     await storeFakes();
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     const other = await makeUser();
-    for (const role of ['aiscan', 'user']) {
-      const res = await request(app).patch(`/admin/users/${other._id}`).set('Authorization', bearer(admin)).send({ role });
+    for (const roles of [['aiscan'], []]) {
+      const res = await request(app).patch(`/admin/users/${other._id}`).set('Authorization', bearer(admin)).send({ roles });
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: String(other._id), role });
+      expect(res.body).toEqual({ id: String(other._id), roles });
       const saved = await User.findById(other._id);
-      expect(saved.role).toBe(role);
-      // The token carries the role, so a fresh token for the changed account shows the effect
-      expect((await download('/ai/model.onnx', saved)).status).toBe(role === 'aiscan' ? 200 : 403);
+      expect([...saved.roles]).toEqual(roles);
+      // The token carries the rights, so a fresh token for the changed account shows the effect
+      expect((await download('/ai/model.onnx', saved)).status).toBe(roles.length ? 200 : 403);
     }
   });
 
-  test('an aiscan account can not change roles', async () => {
+  test('an aiscan account can not change rights', async () => {
     const target = await makeUser();
-    const res = await request(app).patch(`/admin/users/${target._id}`).set('Authorization', bearer(await makeUser({ role: 'aiscan' }))).send({ role: 'admin' });
+    const res = await request(app).patch(`/admin/users/${target._id}`).set('Authorization', bearer(await makeUser({ roles: ['aiscan'] }))).send({ roles: ['admin'] });
     expect(res.status).toBe(403);
   });
 });

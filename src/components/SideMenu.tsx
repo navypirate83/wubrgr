@@ -46,7 +46,7 @@ import { RADIUS, SPACE } from '@/theme/colors';
 const BINDER_PICTURE = require('../../assets/images/binder-outline.svg') as number;
 const NOTEBOOK_PICTURE = require('../../assets/images/notebook-outline.svg') as number;
 const DECK_BOX_PICTURE = require('../../assets/images/deckbox-outline.svg') as number;
-// The PRISM prism (in full color; only accounts with the PRISM role see its line)
+// The PRISM prism (in full color; only accounts with the PRISM right see its line)
 const PRISM_PICTURE = require('../../assets/images/prism-icon.png') as number;
 
 // An Ionicons icon's name, written the way the icon set spells it
@@ -60,7 +60,7 @@ const PRISM_ADDRESS = /^\/binders\/prism(set)?(\/|$)/;
 
 export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
   const colors = useColors();
-  // Does this account have the PRISM role? Without it the menu has no PRISM line
+  // Does this account have the PRISM right? Without it the menu has no PRISM line
   const { hasPrism } = useAccount();
   const insets = useSafeAreaInsets();
   const slim = style === 'slim';
@@ -172,7 +172,7 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
         <MenuItem slim={slim} sub label="Binders" picture={BINDER_PICTURE} active={onBinders} onPress={() => goTo('binders', onBinders)} />
         <MenuItem slim={slim} sub label="Lists" picture={NOTEBOOK_PICTURE} active={onLists} onPress={() => goTo('lists', onLists)} />
         <MenuItem slim={slim} sub label="Decks" picture={DECK_BOX_PICTURE} active={onDecks} onPress={() => goTo('decks', onDecks)} />
-        {/* PRISM: only for accounts with the PRISM role (and admins) */}
+        {/* PRISM: only for accounts with the PRISM right (and admins) */}
         {hasPrism && <MenuItem slim={slim} sub label="PRISM" picture={PRISM_PICTURE} plain active={onPrism} onPress={() => goTo('prism', onPrism)} />}
       </View>
 

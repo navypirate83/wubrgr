@@ -1,7 +1,7 @@
 /* =====================================================================
    PRISM ROUTES (/prism)
    Mounted behind requireAuth and requirePrism in app.js: only accounts with
-   the "prism" role (and admins) may use them, and every request works only
+   the "prism" right (and admins) may use them, and every request works only
    on the signed-in person's own sets (the owner is never taken from the
    request).
    - GET    /prism            every one of my sets

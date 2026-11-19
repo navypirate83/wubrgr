@@ -9,6 +9,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { COLLECTIONS } from './collectionNames.js';
+import { ALLOWED_ROLES } from '../utils/roles.js';
 
 // What a chosen username may look like: 3 to 30 letters, numbers, dots,
 // underscores and dashes. No "@", so nobody can register someone else's
@@ -20,10 +21,19 @@ const userSchema = new mongoose.Schema(
     // The email: saved lowercase and trimmed, and no two accounts share one
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
     name: { type: String, trim: true, maxlength: 100 },
-    // "user", "admin", "prism" or "aiscan" (who may see the PRISM section, or
-    // download the AI scanner files: an admin can do both). Only an admin can
-    // change this, through the admin route; signing up never sets it.
-    role: { type: String, enum: ['user', 'admin', 'prism', 'aiscan'], default: 'user' },
+    // The special rights this account holds: any of "prism" (may see the PRISM
+    // section), "aiscan" (may download the AI scanner files) and "admin" (may manage
+    // accounts, and counts as having every right). A normal account has none (an
+    // empty list). Only an admin can change this, through the admin route; signing
+    // up never sets it. The list can't hold repeats or unknown names.
+    roles: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (list) => list.every((item) => ALLOWED_ROLES.includes(item)) && new Set(list).size === list.length,
+        message: 'Rights must be prism, aiscan or admin, each at most once',
+      },
+    },
     // Google's own stable id for the person (only for Google sign-ins).
     // Its unique rule is "sparse": accounts without one don't clash.
     googleId: { type: String, maxlength: 255 },

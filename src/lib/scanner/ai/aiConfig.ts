@@ -10,7 +10,7 @@
    plus a small "ai.json" that lists each file's size and checksum, so a
    download can be checked to be whole and unspoiled.
    They are NOT public. They are kept on the WUBRG'r server and only handed to
-   signed-in accounts with the "aiscan" role (and admins), at the server's
+   signed-in accounts with the "aiscan" right (and admins), at the server's
    /ai/ addresses (the login token is sent with each download, see
    downloadAiFiles in aiFiles.ts). Putting them there is done once with
    server/scripts/upload-ai-files.mjs.

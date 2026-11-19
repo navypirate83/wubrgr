@@ -31,80 +31,102 @@ const as = (user) => ({
 describe('only admins get in', () => {
   test('an ordinary, a prism and an aiscan account are turned away from every admin route', async () => {
     const target = await makeUser();
-    for (const role of ['user', 'prism', 'aiscan']) {
-      const me = as(await makeUser({ role }));
+    for (const roles of [[], ['prism'], ['aiscan'], ['prism', 'aiscan']]) {
+      const me = as(await makeUser({ roles }));
       expect((await me.get('/admin/users')).status).toBe(403);
-      expect((await me.patch(`/admin/users/${target._id}`, { role: 'admin' })).status).toBe(403);
+      expect((await me.patch(`/admin/users/${target._id}`, { roles: ['admin'] })).status).toBe(403);
       expect((await me.del(`/admin/users/${target._id}`, { name: target.name })).status).toBe(403);
     }
-    expect((await User.findById(target._id)).role).toBe('user');
+    expect([...(await User.findById(target._id)).roles]).toEqual([]);
   });
 });
 
 describe('changing rights', () => {
   test('an admin can give PRISM, give admin, and take them away again', async () => {
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     const other = await makeUser();
     const me = as(admin);
-    for (const role of ['prism', 'admin', 'user']) {
-      const res = await me.patch(`/admin/users/${other._id}`, { role });
+    for (const roles of [['prism'], ['prism', 'aiscan'], ['admin'], []]) {
+      const res = await me.patch(`/admin/users/${other._id}`, { roles });
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ id: String(other._id), role });
-      expect((await User.findById(other._id)).role).toBe(role);
+      expect(res.body).toEqual({ id: String(other._id), roles });
+      expect([...(await User.findById(other._id)).roles]).toEqual(roles);
     }
   });
 
-  test('a role that does not exist, a missing person and a bad id are refused', async () => {
-    const admin = await makeUser({ role: 'admin' });
+  test('repeats are dropped and the rights are put in the standard order', async () => {
+    const admin = await makeUser({ roles: ['admin'] });
+    const other = await makeUser();
+    const res = await as(admin).patch(`/admin/users/${other._id}`, { roles: ['aiscan', 'prism', 'aiscan'] });
+    expect(res.status).toBe(200);
+    expect(res.body.roles).toEqual(['prism', 'aiscan']);
+  });
+
+  test('a body that is not a list of known rights is refused with 400 and nothing changes', async () => {
+    const admin = await makeUser({ roles: ['admin'] });
+    const other = await makeUser({ roles: ['prism'] });
+    const me = as(admin);
+    for (const body of [{ roles: 'admin' }, { roles: [1] }, { roles: ['owner'] }, { roles: ['prism', 'user'] }, { role: 'admin' }, {}]) {
+      const res = await me.patch(`/admin/users/${other._id}`, body);
+      expect(res.status).toBe(400);
+      expect(typeof res.body.error).toBe('string');
+    }
+    expect([...(await User.findById(other._id)).roles]).toEqual(['prism']);
+  });
+
+  test('a right that does not exist, a missing person and a bad id are refused', async () => {
+    const admin = await makeUser({ roles: ['admin'] });
     const other = await makeUser();
     const me = as(admin);
-    expect((await me.patch(`/admin/users/${other._id}`, { role: 'owner' })).status).toBe(400);
+    expect((await me.patch(`/admin/users/${other._id}`, { roles: ['owner'] })).status).toBe(400);
     expect((await me.patch(`/admin/users/${other._id}`, {})).status).toBe(400);
-    expect((await me.patch('/admin/users/64b000000000000000000000', { role: 'user' })).status).toBe(404);
-    expect((await me.patch('/admin/users/not-an-id', { role: 'user' })).status).toBe(404);
-    expect((await User.findById(other._id)).role).toBe('user');
+    expect((await me.patch('/admin/users/64b000000000000000000000', { roles: [] })).status).toBe(404);
+    expect((await me.patch('/admin/users/not-an-id', { roles: [] })).status).toBe(404);
+    expect([...(await User.findById(other._id)).roles]).toEqual([]);
   });
 
   test('an admin cannot change their own rights', async () => {
-    const admin = await makeUser({ role: 'admin' });
-    const second = await makeUser({ role: 'admin' });
-    const res = await as(admin).patch(`/admin/users/${admin._id}`, { role: 'user' });
+    const admin = await makeUser({ roles: ['admin'] });
+    const second = await makeUser({ roles: ['admin'] });
+    const res = await as(admin).patch(`/admin/users/${admin._id}`, { roles: [] });
     expect(res.status).toBe(403);
-    expect((await User.findById(admin._id)).role).toBe('admin');
+    expect([...(await User.findById(admin._id)).roles]).toEqual(['admin']);
     // ...though another admin can
-    expect((await as(second).patch(`/admin/users/${admin._id}`, { role: 'user' })).status).toBe(200);
+    expect((await as(second).patch(`/admin/users/${admin._id}`, { roles: [] })).status).toBe(200);
   });
 
   test('the last admin cannot be taken down', async () => {
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     // Not by themselves (blocked above), and not by an account that has since lost its admin right either:
     // here a second admin demotes the first, then the second is the last one and is protected
-    const second = await makeUser({ role: 'admin' });
-    expect((await as(second).patch(`/admin/users/${admin._id}`, { role: 'user' })).status).toBe(200);
-    const third = await makeUser({ role: 'admin' });
-    expect((await as(third).patch(`/admin/users/${second._id}`, { role: 'user' })).status).toBe(200);
+    const second = await makeUser({ roles: ['admin'] });
+    expect((await as(second).patch(`/admin/users/${admin._id}`, { roles: [] })).status).toBe(200);
+    const third = await makeUser({ roles: ['admin'] });
+    expect((await as(third).patch(`/admin/users/${second._id}`, { roles: [] })).status).toBe(200);
     // third is now the only admin; a stale token for the demoted second admin still says admin, and must not remove the last one
     const staleSecond = as(second);
-    const res = await staleSecond.patch(`/admin/users/${third._id}`, { role: 'user' });
+    const res = await staleSecond.patch(`/admin/users/${third._id}`, { roles: ['prism'] });
     expect(res.status).toBe(409);
-    expect((await User.findById(third._id)).role).toBe('admin');
+    expect([...(await User.findById(third._id)).roles]).toEqual(['admin']);
+    // Keeping admin while changing other rights is fine for the last admin
+    expect((await staleSecond.patch(`/admin/users/${third._id}`, { roles: ['admin', 'prism'] })).status).toBe(200);
   });
 });
 
 describe('listing people', () => {
   test('an admin sees everyone, never passwords', async () => {
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     await makeUser();
     const res = await as(admin).get('/admin/users?limit=100');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(2);
-    expect(res.body[0]).toEqual(expect.objectContaining({ email: expect.any(String), role: expect.any(String) }));
+    expect(res.body[0]).toEqual(expect.objectContaining({ email: expect.any(String), roles: expect.any(Array) }));
     expect(JSON.stringify(res.body)).not.toMatch(/password/i);
   });
 
   // Someone who has never signed in has no "last used" date; signing in sets it
   test('the list shows when each account was last used, set by signing in', async () => {
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     const sam = await makeUser({ email: 'sam@example.com' });
     const before = (await as(admin).get('/admin/users?limit=100')).body.find((p) => p.email === 'sam@example.com');
     expect(before.lastAccessAt).toBeUndefined();
@@ -130,7 +152,7 @@ describe('deleting a person', () => {
   }
 
   test('with the right name, the person and everything they own are gone, and nobody else is touched', async () => {
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     const bystander = await makeUser();
     await Binder.create({ owner: bystander._id, name: 'Keep me' });
     const person = await aFullAccount();
@@ -144,7 +166,7 @@ describe('deleting a person', () => {
   });
 
   test('the username or the email works as the name, but a wrong or missing name deletes nothing', async () => {
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     const person = await aFullAccount();
     const me = as(admin);
     expect((await me.del(`/admin/users/${person._id}`, { name: 'Somebody Else' })).status).toBe(400);
@@ -156,10 +178,10 @@ describe('deleting a person', () => {
   });
 
   test('an admin cannot delete themselves, and the last admin cannot be deleted', async () => {
-    const admin = await makeUser({ role: 'admin', name: 'Boss' });
+    const admin = await makeUser({ roles: ['admin'], name: 'Boss' });
     expect((await as(admin).del(`/admin/users/${admin._id}`, { name: 'Boss' })).status).toBe(403);
     // A second admin deleting the first is fine; the second is then the last and is protected from a stale admin token
-    const second = await makeUser({ role: 'admin', name: 'Second' });
+    const second = await makeUser({ roles: ['admin'], name: 'Second' });
     expect((await as(second).del(`/admin/users/${admin._id}`, { name: 'Boss' })).status).toBe(204);
     const stale = as(admin);
     // (the deleted admin's token no longer works at all)
@@ -168,17 +190,17 @@ describe('deleting a person', () => {
   });
 
   test('the last admin is protected even from another admin whose rights were just removed', async () => {
-    const first = await makeUser({ role: 'admin', name: 'First' });
-    const second = await makeUser({ role: 'admin', name: 'Second' });
+    const first = await makeUser({ roles: ['admin'], name: 'First' });
+    const second = await makeUser({ roles: ['admin'], name: 'Second' });
     // second demotes first; first's old token still says "admin" for up to 15 minutes
-    expect((await as(second).patch(`/admin/users/${first._id}`, { role: 'user' })).status).toBe(200);
+    expect((await as(second).patch(`/admin/users/${first._id}`, { roles: [] })).status).toBe(200);
     const res = await as(first).del(`/admin/users/${second._id}`, { name: 'Second' });
     expect(res.status).toBe(409);
     expect(await User.findById(second._id)).not.toBeNull();
   });
 
   test('a missing person and a bad id are 404', async () => {
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     expect((await as(admin).del('/admin/users/64b000000000000000000000', { name: 'x' })).status).toBe(404);
     expect((await as(admin).del('/admin/users/nope', { name: 'x' })).status).toBe(404);
   });

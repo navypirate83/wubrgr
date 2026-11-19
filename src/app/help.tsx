@@ -44,7 +44,7 @@ export default function HelpScreen() {
   // The phone's "safe area": how much room the home bar (or rounded
   // corners) take at the bottom, so the last line isn't hidden behind it
   const insets = useSafeAreaInsets();
-  // The PRISM topic is only for accounts with the PRISM role: nobody else sees it listed
+  // The PRISM topic is only for accounts with the PRISM right: nobody else sees it listed
   // The Admin topic is only for admins
   const { hasPrism, isAdmin } = useAccount();
   const helpTopics = allHelpTopics.filter((t) => (t.id !== 'prism' || hasPrism) && (t.id !== 'admin' || isAdmin));

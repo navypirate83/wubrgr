@@ -27,17 +27,18 @@ describe('signup', () => {
     const res = await signup(good);
     expect(res.status).toBe(201);
     expect(Object.keys(res.body).sort()).toEqual(['accessToken', 'refreshToken', 'user']);
-    expect(Object.keys(res.body.user).sort()).toEqual(['email', 'id', 'name', 'role', 'username']);
+    expect(Object.keys(res.body.user).sort()).toEqual(['email', 'id', 'name', 'roles', 'username']);
     expect(JSON.stringify(res.body).toLowerCase()).not.toContain('password');
     expect(res.body.user.email).toBe('ann@example.com');
     expect(res.body.user.username).toBe('ann@example.com');
   });
 
-  test('a chosen username is saved lowercase, and a sneaky role is ignored', async () => {
-    const res = await signup({ ...good, username: 'Ann.Smith', role: 'admin' });
+  test('a chosen username is saved lowercase, and a sneaky role or roles list is ignored', async () => {
+    const res = await signup({ ...good, username: 'Ann.Smith', role: 'admin', roles: ['admin'] });
     expect(res.status).toBe(201);
     expect(res.body.user.username).toBe('ann.smith');
-    expect((await User.findOne({ email: 'ann@example.com' })).role).toBe('user');
+    expect((await User.findOne({ email: 'ann@example.com' })).roles).toEqual([]);
+    expect(res.body.user.roles).toEqual([]);
   });
 
   test.each([
@@ -118,12 +119,12 @@ describe('login', () => {
 });
 
 describe('sessions', () => {
-  test('the access token holds sub, email and role and lives 900 seconds; another secret fails', async () => {
+  test('the access token holds sub, email and a roles list and lives 900 seconds; another secret fails', async () => {
     const res = await signup(good);
     const payload = jwt.verify(res.body.accessToken, process.env.JWT_SECRET);
     expect(payload.sub).toBe(res.body.user.id);
     expect(payload.email).toBe('ann@example.com');
-    expect(payload.role).toBe('user');
+    expect(payload.roles).toEqual([]);
     expect(payload.exp - payload.iat).toBe(900);
     expect(() => jwt.verify(res.body.accessToken, 'a-different-secret')).toThrow();
   });

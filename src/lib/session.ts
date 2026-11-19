@@ -7,7 +7,7 @@
                       on the device so you stay signed in. On a phone it
                       goes in the phone's secure vault (expo-secure-store);
                       on the website, in the browser's saved values.
-   - Who you are (name, username, email) is saved too, so the app knows
+   - Who you are (name, username, email, rights) is saved too, so the app knows
      you're signed in even with no internet. Being offline never signs you
      out: only the server saying "that login is finished" does.
    Plain TypeScript with no React in it. Screens follow changes through
@@ -21,7 +21,7 @@ import { accountChanged } from './accountEvents';
 import { storageGet, storageRemove, storageSet } from './storage';
 
 // Who is signed in (what the server tells us about the account)
-export type ServerUser = { id: string; username: string; email: string; name: string; role: string };
+export type ServerUser = { id: string; username: string; email: string; name: string; roles: string[] };
 
 // What the server sends back after any sign-in
 type SessionReply = { accessToken: string; refreshToken: string; user: ServerUser };
@@ -71,19 +71,26 @@ export function getServerUser(): ServerUser | null {
   return user;
 }
 
-// May this person see the PRISM section? Accounts with the "prism" role may,
-// and so may admins (an admin has every role). Nobody else sees any sign of it.
-export function hasPrismAccess(who: ServerUser | null = user): boolean {
-  return who?.role === 'prism' || who?.role === 'admin';
+// Does this person hold the right? "admin" is the boss right and counts as every other one, so
+// an admin passes any check. A missing or damaged list (an old saved account, say) counts as
+// no rights at all. (The server checks every right again on each request.)
+export function hasRight(roles: unknown, right: 'admin' | 'prism' | 'aiscan'): boolean {
+  if (!Array.isArray(roles)) return false;
+  return roles.includes('admin') || roles.includes(right);
 }
-// May this person download and use the AI scanner files? Accounts with the "aiscan" role may,
+// May this person see the PRISM section? Accounts with the "prism" right may,
+// and so may admins. Nobody else sees any sign of it.
+export function hasPrismAccess(who: ServerUser | null = user): boolean {
+  return hasRight(who?.roles, 'prism');
+}
+// May this person download and use the AI scanner files? Accounts with the "aiscan" right may,
 // and so may admins. (The server checks it again on every download.)
 export function hasAiScanAccess(who: ServerUser | null = user): boolean {
-  return who?.role === 'aiscan' || who?.role === 'admin';
+  return hasRight(who?.roles, 'aiscan');
 }
 // Is this an admin? (Only admins see the Admin page; the server checks it again on every request.)
 export function isAdminUser(who: ServerUser | null = user): boolean {
-  return who?.role === 'admin';
+  return hasRight(who?.roles, 'admin');
 }
 export function isServerSignedIn(): boolean {
   return user !== null;
@@ -95,10 +102,12 @@ export function isServerSignedIn(): boolean {
 async function startSession(reply: SessionReply): Promise<ServerUser> {
   setAccessToken(reply.accessToken);
   await saveRefreshToken(reply.refreshToken);
-  user = reply.user;
-  storageSet(USER_KEY, JSON.stringify(reply.user));
+  // Make sure the rights are a list of text (anything else counts as no rights)
+  const roles = Array.isArray(reply.user.roles) ? reply.user.roles.filter((r) => typeof r === 'string') : [];
+  user = { ...reply.user, roles };
+  storageSet(USER_KEY, JSON.stringify(user));
   accountChanged();
-  return reply.user;
+  return user;
 }
 
 // Forget the login on this device (the binders and lists stay)
@@ -193,7 +202,12 @@ export async function loadSession(): Promise<void> {
   refreshToken = await readRefreshToken();
   const saved = storageGet(USER_KEY);
   if (!refreshToken || !saved) return;
-  try { user = JSON.parse(saved) as ServerUser; } catch { return; }
+  // An account saved by an older version has no list of rights: it counts as having none, and the
+  // refresh just below fetches the real list from the server
+  try {
+    const parsed = JSON.parse(saved) as ServerUser;
+    user = { ...parsed, roles: Array.isArray(parsed.roles) ? parsed.roles : [] };
+  } catch { return; }
   accountChanged();
   // Get a fresh access token now; if there's no internet it waits until
   // the first request needs one

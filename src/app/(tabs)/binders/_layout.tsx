@@ -73,7 +73,7 @@ export default function BindersLayout() {
       <Stack.Screen name="lists" options={{ title: 'Lists', animation: 'none', headerRight: () => shelfHeaderRight('lists') }} />
       {/* Your decks: the same as the lists page */}
       <Stack.Screen name="decks" options={{ title: 'Decks', animation: 'none', headerRight: () => shelfHeaderRight('decks') }} />
-      {/* PRISM: only for accounts with the PRISM role (the page sends everyone else back to the shelf) */}
+      {/* PRISM: only for accounts with the PRISM right (the page sends everyone else back to the shelf) */}
       <Stack.Screen name="prism" options={{ title: 'PRISM', animation: 'none', headerRight: () => shelfHeaderRight('prism') }} />
       {/* One PRISM set: it slides in over the PRISM page. Its title is set by the set screen itself. */}
       <Stack.Screen name="prismset/[id]" options={{ title: 'PRISM set' }} />

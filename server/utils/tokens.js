@@ -28,7 +28,7 @@ export function hashToken(token) {
 // A short-lived signed note about who the user is
 export function signAccessToken(user) {
   return jwt.sign(
-    { sub: String(user._id), email: user.email, role: user.role },
+    { sub: String(user._id), email: user.email, roles: [...(user.roles ?? [])] },
     process.env.JWT_SECRET,
     { expiresIn: '15m', algorithm: 'HS256' },
   );
@@ -63,7 +63,7 @@ export async function issueSession(user, family) {
       username: user.username,
       email: user.email,
       name: user.name ?? '',
-      role: user.role,
+      roles: [...(user.roles ?? [])],
     },
   };
 }

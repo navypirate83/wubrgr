@@ -25,7 +25,7 @@ export async function makeUser(overrides = {}) {
 
 // A login token for a user, signed with the test secret
 export function tokenFor(user, options = { expiresIn: '15m' }) {
-  return jwt.sign({ sub: String(user._id), email: user.email, role: user.role }, process.env.JWT_SECRET, options);
+  return jwt.sign({ sub: String(user._id), email: user.email, roles: [...(user.roles ?? [])] }, process.env.JWT_SECRET, options);
 }
 
 // The header an app sends: "Authorization: Bearer <token>"

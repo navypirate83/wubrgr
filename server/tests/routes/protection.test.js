@@ -5,6 +5,7 @@
    - people can only ever see and change their OWN binders and lists
    ===================================================================== */
 
+import { hasRight } from '../../utils/roles.js';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../../app.js';
@@ -33,7 +34,7 @@ describe('every protected route needs a token', () => {
 
   test('seven bad tokens each give the identical 401', async () => {
     const user = await makeUser();
-    const noSignature = `${Buffer.from('{"alg":"none","typ":"JWT"}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: String(user._id), role: 'admin' })).toString('base64url')}.`;
+    const noSignature = `${Buffer.from('{"alg":"none","typ":"JWT"}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: String(user._id), roles: ['admin'] })).toString('base64url')}.`;
     const headers = [
       undefined,
       'Bearer',
@@ -58,10 +59,10 @@ describe('every protected route needs a token', () => {
     expect((await request(app).get('/binders').set('Authorization', token)).status).toBe(401);
   });
 
-  test('a token whose role was edited without re-signing is refused', async () => {
+  test('a token whose rights were edited without re-signing is refused', async () => {
     const user = await makeUser();
     const [head, , signature] = tokenFor(user).split('.');
-    const edited = Buffer.from(JSON.stringify({ sub: String(user._id), role: 'admin' })).toString('base64url');
+    const edited = Buffer.from(JSON.stringify({ sub: String(user._id), roles: ['admin'] })).toString('base64url');
     const res = await request(app).get('/admin/users').set('Authorization', `Bearer ${head}.${edited}.${signature}`);
     expect(res.status).toBe(401);
   });
@@ -70,7 +71,7 @@ describe('every protected route needs a token', () => {
 describe('roles', () => {
   test('a normal user gets 403 on an admin route; an admin gets 200 with no password', async () => {
     const normal = await makeUser();
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     expect((await request(app).get('/admin/users').set('Authorization', bearer(normal))).status).toBe(403);
     const res = await request(app).get('/admin/users').set('Authorization', bearer(admin));
     expect(res.status).toBe(200);
@@ -79,18 +80,57 @@ describe('roles', () => {
   });
 });
 
-describe('the prism role', () => {
-  test('a PRISM account is a normal account that is not an admin, and its role is in its login', async () => {
-    const prism = await makeUser({ role: 'prism' });
-    expect(prism.role).toBe('prism');
+describe('the prism right', () => {
+  test('a PRISM account is a normal account that is not an admin, and its rights are in its login', async () => {
+    const prism = await makeUser({ roles: ['prism'] });
+    expect([...prism.roles]).toEqual(['prism']);
     // It is not an admin
     expect((await request(app).get('/admin/users').set('Authorization', bearer(prism))).status).toBe(403);
     // It can use the rest of the app like anyone else
     expect((await request(app).get('/binders').set('Authorization', bearer(prism))).status).toBe(200);
   });
 
-  test('only the known roles can be saved', async () => {
-    await expect(makeUser({ role: 'owner' })).rejects.toThrow();
+  test('only the known rights can be saved, each once, and the old single role is gone', async () => {
+    await expect(makeUser({ roles: ['owner'] })).rejects.toThrow();
+    await expect(makeUser({ roles: ['prism', 'prism'] })).rejects.toThrow();
+    const plain = await makeUser();
+    expect([...plain.roles]).toEqual([]);
+    expect(plain.toObject().role).toBeUndefined();
+  });
+
+  test('an account with both prism and aiscan can use both areas but is not an admin', async () => {
+    const both = await makeUser({ roles: ['prism', 'aiscan'] });
+    expect((await request(app).get('/prism').set('Authorization', bearer(both))).status).toBe(200);
+    expect((await request(app).get('/ai/model.onnx').set('Authorization', bearer(both))).status).not.toBe(403);
+    expect((await request(app).get('/admin/users').set('Authorization', bearer(both))).status).toBe(403);
+  });
+
+  test('admin passes every area with roles [admin] alone', async () => {
+    const admin = await makeUser({ roles: ['admin'] });
+    expect((await request(app).get('/prism').set('Authorization', bearer(admin))).status).toBe(200);
+    expect((await request(app).get('/ai/model.onnx').set('Authorization', bearer(admin))).status).not.toBe(403);
+    expect((await request(app).get('/admin/users').set('Authorization', bearer(admin))).status).toBe(200);
+  });
+
+  test('a token with no roles list is refused with 401, even if signed properly', async () => {
+    const user = await makeUser({ roles: ['admin'] });
+    const old = jwt.sign({ sub: String(user._id), email: user.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    const res = await request(app).get('/admin/users').set('Authorization', `Bearer ${old}`);
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Please sign in');
+    const notAList = jwt.sign({ sub: String(user._id), email: user.email, roles: 'admin' }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    expect((await request(app).get('/binders').set('Authorization', `Bearer ${notAList}`)).status).toBe(401);
+  });
+
+  test('hasRight: admin has everything, other rights only themselves, junk is no rights', () => {
+    expect(hasRight(['admin'], 'prism')).toBe(true);
+    expect(hasRight(['admin'], 'aiscan')).toBe(true);
+    expect(hasRight(['prism'], 'prism')).toBe(true);
+    expect(hasRight(['prism'], 'aiscan')).toBe(false);
+    expect(hasRight(['prism', 'aiscan'], 'admin')).toBe(false);
+    expect(hasRight([], 'prism')).toBe(false);
+    expect(hasRight(undefined, 'prism')).toBe(false);
+    expect(hasRight('admin', 'prism')).toBe(false);
   });
 });
 
@@ -128,7 +168,7 @@ describe('ownership', () => {
 
   test("someone else's list gives 404 for every route, even for an admin", async () => {
     const { list } = await twoPeople();
-    const admin = await makeUser({ role: 'admin' });
+    const admin = await makeUser({ roles: ['admin'] });
     const auth = bearer(admin);
     expect((await request(app).get(`/lists/${list._id}`).set('Authorization', auth)).status).toBe(404);
     expect((await request(app).put(`/lists/${list._id}/cards`).set('Authorization', auth).send({ cards: [] })).status).toBe(404);

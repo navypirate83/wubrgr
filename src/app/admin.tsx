@@ -2,19 +2,19 @@
    THE ADMIN PAGE: PEOPLE (/admin)
    Only for accounts with the Admin right (anyone else who gets here, by
    typing the address, is sent home; Settings only shows the way in to admins).
-   It lists everyone with an account, when each was last used, and the rights each has:
-     - No extra rights: the normal app
+   It lists everyone with an account, when each was last used, and the rights each has.
+   A person can have any mix of these rights (or none, which is the normal app):
      - PRISM: also the PRISM section
      - AIScan: also the scanner's AI art matching option (it downloads the AI files)
      - Admin: everything, PRISM and AIScan included, and this page
    Search by name or email, or narrow the list with the buttons (All, Admin,
-   PRISM, AIScan, No extra rights). Tap a person to change their rights (Save) or to
+   PRISM, AIScan, No extra rights). Tap a person to tick or untick their rights (Save) or to
    delete them and everything they own.
    Deleting asks twice: a window listing what goes, with a box where the person's
    name has to be typed before the red button turns on.
    The safety rules (the server checks them too): you can't change or delete your own
    account here, and the last Admin can't be taken down or deleted.
-   A new level reaches the person within about 15 minutes, or when they sign in again.
+   New rights reach the person within about 15 minutes, or when they sign in again.
    ===================================================================== */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -29,18 +29,30 @@ import { useColors } from '@/hooks/useTheme';
 import { showMessage } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import { RADIUS } from '@/theme/colors';
-import { RIGHTS_ABOUT, RIGHTS_LABEL, deletePerson, joinedText, lastAccessText, listPeople, setRights, type Person, type Rights } from '@/lib/adminApi';
+import { RIGHTS, RIGHTS_ABOUT, RIGHTS_LABEL, deletePerson, joinedText, lastAccessText, listPeople, setRights, type Person, type Right } from '@/lib/adminApi';
 
 // The page is never wider than this (points)
 const PAGE_MAX_WIDTH = 900;
 
-const LEVELS: Rights[] = ['user', 'prism', 'aiscan', 'admin'];
+// The color of each right's pill (Admin in the accent color, PRISM in purple, AIScan in blue)
+function rightColor(colors: ReturnType<typeof useColors>, right: Right) {
+  return right === 'admin' ? colors.accent : right === 'prism' ? colors.manaB : colors.manaU;
+}
+
+// Does the list hold this right?
+const holds = (roles: Right[], right: Right) => roles.includes(right);
+
+// Do two lists hold exactly the same rights?
+const sameRights = (a: Right[], b: Right[]) => a.length === b.length && a.every((r) => b.includes(r));
+
+// A person's rights in words (also read out by screen readers)
+const rightsText = (roles: Right[]) => (roles.length ? roles.map((r) => RIGHTS_LABEL[r]).join(', ') : 'No extra rights');
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'admin', label: 'Admin' },
   { id: 'prism', label: 'PRISM' },
   { id: 'aiscan', label: 'AIScan' },
-  { id: 'user', label: 'No extra rights' },
+  { id: 'none', label: 'No extra rights' },
 ] as const;
 type FilterId = (typeof FILTERS)[number]['id'];
 
@@ -56,10 +68,10 @@ export default function AdminScreen() {
   const [problem, setProblem] = useState('');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
-  // The person being looked at, which window is open for them ("edit" or "delete"), and the level chosen in it
+  // The person being looked at, which window is open for them ("edit" or "delete"), and the rights ticked in it
   const [picked, setPicked] = useState<Person | null>(null);
   const [view, setView] = useState<'edit' | 'delete' | null>(null);
-  const [choice, setChoice] = useState<Rights>('user');
+  const [choice, setChoice] = useState<Right[]>([]);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   // A line under the search box for a moment ("Sam now has PRISM")
@@ -77,12 +89,14 @@ export default function AdminScreen() {
   useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
 
   const myId = serverUser?.id;
-  const count = (level: FilterId) => (people ?? []).filter((p) => level === 'all' || p.role === level).length;
+  // Does this person fit the chosen button? ("No extra rights" = an empty list)
+  const matches = (p: Person, level: FilterId) => level === 'all' || (level === 'none' ? p.roles.length === 0 : holds(p.roles, level));
+  const count = (level: FilterId) => (people ?? []).filter((p) => matches(p, level)).length;
 
   // The people to show: the chosen button, and what's typed in the search box
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (people ?? []).filter((p) => (filter === 'all' || p.role === filter)
+    return (people ?? []).filter((p) => matches(p, filter)
       && (!q || `${p.name} ${p.email} ${p.username}`.toLowerCase().includes(q)));
   }, [people, filter, query]);
 
@@ -94,22 +108,22 @@ export default function AdminScreen() {
   function open(person: Person) {
     hapticTap();
     setPicked(person);
-    setChoice(person.role);
+    setChoice(person.roles);
     setView('edit');
   }
   function close() { setView(null); setPicked(null); setTyped(''); }
 
   const isMe = !!picked && picked.id === myId;
   // The last Admin can't be taken down or deleted (the server refuses too)
-  const lastAdmin = !!picked && picked.role === 'admin' && (people ?? []).filter((p) => p.role === 'admin').length <= 1;
+  const lastAdmin = !!picked && holds(picked.roles, 'admin') && (people ?? []).filter((p) => holds(p.roles, 'admin')).length <= 1;
 
   async function save() {
     if (!picked || busy) return;
     setBusy(true);
     try {
       await setRights(picked.id, choice);
-      setPeople((all) => (all ?? []).map((p) => (p.id === picked.id ? { ...p, role: choice } : p)));
-      say(`${picked.name} now has: ${RIGHTS_LABEL[choice]}`);
+      setPeople((all) => (all ?? []).map((p) => (p.id === picked.id ? { ...p, roles: choice } : p)));
+      say(`${picked.name} now has: ${rightsText(choice)}`);
       close();
     } catch (err) {
       showMessage('Couldn\'t save that', (err as Error).message);
@@ -186,7 +200,7 @@ export default function AdminScreen() {
         renderItem={({ item }) => (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${item.name}, ${item.email}, ${RIGHTS_LABEL[item.role]}${item.id === myId ? ', you' : ''}. Opens their rights.`}
+            accessibilityLabel={`${item.name}, ${item.email}, ${rightsText(item.roles)}${item.id === myId ? ', you' : ''}. Opens their rights.`}
             onPress={() => open(item)}
             style={({ pressed }) => [styles.person, { backgroundColor: pressed ? colors.surfaceHover : colors.surface, borderColor: colors.border }]}
           >
@@ -201,13 +215,17 @@ export default function AdminScreen() {
               {/* When this account was last used */}
               <Text style={[styles.lastSeen, { color: colors.muted }]} numberOfLines={1}>Last used: {lastAccessText(item.lastAccessAt)}</Text>
             </View>
-            {/* The level, as a pill: Admin in the accent color, PRISM in purple, AIScan in blue, the rest quiet */}
-            <View style={[styles.pill, {
-              backgroundColor: item.role === 'admin' ? `${colors.accent}33` : item.role === 'prism' ? `${colors.manaB}33` : item.role === 'aiscan' ? `${colors.manaU}33` : colors.surfaceHover,
-            }]}>
-              <Text style={[styles.pillText, { color: item.role === 'admin' ? colors.accent : item.role === 'prism' ? colors.manaB : item.role === 'aiscan' ? colors.manaU : colors.muted }]}>
-                {RIGHTS_LABEL[item.role]}
-              </Text>
+            {/* The rights, one pill each (a quiet one for no extra rights) */}
+            <View style={styles.pills}>
+              {item.roles.length === 0 ? (
+                <View style={[styles.pill, { backgroundColor: colors.surfaceHover }]}>
+                  <Text style={[styles.pillText, { color: colors.muted }]}>No extra rights</Text>
+                </View>
+              ) : item.roles.map((r) => (
+                <View key={r} style={[styles.pill, { backgroundColor: `${rightColor(colors, r)}33` }]}>
+                  <Text style={[styles.pillText, { color: rightColor(colors, r) }]}>{RIGHTS_LABEL[r]}</Text>
+                </View>
+              ))}
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.muted} />
           </Pressable>
@@ -222,7 +240,7 @@ export default function AdminScreen() {
           onClose={close}
           buttons={[
             { label: 'Cancel', onPress: close, kind: 'secondary', disabled: busy },
-            { label: busy ? 'Saving…' : 'Save', onPress: save, disabled: busy || isMe || choice === picked.role },
+            { label: busy ? 'Saving…' : 'Save', onPress: save, disabled: busy || isMe || sameRights(choice, picked.roles) },
           ]}
         >
           <View style={styles.window}>
@@ -231,24 +249,35 @@ export default function AdminScreen() {
             </Text>
             <Text style={[styles.personMail, { color: colors.muted }]}>Last used: {lastAccessText(picked.lastAccessAt)}</Text>
             <Text style={[styles.sectionLabel, { color: colors.muted }]} accessibilityRole="header">Rights</Text>
-            {LEVELS.map((level) => {
-              const on = choice === level;
+            {/* One tick box per right. An Admin has every right, so with Admin ticked the others show as on and can't be changed. */}
+            {RIGHTS.map((right) => {
+              const adminOn = choice.includes('admin');
+              const locked = isMe || (right !== 'admin' && adminOn) || (right === 'admin' && lastAdmin);
+              const on = choice.includes(right) || (right !== 'admin' && adminOn);
               return (
-                <Pressable key={level} accessibilityRole="radio" accessibilityState={{ selected: on, disabled: isMe }}
-                           disabled={isMe} onPress={() => setChoice(level)}
-                           style={[styles.option, { borderColor: on ? colors.accent : colors.border, backgroundColor: on ? colors.surfaceHover : 'transparent', opacity: isMe ? 0.5 : 1 }]}>
-                  <View style={[styles.dot, { borderColor: on ? colors.accent : colors.border }]}>
-                    {on && <View style={[styles.dotFill, { backgroundColor: colors.accent }]} />}
-                  </View>
+                <Pressable key={right} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: locked }}
+                           accessibilityLabel={RIGHTS_LABEL[right]}
+                           disabled={locked}
+                           onPress={() => setChoice((now) => (now.includes(right) ? now.filter((r) => r !== right) : [...now, right]))}
+                           style={[styles.option, { borderColor: on ? colors.accent : colors.border, backgroundColor: on ? colors.surfaceHover : 'transparent', opacity: locked ? 0.6 : 1 }]}>
+                  <Ionicons name={on ? 'checkbox' : 'square-outline'} size={24} color={on ? colors.accent : colors.muted} />
                   <View style={styles.optionText}>
-                    <Text style={[styles.optionName, { color: colors.text }]}>{RIGHTS_LABEL[level]}</Text>
-                    <Text style={[styles.personMail, { color: colors.muted }]}>{RIGHTS_ABOUT[level]}</Text>
+                    <Text style={[styles.optionName, { color: colors.text }]}>{RIGHTS_LABEL[right]}</Text>
+                    <Text style={[styles.personMail, { color: colors.muted }]}>
+                      {right !== 'admin' && adminOn ? 'An Admin has this right already.' : RIGHTS_ABOUT[right]}
+                    </Text>
                   </View>
                 </Pressable>
               );
             })}
+            {choice.length === 0 && (
+              <Text style={[styles.personMail, { color: colors.muted }]}>With nothing ticked, this person has the normal app: shelf, binders, lists, decks, scanner and Card Finder.</Text>
+            )}
+            {lastAdmin && !isMe && (
+              <Text style={[styles.personMail, { color: colors.muted }]}>The last Admin can't be taken down, so Admin stays ticked.</Text>
+            )}
             {/* Admin can change everyone's rights, so giving it gets a warning first */}
-            {choice === 'admin' && picked.role !== 'admin' && (
+            {choice.includes('admin') && !holds(picked.roles, 'admin') && (
               <Text style={[styles.warn, { borderColor: colors.error, color: colors.text }]}>
                 <Text style={{ color: colors.error, fontWeight: '700' }}>Admin can change everyone's rights.</Text> Only give it to someone you trust. An Admin also has PRISM and AIScan.
               </Text>
@@ -305,7 +334,7 @@ export default function AdminScreen() {
   );
 }
 
-// The look: a centered column; rows with a circle, a name, a pill and an arrow; the rights window
+// The look: a centered column; rows with a circle, a name, pills and an arrow; the rights window
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { padding: 16, maxWidth: PAGE_MAX_WIDTH, width: '100%', alignSelf: 'center', paddingBottom: 40 },
@@ -325,13 +354,12 @@ const styles = StyleSheet.create({
   personMail: { fontSize: 13 },
   lastSeen: { fontSize: 12 },
   you: { fontSize: 11, fontWeight: '600' },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', maxWidth: 140 },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
   pillText: { fontSize: 12, fontWeight: '700' },
   window: { gap: 10 },
   sectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
   option: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderWidth: 1.5, borderRadius: RADIUS, padding: 10 },
-  dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  dotFill: { width: 8, height: 8, borderRadius: 4 },
   optionText: { flex: 1, gap: 2 },
   optionName: { fontSize: 15, fontWeight: '700' },
   warn: { borderWidth: 1.5, borderRadius: RADIUS, padding: 10, fontSize: 13 },

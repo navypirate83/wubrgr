@@ -2,7 +2,7 @@
    KEEPING THIS DEVICE'S PRISM SETS AND THE ACCOUNT THE SAME
    Part of the sync with the WUBRG'r server (see serverSync.ts, which calls
    syncPrism after the decks, because a set refers to decks). Only for
-   accounts with the PRISM role (and admins).
+   accounts with the PRISM right (and admins).
    - The device keeps the working copy of every set (so the section works
      with no internet), and each set is also saved in the account, so it
      shows up on your other phones and computers.
@@ -120,7 +120,7 @@ export async function syncPrism(memory: PrismMemory): Promise<void> {
     remote = await apiRequest<ServerSet[]>('/prism');
   } catch (err) {
     // A server that doesn't have PRISM yet (not updated), or a login that
-    // doesn't carry the role yet: leave the sets on this device for now, quietly
+    // doesn't carry the right yet: leave the sets on this device for now, quietly
     if (err instanceof ApiError && (err.status === 403 || err.status === 404)) return;
     throw err;
   }

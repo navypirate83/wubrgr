@@ -1572,7 +1572,7 @@ export const helpTopics: HelpTopic[] = [
     ],
   },
 
-  /* ===================== PRISM (only for accounts with the PRISM role) ===================== */
+  /* ===================== PRISM (only for accounts with the PRISM right) ===================== */
   {
     id: 'prism',
     title: 'PRISM',
@@ -1580,7 +1580,7 @@ export const helpTopics: HelpTopic[] = [
       <>
         PRISM lets <Strong>one physical card</Strong> serve several Commander decks. You paint a small mark on the card's
         inner sleeve for each deck that uses it: a <Strong>color</Strong> (which deck) at a <Strong>slot</Strong> (a place
-        along the sleeve's edge, 1 to 48). This section only shows for accounts with the PRISM role.
+        along the sleeve's edge, 1 to 48). This section only shows for accounts with the PRISM right.
         PRISM is someone else's idea (prismmtg.com); this section just helps you plan and keep track of it.
       </>
     ),
@@ -1704,17 +1704,17 @@ export const helpTopics: HelpTopic[] = [
         body: (
           <>
             <P>
-              The page lists everyone with an account, with a pill for what they can do. <Strong>No extra rights</Strong> is the
+              The page lists everyone with an account, with a pill for each right they have. A person can have <Strong>several rights at once</Strong>. <Strong>No extra rights</Strong> is the
               normal app. <Strong>PRISM</Strong> also shows the PRISM section. <Strong>AIScan</Strong> also shows the scanner's
               AI art matching option, which downloads the AI files from the server. <Strong>Admin</Strong> is everything, PRISM
-              and AIScan included, and this page. Each person has one level. Search by name or email, or use the buttons (All, Admin, PRISM, AIScan, No extra rights, each with a
+              and AIScan included, and this page: an Admin has every right. Search by name or email, or use the buttons (All, Admin, PRISM, AIScan, No extra rights, each with a
               count) to narrow the list. Under each email, <Strong>Last used</Strong> says when the account was last signed in
               to or renewed its login (it updates about every 15 minutes while the app is open). Accounts that haven't been
               used since that began say "Not since tracking began".
             </P>
             <P>
-              Tap a person to open their window. Pick a level and tap <Strong>Save</Strong>. Giving Admin shows a warning first,
-              because an Admin can change everyone's rights. A new level reaches the person within about 15 minutes, or when
+              Tap a person to open their window. Tick the rights the person should have (PRISM, AIScan, Admin) and tap <Strong>Save</Strong>. Ticking Admin shows PRISM and AIScan as on and locked, because an Admin has them already, and it shows a warning first,
+              because an Admin can change everyone's rights. New rights reach the person within about 15 minutes, or when
               they sign in again. <Strong>You can't change your own rights</Strong> (so you can't lock yourself out), and
               <Strong> the last Admin can't be taken down</Strong>.
             </P>

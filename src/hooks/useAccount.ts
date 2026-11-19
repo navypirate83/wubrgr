@@ -24,9 +24,9 @@ export function useAccount() {
     // Signed in to the WUBRG'r server, and who
     serverSignedIn: isServerSignedIn(),
     serverUser: getServerUser(),
-    // May see the PRISM section (accounts with the PRISM role, and admins)
+    // May see the PRISM section (accounts with the PRISM right, and admins)
     hasPrism: hasPrismAccess(),
-    // May use the AI scanner files (accounts with the AI scanner role, and admins)
+    // May use the AI scanner files (accounts with the AI scanner right, and admins)
     hasAiScan: hasAiScanAccess(),
     // May use the Admin page (only admins)
     isAdmin: isAdminUser(),

@@ -2,11 +2,12 @@
    WHO IS ASKING?
    requireAuth checks the login token on a request and says who it is.
    requireAdmin goes after it and lets only admins through; requirePrism and
-   requireAiScan let in their own role (and admins).
+   requireAiScan let in accounts holding their own right (and admins, who have every right).
    ===================================================================== */
 
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { hasRight } from '../utils/roles.js';
 
 // Every sign-in failure gets this same answer, so nothing is revealed
 function pleaseSignIn(res) {
@@ -16,12 +17,15 @@ function pleaseSignIn(res) {
 // Reads "Authorization: Bearer <token>", checks the signature (only the
 // HS256 way, so a forged token claiming "no signature needed" is refused),
 // and that the account still exists. On success the request carries
-// req.user = { id, sub, email, role }.
+// req.user = { id, sub, email, roles }.
+// A token without a list of rights is from before rights became a list, so it
+// is refused: that person simply signs in again.
 export async function requireAuth(req, res, next) {
   try {
     const parts = (req.headers.authorization ?? '').split(' ');
     if (parts.length !== 2 || parts[0] !== 'Bearer' || parts[1] === '') return pleaseSignIn(res);
     const payload = jwt.verify(parts[1], process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    if (!Array.isArray(payload.roles)) return pleaseSignIn(res);
     // A real token for an account that has been deleted must not work
     if (typeof payload.sub !== 'string' || !(await User.exists({ _id: payload.sub }))) return pleaseSignIn(res);
     req.user = { ...payload, id: payload.sub };
@@ -32,24 +36,22 @@ export async function requireAuth(req, res, next) {
   }
 }
 
-// Only admins may pass (the role comes from the 15-minute token, so a
+// Only admins may pass (the rights come from the 15-minute token, so a
 // change reaches a signed-in person within 15 minutes)
 export function requireAdmin(req, res, next) {
-  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  if (!hasRight(req.user?.roles, 'admin')) return res.status(403).json({ error: 'Admin access required' });
   return next();
 }
 
-// Only accounts with the PRISM role (and admins, who have every role) may
-// pass. The role comes from the 15-minute token, like requireAdmin.
+// Only accounts with the PRISM right (and admins, who have every right) may pass.
 export function requirePrism(req, res, next) {
-  if (req.user?.role !== 'prism' && req.user?.role !== 'admin') return res.status(403).json({ error: 'PRISM access required' });
+  if (!hasRight(req.user?.roles, 'prism')) return res.status(403).json({ error: 'PRISM access required' });
   return next();
 }
 
-// Only accounts with the AI scanner role (and admins, who have every role)
-// may pass. The role comes from the 15-minute token, like requireAdmin.
+// Only accounts with the AI scanner right (and admins, who have every right) may pass.
 export function requireAiScan(req, res, next) {
-  if (req.user?.role !== 'aiscan' && req.user?.role !== 'admin') return res.status(403).json({ error: 'AI scanner access required' });
+  if (!hasRight(req.user?.roles, 'aiscan')) return res.status(403).json({ error: 'AI scanner access required' });
   return next();
 }
 

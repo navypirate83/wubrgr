@@ -114,9 +114,9 @@ app.use('/lists', requireAuth, listsRouter);
 app.use('/decks', requireAuth, decksRouter);
 // The person's app settings (theme, page layout...), so they follow them
 app.use('/settings', requireAuth, settingsRouter);
-// The person's PRISM sets (only accounts with the PRISM role, and admins)
+// The person's PRISM sets (only accounts with the PRISM right, and admins)
 app.use('/prism', requireAuth, requirePrism, prismRouter);
-// The AI scanner's files (only accounts with the AI scanner role, and admins).
+// The AI scanner's files (only accounts with the AI scanner right, and admins).
 // They are big downloads, so this route has its own, stricter limit per
 // visitor (30 requests a minute: a whole download is only 5 requests).
 app.use('/ai', rateLimit({

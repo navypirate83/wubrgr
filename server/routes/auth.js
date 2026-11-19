@@ -48,7 +48,7 @@ const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /* ---------- sign up ---------- */
 
 router.post('/signup', async (req, res) => {
-  // Take ONLY these four fields, so extras like "role" are never looked at
+  // Take ONLY these four fields, so extras like "roles" are never looked at
   const { email, password, name, username } = req.body ?? {};
 
   // Check the input (400 with a clear message)
@@ -159,7 +159,7 @@ router.post('/google', async (req, res) => {
         // or somebody else's simultaneous call did, so only one welcome is sent)
         const result = await User.findOneAndUpdate(
           { googleId: google.sub },
-          { $setOnInsert: { googleId: google.sub, email: google.email, username: google.email, name: google.name, role: 'user' } },
+          { $setOnInsert: { googleId: google.sub, email: google.email, username: google.email, name: google.name, roles: [] } },
           { upsert: true, returnDocument: 'after', runValidators: true, includeResultMetadata: true },
         );
         user = result.value;
@@ -196,7 +196,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ error: 'Please sign in' });
     }
 
-    // The account must still exist (this also picks up a role change)
+    // The account must still exist (this also picks up a change of rights)
     const user = await User.findById(row.user);
     if (!user) {
       await RefreshToken.deleteMany({ family: row.family });

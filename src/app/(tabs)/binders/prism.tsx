@@ -1,6 +1,6 @@
 /* =====================================================================
    PRISM (/binders/prism)
-   The shelf's fourth section, only for accounts with the PRISM role (and
+   The shelf's fourth section, only for accounts with the PRISM right (and
    admins); anyone else who gets here (by typing the address, or from an old
    link) is sent straight back to the shelf, and nothing in the app points
    to this page for them.
@@ -111,7 +111,7 @@ export default function PrismScreen() {
     setSets(loadPrismSets());
   }
 
-  // No PRISM role (or not using the binders at all): back to the shelf
+  // No PRISM right (or not using the binders at all): back to the shelf
   if (!hasPrism || !usingBinders) return <Redirect href="/binders" />;
 
   const menuSet = menuId ? sets.find((s) => s.id === menuId) : undefined;

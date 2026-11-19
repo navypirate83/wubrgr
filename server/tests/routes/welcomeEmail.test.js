@@ -113,7 +113,7 @@ test('the link in the email can be set with APP_URL', () => {
 test('the Google sign-up upsert says whether it made the person (so only one welcome is sent)', async () => {
   const upsert = () => User.findOneAndUpdate(
     { googleId: 'g-123' },
-    { $setOnInsert: { googleId: 'g-123', email: 'g@example.com', username: 'g@example.com', name: 'G', role: 'user' } },
+    { $setOnInsert: { googleId: 'g-123', email: 'g@example.com', username: 'g@example.com', name: 'G', roles: [] } },
     { upsert: true, returnDocument: 'after', runValidators: true, includeResultMetadata: true },
   );
   const first = await upsert();

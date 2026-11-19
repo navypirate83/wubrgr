@@ -2,7 +2,7 @@
    AI SCANNER FILE ROUTES (/ai/...)
    The website scanner's optional "AI art matching" needs four big files.
    They are kept in MongoDB (GridFS) and handed out ONLY to accounts with
-   the aiscan role, and admins (app.js mounts this behind requireAuth AND
+   the aiscan right, and admins (app.js mounts this behind requireAuth AND
    requireAiScan, like PRISM).
    - GET /ai/ai.json   the list of the files: their sizes, checksums and when they were built
    - GET /ai/:file     one of the four files, streamed straight from the database

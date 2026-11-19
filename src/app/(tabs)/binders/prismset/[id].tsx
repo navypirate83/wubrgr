@@ -15,7 +15,7 @@
    the card being marked), so the back arrow steps back through the tabs you
    visited, like pages in a browser. How far down each tab was scrolled is
    remembered, so going back to the Cards tab puts you where you were.
-   Only for accounts with the PRISM role: anyone else is sent to the shelf.
+   Only for accounts with the PRISM right: anyone else is sent to the shelf.
    ===================================================================== */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';

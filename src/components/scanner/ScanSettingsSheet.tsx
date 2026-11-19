@@ -13,7 +13,7 @@
    - AI ART MATCHING (website only for now): an optional extra way of telling printings apart by their
      artwork, using an AI model. It needs some files downloaded once; the sheet says whether they are here
      and has the Download button. With it off, or the files missing, nothing changes.
-     It is only shown to accounts with AI scanner access (the AIScan role, or an admin); for everyone
+     It is only shown to accounts with AI scanner access (the AIScan right, or an admin); for everyone
      else this part of the sheet is not there at all, and the scanner never uses the AI.
    Each change is saved straight away, on this device (see lib/scanner/scanSettings.ts).
    ===================================================================== */

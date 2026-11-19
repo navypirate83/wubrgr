@@ -12,7 +12,7 @@
      list you had open, say), or its main page if there isn't one: see
      lib/shelfMemory.ts. Switching swaps the page in place instead of
      sliding, so there's no back arrow between them.
-   Accounts with the PRISM role (and admins) get a fourth button, with the
+   Accounts with the PRISM right (and admins) get a fourth button, with the
    PRISM prism picture (it keeps its own colors). Everyone else never sees it.
    When the side menu is showing it already has Binders, Lists and Decks,
    so this switch hides itself.
@@ -33,7 +33,7 @@ const PAGES = {
   binders: { name: 'Binders', picture: require('../../../assets/images/binder-outline.svg') as number, to: '/binders' },
   lists: { name: 'Lists', picture: require('../../../assets/images/notebook-outline.svg') as number, to: '/binders/lists' },
   decks: { name: 'Decks', picture: require('../../../assets/images/deckbox-outline.svg') as number, to: '/binders/decks' },
-  // Only for accounts with the PRISM role: its picture is in full color, so it isn't tinted
+  // Only for accounts with the PRISM right: its picture is in full color, so it isn't tinted
   prism: { name: 'PRISM', picture: require('../../../assets/images/prism-icon.png') as number, to: '/binders/prism' },
 } as const;
 
@@ -41,7 +41,7 @@ type Page = keyof typeof PAGES;
 
 export default function ShelfSwitch({ current }: { current: Page }) {
   const colors = useColors();
-  // Does this account have the PRISM role? Without it there's no PRISM button
+  // Does this account have the PRISM right? Without it there's no PRISM button
   const { hasPrism } = useAccount();
   // With the side menu showing there's nothing to switch with here
   const hasSideMenu = useMenuStyle() !== 'none';
