@@ -6,7 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadMoreClues, readCardStaged, readTitle, timingWords, type PartReader } from './readPlan.ts';
+import { loadMoreClues, readCardStaged, readNameBothWays, readTitle, timingWords, type PartReader } from './readPlan.ts';
 
 // A reader that gives fixed text and writes down each part it was asked for
 function pretend(texts: { name?: string; band?: string; info?: string; bottom?: string } = {}) {
@@ -86,4 +86,84 @@ test('the new steps (frame, warm-up, change check, in line) are shown, and resol
     timingWords({ frame: 100, warm: 200, check: 50, text: 400, lookup: 160, wait: 100, resolve: 160 }),
     '1.0 s (frame 0.1, change check 0.1, warm-up 0.2, text 0.4, look-up 0.2, in line 0.1)',
   );
+});
+
+/* ----- how many parts each kind of card reads (the "stop as soon as it has what it needs" checks) ----- */
+
+test('a modern card (name and info line fine): exactly 3 parts, no band, no copyright line, no clues', async () => {
+  const { reader, calls } = pretend();
+  await readCardStaged(reader, isBolt);
+  assert.deepEqual([...calls].sort(), ['info', 'name', 'preview']);
+});
+
+test('a card whose name box is unreadable: 4 parts (the band is read as well), still no clues', async () => {
+  const { reader, calls } = pretend({ name: 'xx', band: 'Lightning Bolt' });
+  const reading = await readCardStaged(reader, isBolt);
+  assert.deepEqual([...calls].sort(), ['band', 'info', 'name', 'preview']);
+  assert.equal(reading.nameText, 'xx\nLightning Bolt');
+});
+
+test('a hands-free card whose title was already read: 2 parts only (info line and picture)', async () => {
+  const { reader, calls } = pretend();
+  await readCardStaged(reader, isBolt, 'Lightning Bolt');
+  assert.deepEqual([...calls].sort(), ['info', 'preview']);
+});
+
+test('a failed info line does not make anything else get read again', async () => {
+  const { reader, calls } = pretend({ info: '' });
+  await readCardStaged(reader, isBolt);
+  assert.deepEqual([...calls].sort(), ['info', 'name', 'preview']);
+});
+
+test('a card that needs the fallback reads the copyright line and clues once each, only when asked', async () => {
+  const { reader, calls } = pretend();
+  const reading = await readCardStaged(reader, isBolt);
+  assert.equal(calls.length, 3);
+  await loadMoreClues(reading);
+  assert.deepEqual([...calls].sort(), ['bottom', 'clues', 'info', 'name', 'preview']);
+});
+
+test('the picture is made at the same time as the text, not after it', async () => {
+  const order: string[] = [];
+  const slow = (label: string, ms: number, value: string) => async () => {
+    order.push(`${label} start`);
+    await new Promise((r) => setTimeout(r, ms));
+    order.push(`${label} end`);
+    return value;
+  };
+  const reader: PartReader = {
+    name: slow('name', 20, 'Lightning Bolt'), band: async () => '', info: slow('info', 20, 'R 0123'),
+    bottom: async () => '', clues: async () => ({}), preview: slow('preview', 20, 'data:x'),
+  };
+  const reading = await readCardStaged(reader, isBolt);
+  // the picture started before the text had finished (so all three overlap)
+  assert.ok(order.indexOf('preview start') < order.indexOf('name end'));
+  assert.equal(reading.extras?.artPreview, 'data:x');
+});
+
+test('a picture that fails is just left out', async () => {
+  const { reader } = pretend();
+  reader.preview = async () => { throw new Error('no canvas'); };
+  const reading = await readCardStaged(reader, isBolt);
+  assert.equal(reading.extras, undefined);
+});
+
+test('a short name that was read well is read only once; a poor read is still tried the other way round', async () => {
+  const reads: boolean[] = [];
+  const reader = (first: string, second: string) => async (flip: boolean) => { reads.push(flip); return flip ? second : first; };
+  const isOpt = (text: string) => text === 'Opt';
+  assert.equal(await readNameBothWays(reader('Opt', 'Qqq'), isOpt), 'Opt');
+  assert.deepEqual(reads, [false]);
+  reads.length = 0;
+  // no name check given: as before, a short read is always tried both ways
+  assert.equal(await readNameBothWays(reader('Opt', 'Qqq'), undefined), 'Opt');
+  assert.deepEqual(reads, [false, true]);
+  reads.length = 0;
+  // a poor first read that is not a name: the flipped one is kept when it has more letters
+  assert.equal(await readNameBothWays(reader('Op', 'Opt'), isOpt), 'Opt');
+  assert.deepEqual(reads, [false, true]);
+  reads.length = 0;
+  // a long first read is never read twice
+  assert.equal(await readNameBothWays(reader('Lightning Bolt', 'x'), () => false), 'Lightning Bolt');
+  assert.deepEqual(reads, [false]);
 });

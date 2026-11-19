@@ -15,6 +15,8 @@
    - The scanner's text reader, database library and AI runtime (public/tesseract, public/sqljs and public/onnx;
      large, and they change only when someone replaces them): saved the first time
      they're used, then used from the saved copy.
+   - The AI background worker's script (public/onnx/ai-worker.js): small, and made from the app's own code, so it is kept
+     with the app's files and refreshed like them, not with the big files above.
    - Everything else on this site (icons, the manifest): the saved copy is used and
      refreshed behind the scenes.
    Other websites (Scryfall's card pictures, the server) are never touched here.
@@ -96,6 +98,11 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(pageOrSaved(request));
+  } else if (path === 'onnx/ai-worker.js') {
+    // The AI background worker's script (small, and it changes when the scanner code does, unlike the big
+    // runtime files beside it): used from the saved copy and refreshed behind the scenes, so each new version
+    // of the site brings its own (the build's saved set is replaced every time)
+    event.respondWith(savedThenRefresh(request));
   } else if (path.startsWith('tesseract/') || path.startsWith('sqljs/') || path.startsWith('onnx/')) {
     event.respondWith(savedFirst(request, BIG_FILES));
   } else if (path.startsWith('_expo/static/') || path.startsWith('assets/')) {

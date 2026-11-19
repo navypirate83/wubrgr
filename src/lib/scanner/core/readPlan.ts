@@ -31,6 +31,22 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 // How many letters some text has (none at all means nothing readable was there)
 export const letterCount = (text: string) => (text.match(/[A-Za-z]/g) ?? []).length;
 
+// The title bar's text, read up to two ways round (website only; see ocr.web.ts). "readOnce(flip)" reads it once.
+// A title bar on a dark or coloured frame can come out the wrong way round (text taken for background), so if very
+// little was read, the other way is tried too and the one with more letters is kept. The second try is skipped when
+// the first already gave a real card name ("looksLikeName", if the caller has one): short names such as "Opt" or "Fog"
+// always have fewer than 6 letters, so they used to be read twice even when the first read was perfect.
+export async function readNameBothWays(
+  readOnce: (flip: boolean) => Promise<string>,
+  looksLikeName?: (text: string) => boolean,
+): Promise<string> {
+  const first = await readOnce(false);
+  if (letterCount(first) >= 6) return first;
+  if (looksLikeName && looksLikeName(first)) return first;
+  const second = await readOnce(true);
+  return letterCount(second) > letterCount(first) ? second : first;
+}
+
 // The title text. The name box first; the whole band too only if the name box didn't give a real name.
 // "skipBlank" is for a quick "is there a card?" look: if the name box has hardly any letters at all
 // (an empty table), don't bother with the band.
@@ -51,15 +67,19 @@ export async function readCardStaged(
 ): Promise<ScanReading> {
   const started = now();
   // The title and the info line don't depend on each other, so they are asked for together
-  // (the website's reader does them on two workers at once)
+  // (the website's reader does them on two workers at once).
+  // The small art picture does not depend on them either, so it is made at the same time too (it used to wait until
+  // the text was done, which added its time on top). "preview" in the timings is only the time spent WAITING for it
+  // after the text was done (usually none), so the steps still add up to the real total.
+  const previewJob = reader.preview().catch(() => undefined);
   const [nameText, infoText] = await Promise.all([
     knownTitle !== undefined ? Promise.resolve(knownTitle) : readTitle(reader, looksLikeName),
     reader.info(),
   ]);
   const text = now() - started;
-  const previewStart = now();
-  const artPreview = await reader.preview().catch(() => undefined);
-  const timings: Record<string, number> = { text, preview: now() - previewStart };
+  const waitStart = now();
+  const artPreview = await previewJob;
+  const timings: Record<string, number> = { text, preview: now() - waitStart };
   return {
     infoText,
     nameText,

@@ -14,6 +14,8 @@
      3. The camera's own crop of the card is added as one more try (in case the
         finder found nothing, or the card was already straightened).
    The AI then looks at all of them and goes with the most convincing one.
+   Step 1 and 2's search runs in a background worker when the browser allows it (aiWorker.web.ts), so the page does
+   not freeze for it; if that is not possible it runs right here, as before.
    When the card is already filling the whole picture (Track mode's straightened
    card, or a photo that is only the card) the search is skipped: there is nothing
    to find.
@@ -21,6 +23,7 @@
 
 import { findOutlines, flatCard } from '../core/outlineFinder.ts';
 import type { RgbaPicture } from '../core/perspective.ts';
+import { outlinePicturesInWorker } from './aiWorker.web';
 
 // The longest side the working copy of the photo may have
 const WORK_SIZE = 1600;
@@ -46,7 +49,17 @@ export async function aiCardPictures(source: HTMLCanvasElement, card: CardRect):
       workContext.imageSmoothingQuality = 'high';
       workContext.drawImage(source, 0, 0, work.width, work.height);
       const photo = workContext.getImageData(0, 0, work.width, work.height);
-      for (const found of findOutlines(photo)) pictures.push(flatCard(photo, found));
+      // The search is a lot of number-crunching, so it is done in a background worker (see aiWorker.web.ts) and the
+      // page stays smooth. The photo's pixels are handed to the worker (the page can't use them afterwards).
+      const fromWorker = await outlinePicturesInWorker(photo.data.buffer as ArrayBuffer, photo.width, photo.height);
+      if (fromWorker) {
+        pictures.push(...fromWorker);
+      } else {
+        // No worker (or it failed): search on the page itself, as it always did. If the pixels were already handed
+        // to the worker, they are taken from the working copy again.
+        const again = photo.data.buffer.byteLength > 0 ? photo : workContext.getImageData(0, 0, work.width, work.height);
+        for (const found of findOutlines(again)) pictures.push(flatCard(again, found));
+      }
     } catch {
       /* the finder failing only means the camera's own crop is used */
     }

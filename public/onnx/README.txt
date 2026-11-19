@@ -11,3 +11,13 @@ here: they are downloaded separately (see src/lib/scanner/ai/aiConfig.ts).
 To update them, change the onnxruntime-web version in package.json, run npm install, and copy the
 same three files from node_modules/onnxruntime-web/dist over these.
 Licence: MIT (Microsoft).
+
+Also here (NOT a copy from onnxruntime-web, it is made by this project):
+
+  ai-worker.js                    the background worker that runs the AI model and finds a card's outline in a photo,
+                                  so the page does not stutter during an AI scan. Made from TypeScript in src/lib/scanner
+                                  by "node scripts/build-ai-worker.mjs": do not edit it by hand, and run that command
+                                  again after changing workerProtocol.ts, aiRunModel.ts, outlineFinder.ts, perspective.ts,
+                                  modelInput.ts, scannerTypes.ts or aiWorkerMain.ts (a test fails if it is out of date).
+                                  It loads ort.wasm.min.js (above) inside itself. If a browser can't use it, the scanner
+                                  quietly runs everything on the page instead (see src/lib/scanner/ai/aiWorker.web.ts).

@@ -24,7 +24,7 @@
 import { rgbaToGray } from '../core/phash';
 import { binarizeForOcr } from '../core/ocrPrep';
 import { borderFromBrightness } from '../core/borderColor';
-import { letterCount, readCardStaged, type PartReader } from '../core/readPlan';
+import { readCardStaged, readNameBothWays, type PartReader } from '../core/readPlan';
 import { ART_BOX, ART_REGION, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_REGION, type Box, type GrayPicture, type ScanExtras, type ScanReading } from '../core/scannerTypes';
 import type { CardOcr } from './ocr';
 
@@ -179,7 +179,8 @@ function prepare(source: CanvasImageSource, from: { x: number; y: number; w: num
 
 // "which" says which worker to use: 0 for the title, 1 for the info line (and the copyright line).
 // (The pictures that were read are no longer kept as PNGs for a debug view: making them was slow and nothing used them.)
-async function readPart(source: CanvasImageSource, card: { x: number; y: number; w: number; h: number }, box: Box, kind: Kind, which: number): Promise<string> {
+// "looksLikeName" (optional) lets the title bar skip its second, flipped read when the first read is already a real name.
+async function readPart(source: CanvasImageSource, card: { x: number; y: number; w: number; h: number }, box: Box, kind: Kind, which: number, looksLikeName?: (text: string) => boolean): Promise<string> {
   const part = {
     x: card.x + box[0] * card.w,
     y: card.y + box[1] * card.h,
@@ -197,10 +198,10 @@ async function readPart(source: CanvasImageSource, card: { x: number; y: number;
     // The title band is read both ways round, whatever the first way gave
     if (kind === 'band') return `${first}\n${await once(true)}`;
     // A title bar on a dark or coloured frame can come out the wrong way round (text taken
-    // for background). If very little was read, try the other way and keep the one with more letters.
-    if (kind !== 'name' || letterCount(first) >= 6) return first;
-    const second = await once(true);
-    return letterCount(second) > letterCount(first) ? second : first;
+    // for background). If very little was read, try the other way and keep the one with more letters
+    // (unless the first read was already a real name: see readNameBothWays in core/readPlan.ts).
+    if (kind !== 'name') return first;
+    return readNameBothWays(async (flip) => (flip ? once(true) : first), looksLikeName);
   });
 }
 
@@ -254,10 +255,10 @@ function artPreview(source: CanvasImageSource, card: CardRect): string {
 export function readCard(
   source: CanvasImageSource,
   card: { x: number; y: number; w: number; h: number },
-  looksLikeName: (text: string) => boolean = () => true,
+  looksLikeName?: (text: string) => boolean,
 ): Promise<ScanReading> {
   const reader: PartReader = {
-    name: () => readPart(source, card, CARD_PARTS.name, 'name', 0),
+    name: () => readPart(source, card, CARD_PARTS.name, 'name', 0, looksLikeName),
     band: () => readPart(source, card, NAME_BAND, 'band', 0),
     info: () => readPart(source, card, CARD_PARTS.infoLine, 'info', 1),
     bottom: () => readPart(source, card, CARD_PARTS.bottomLine, 'bottom', 1),
@@ -265,7 +266,7 @@ export function readCard(
     preview: async () => artPreview(source, card),
   };
   engineWaitMs = 0;
-  return readCardStaged(reader, looksLikeName).then((reading) => {
+  return readCardStaged(reader, looksLikeName ?? (() => true)).then((reading) => {
     // If the reader had to be loaded during this scan (the warm-up hadn't finished), say how long that took
     // (that wait happened inside the "text" step, so it is taken out of there to not be counted twice)
     if (engineWaitMs >= 5) {
