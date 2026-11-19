@@ -223,8 +223,8 @@ export const helpTopics: HelpTopic[] = [
               with <Strong>−</Strong> and <Strong>+</Strong>, finish, language and condition; <Strong>−</Strong> on the last copy asks
               whether to delete it), the <Strong>binder with a +</Strong> (Move to a binder: pick a binder, and the card goes into its
               first empty pocket and leaves the list) and the red <Strong>trash can</Strong> (Delete from list, it asks first).
-              What the card does (its rules text, without the flavor text) is folded away under <Strong>Show rules</Strong>:
-              tap it to open it, and again to close it.
+              What the card does (its rules text, without the flavor text) is on a sheet that slides up over the card screen:
+              slide up from the <Strong>Slide up for rules</Strong> strip (or tap it), and slide the sheet down, or tap outside it, to put it away.
             </P>
             <P>
               Lists are saved like binders: on this device, in your WUBRG'r account when you're logged in,
@@ -348,7 +348,7 @@ export const helpTopics: HelpTopic[] = [
               the one showing, and a card's screen has <Strong>Move to sideboard</Strong> and <Strong>Move to main deck</Strong>.
               Tap a card to open its card screen, the same as in a binder or list: a big picture (tap it to open the card in
               the Card Finder), a line of what you own, the <Strong>pencil</Strong> (Edit: copies, finish, language, condition),
-              <Strong>Show rules</Strong> (what the card does, folded away until you tap it), and the red <Strong>trash can</Strong> (Delete from deck, it asks first). A deck is not part of your
+              the rules (slide up from the strip at the bottom), and the red <Strong>trash can</Strong> (Delete from deck, it asks first). A deck is not part of your
               collection, so there is no Move to a binder. On a card with a <Strong>solid red border</Strong> (one you don't own) there's
               <Strong> Add to a binder/list</Strong> instead: <Strong>Add to a binder</Strong> if you own it and it's just not in your collection yet
               (say you bought a deck and uploaded its list first), or <Strong>Add to a list</Strong> to keep it on a wishlist. The card stays in
@@ -746,7 +746,7 @@ export const helpTopics: HelpTopic[] = [
         set's release date), in the binder's .CSV and .JSON files too, so the sorts don't wait on the
         internet; cards made before that get them filled in the first time you open their binder. Sorting only changes how the list and grid are shown: it never
         moves a card to another pocket. A foil card has a rainbow border in every view. Tap a card in the list or grid for its card screen: what you own,
-        a pencil to edit it (copies, finish, language, condition), icons to move it or remove it, tap its picture to open it in the Card Finder, and its rules under Show rules.
+        a pencil to edit it (copies, finish, language, condition), icons to move it, add a copy to a list or a deck, or remove it, tap its picture to open it in the Card Finder, and its rules on a sheet you slide up.
         In the list, each card's row has its name, then its casting cost (in Magic's own mana symbols),
         its set's symbol, its set code and number (with a <Strong>*</Strong> for a foil or <Strong>**</Strong> for
         an etched foil), and its type line. In the list and the grid, each card has a <Strong>− 3 +</Strong> bar (in the grid it's along the card's
@@ -905,7 +905,15 @@ export const helpTopics: HelpTopic[] = [
               printing comes in: normal, foil, etched), the <Strong>language</Strong> (the card's picture changes to that language)
               and the <Strong>condition</Strong>: Mint (M), Near Mint (NM), Lightly Played (LP), Moderately Played (MP), Heavily Played (HP)
               or Damaged (Dmg). The line under the card shows the short forms, and the language by its letters (EN, FR, JA...). A card with no condition counts as Near Mint, and the
-              condition is saved with the card in your account and in downloaded files. What the card does (its rules text, without the flavor text) is folded away under <Strong>Show rules</Strong>.
+              condition is saved with the card in your account and in downloaded files. What the card does (its rules text, without the flavor text) is on a sheet that slides up over the
+              card screen: slide up from the <Strong>Slide up for rules</Strong> strip (or tap it), and slide it down, or tap outside it, to put it away.
+            </P>
+            <P>
+              Two more icons put a <Strong>copy</Strong> of the card somewhere else, and the card stays where it is: the
+              <Strong> list with a +</Strong> (Add to a list: pick a list) and the <Strong>deck with a +</Strong> (Add to a deck: pick
+              the board, <Strong>Main deck</Strong> or <Strong>Sideboard</Strong> for a format that has one, then the deck; each deck shows how many copies it
+              already has). If the card is banned in that deck's format, or the deck already has as many copies as its format allows, it asks
+              first, and <Strong>Add anyway</Strong> goes ahead. The binder with a + <Strong>moves</Strong> the card to another binder.
             </P>
           </>
         ),

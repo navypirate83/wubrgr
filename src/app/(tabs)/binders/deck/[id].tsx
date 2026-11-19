@@ -65,7 +65,7 @@ import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import DeckSearchBar, { type DeckSearchMode } from '@/components/decks/DeckSearchBar';
 import CardList, { type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
-import CardScreen from '@/components/binder/CardScreen';
+import CardScreen, { BINDER_ICON } from '@/components/binder/CardScreen';
 import AddToCollectionDialog from '@/components/decks/AddToCollectionDialog';
 import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
@@ -748,7 +748,7 @@ export default function DeckScreen() {
               ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); } }] : []),
             /* A card you don't own (a solid red border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */
             ...(marks.get(menuCard) === 'card'
-              ? [{ label: 'Add to a binder/list', icon: 'albums-outline' as const, plus: true, onPress: () => addToCollection(menuIndex) }] : []),
+              ? [{ label: 'Add to a binder/list', picture: BINDER_ICON, plus: true, onPress: () => addToCollection(menuIndex) }] : []),
             { label: 'Delete from deck', icon: 'trash-outline' as const, kind: 'danger' as const, onPress: () => confirmDelete(menuIndex) },
           ]}
         >

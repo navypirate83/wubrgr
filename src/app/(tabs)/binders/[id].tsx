@@ -57,7 +57,9 @@ import Pocket from '@/components/binder/Pocket';
 import CardList, { Summary, type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import AddCardsButton from '@/components/binder/AddCardsButton';
-import CardScreen from '@/components/binder/CardScreen';
+import CardScreen, { BINDER_ICON, DECK_ICON, LIST_ICON } from '@/components/binder/CardScreen';
+import AddToListDialog from '@/components/binder/AddToListDialog';
+import AddToDeckDialog from '@/components/binder/AddToDeckDialog';
 import { applyEdit, type CardEdit } from '@/lib/cardEdit';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
@@ -742,6 +744,8 @@ function BinderView({ binderId }: { binderId: string }) {
   // The windows: the card's menu, "Remove card?" and "Move card to…"
   // (each with the pocket it's about), and Keyboard shortcuts
   const [menuKey, setMenuKey] = useState<string | null>(null);
+  // A card being added (as a copy) to a list or a deck: which, and the card's pocket
+  const [addingTo, setAddingTo] = useState<{ kind: 'list' | 'deck'; key: string } | null>(null);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [movingKey, setMovingKey] = useState<string | null>(null);
   // The import window (the upload button) and the download window (the download button)
@@ -1267,6 +1271,7 @@ function BinderView({ binderId }: { binderId: string }) {
 
   const draggedCard = dragFrom ? cards[dragFrom] : undefined;
   const menuCard = menuKey ? cards[menuKey] : undefined;
+  const addingCard = addingTo ? cards[addingTo.key] : undefined;
   const removing = removingKey ? cards[removingKey] : undefined;
   const moving = movingKey ? cards[movingKey] : undefined;
 
@@ -1452,7 +1457,9 @@ function BinderView({ binderId }: { binderId: string }) {
           onOpenFinder={() => { const key = menuKey; setMenuKey(null); router.push(searchLinkFor(binderId, key, menuCard) as never); }}
           onClose={() => setMenuKey(null)}
           actions={[
-            { label: 'Move to another binder', icon: 'albums-outline', plus: true, onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
+            { label: 'Move to another binder', picture: BINDER_ICON, plus: true, onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
+            { label: 'Add to a list', picture: LIST_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'list', key: menuKey }); setMenuKey(null); } },
+            { label: 'Add to a deck', picture: DECK_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'deck', key: menuKey }); setMenuKey(null); } },
             { label: 'Remove from this binder', icon: 'trash-outline', kind: 'danger', onPress: () => { setRemovingKey(menuKey); setMenuKey(null); } },
           ]}
         />
@@ -1470,6 +1477,16 @@ function BinderView({ binderId }: { binderId: string }) {
         >
           <Text style={[styles.dialogText, { color: colors.text }]}>Remove "{removing.name}" from this binder?</Text>
         </PopupWindow>
+      )}
+
+      {/* "Add to a list" and "Add to a deck": a copy goes there, the card stays here */}
+      {addingTo?.kind === 'list' && addingCard && (
+        <AddToListDialog card={addingCard} onCancel={() => setAddingTo(null)}
+                         onDone={(note) => { setAddingTo(null); announce(note); showMessage(note); }} />
+      )}
+      {addingTo?.kind === 'deck' && addingCard && (
+        <AddToDeckDialog card={addingCard} onCancel={() => setAddingTo(null)}
+                         onDone={(note) => { setAddingTo(null); announce(note); showMessage(note); }} />
       )}
 
       {moving && movingKey && (

@@ -14,8 +14,11 @@
      language and condition
    - anything extra the page wants to add (the deck's "printings you own")
    - a row of icons you tap, centered: the pencil (Edit), then the page's
-     own (move to a binder, add to a deck...), and the red trash can last
-   - "Show rules", folded away until you tap it (see CardRules.tsx)
+     own (move to a binder, add to a list, add to a deck...), and the red
+     trash can last
+   - the rules, on a sheet that slides up over the card screen when you
+     slide up from the "Slide up for rules" strip (or tap it). Slide the
+     sheet down, or tap outside it, to put it away (see CardRules.tsx)
    EDITING (tap the pencil): copies with − and +, the finish (tap it to
    step through the finishes this printing comes in, like the Card Finder),
    the language and the condition as drop-downs. The tick at the top goes
@@ -25,7 +28,7 @@
    ===================================================================== */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
@@ -41,10 +44,17 @@ import { RADIUS } from '@/theme/colors';
 import CardRules from '@/components/binder/CardRules';
 import { PickerButton, PickerSheet, SheetRowText, type Anchor } from '@/components/search/PickerSheet';
 
-// One of the page's own icons (move to a binder, add to a deck, delete...)
+// The app's own line drawings of a binder, a list and a deck (the same ones
+// the Shelf's buttons use), for the page's icons
+export const BINDER_ICON = require('../../../assets/images/binder-outline.svg') as number;
+export const LIST_ICON = require('../../../assets/images/notebook-outline.svg') as number;
+export const DECK_ICON = require('../../../assets/images/deckbox-outline.svg') as number;
+
+// One of the page's own icons (move to a binder, add to a list, add to a deck, delete...)
 export type CardScreenAction = {
   label: string;                                // read out by screen readers
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;        // a standard icon...
+  picture?: number;                             // ...or one of the app's own drawings (BINDER_ICON...)
   plus?: boolean;                               // a small + in the icon's lower-right corner
   onPress: () => void;
   kind?: 'danger';                              // red, and always last
@@ -84,6 +94,35 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
   // where its box is on the screen (so the list opens right under it)?
   const [editing, setEditing] = useState(false);
   const [picker, setPicker] = useState<{ which: 'language' | 'condition'; anchor: Anchor } | null>(null);
+
+  // The rules sheet: is it on the screen, and how far up it is (0 is down, 1 is
+  // all the way up). It slides up when you slide up from the strip (or tap it),
+  // and goes away when you slide it down or tap outside it.
+  const [rulesShown, setRulesShown] = useState(false);
+  const [rulesHeight, setRulesHeight] = useState(500);
+  const slide = useRef(new Animated.Value(0)).current;
+  const native = Platform.OS !== 'web';
+  const openRules = () => {
+    setRulesShown(true);
+    Animated.timing(slide, { toValue: 1, duration: 220, useNativeDriver: native }).start();
+  };
+  const closeRules = () => {
+    Animated.timing(slide, { toValue: 0, duration: 180, useNativeDriver: native }).start(() => setRulesShown(false));
+  };
+  // The finger-sliding: up on the strip opens the rules, down on the sheet's top closes
+  // them. (The newest functions are kept in refs so the gestures never go out of date.)
+  const openRulesRef = useRef(openRules);
+  openRulesRef.current = openRules;
+  const closeRulesRef = useRef(closeRules);
+  closeRulesRef.current = closeRules;
+  const slideUp = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, move) => move.dy < -10 && Math.abs(move.dy) > Math.abs(move.dx),
+    onPanResponderRelease: (_event, move) => { if (move.dy < -30) openRulesRef.current(); },
+  })).current;
+  const slideDown = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, move) => move.dy > 10 && Math.abs(move.dy) > Math.abs(move.dx),
+    onPanResponderRelease: (_event, move) => { if (move.dy > 40) closeRulesRef.current(); },
+  })).current;
 
   // While editing: the card's printing (to know which finishes it comes in), and
   // its printings in every language (once the language drop-down is opened)
@@ -147,15 +186,20 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
       <View style={[styles.iconRow, { borderTopColor: colors.border }]}>
         <IconButton label="Edit this card" icon="create-outline" onPress={() => setEditing(true)} />
         {normalActions.map((action) => (
-          <IconButton key={action.label} label={action.label} icon={action.icon} plus={action.plus} onPress={action.onPress} />
+          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} onPress={action.onPress} />
         ))}
         {dangerActions.map((action) => (
-          <IconButton key={action.label} label={action.label} icon={action.icon} plus={action.plus} onPress={action.onPress} danger />
+          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} onPress={action.onPress} danger />
         ))}
       </View>
 
-      {/* The rules, folded away until asked for */}
-      <CardRules card={card} />
+      {/* The strip you slide up (or tap) to bring up the rules */}
+      <View {...slideUp.panHandlers}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Show the rules" onPress={openRules} style={({ pressed }) => [styles.rulesStrip, pressed && styles.pressed]}>
+          <View style={[styles.grip, { backgroundColor: colors.border }]} />
+          <Text style={[styles.rulesHint, { color: colors.muted }]}>Slide up for rules</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -258,7 +302,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
   // What the Back button (Android) and the Esc key (website) do: close an open
   // drop box first, then leave the editor, then close the screen. (A ref keeps
   // the newest version, so the listener below never has to be set up again.)
-  const stepBack = picker ? () => setPicker(null) : editing ? stopEditing : onClose;
+  const stepBack = rulesShown ? closeRules : picker ? () => setPicker(null) : editing ? stopEditing : onClose;
   const stepBackRef = useRef(stepBack);
   stepBackRef.current = stepBack;
   useEffect(() => {
@@ -323,6 +367,34 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
           </View>
         </View>
       </View>
+      {/* The rules sheet: slides up over the card screen. Slide it down, or tap
+          outside it (on the dimmed part above it), to put it away. */}
+      {rulesShown && (
+        <View style={styles.rulesLayer} pointerEvents="box-none">
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.4)', opacity: slide }]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={closeRules} accessibilityRole="button" accessibilityLabel="Close the rules" />
+          </Animated.View>
+          <Animated.View
+            onLayout={(event) => setRulesHeight(event.nativeEvent.layout.height)}
+            style={[
+              styles.rulesSheet, wide && styles.rulesSheetWide,
+              { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: colors.shadow },
+              { transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [rulesHeight, 0] }) }] },
+            ]}
+            accessibilityViewIsModal
+            aria-modal
+          >
+            {/* The top of the sheet: slide down from here to put it away */}
+            <View {...slideDown.panHandlers} style={styles.rulesTop}>
+              <View style={[styles.grip, { backgroundColor: colors.border }]} />
+              <Text style={[styles.rulesTitle, { color: colors.text }]} numberOfLines={1} accessibilityRole="header">Rules · {card.name}</Text>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.rulesBody}>
+              <CardRules card={card} />
+            </ScrollView>
+          </Animated.View>
+        </View>
+      )}
       {/* The open drop box's list, floating over everything */}
       {pickerList}
     </View>
@@ -332,15 +404,17 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
 /* ---------- small pieces ---------- */
 
 // One icon you tap in the row, with an optional small + in its lower-right corner
-function IconButton({ label, icon, plus, danger, onPress }: {
-  label: string; icon: keyof typeof Ionicons.glyphMap; plus?: boolean; danger?: boolean; onPress: () => void;
+function IconButton({ label, icon, picture, plus, danger, onPress }: {
+  label: string; icon?: keyof typeof Ionicons.glyphMap; picture?: number; plus?: boolean; danger?: boolean; onPress: () => void;
 }) {
   const colors = useColors();
   const color = danger ? colors.error : colors.text;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
       <View>
-        <Ionicons name={icon} size={24} color={color} />
+        {picture !== undefined
+          ? <Image source={picture} style={styles.drawing} contentFit="contain" tintColor={color} />
+          : <Ionicons name={icon ?? 'help-outline'} size={24} color={color} />}
         {plus && (
           <View style={[styles.badge, { backgroundColor: colors.accent, borderColor: colors.surface }]}>
             <Ionicons name="add" size={11} color={colors.accentText} />
@@ -395,6 +469,16 @@ const styles = StyleSheet.create({
   owned: { fontSize: 15, lineHeight: 22 },
   iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
   iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  drawing: { width: 26, height: 22 },
+  rulesStrip: { minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 6 },
+  grip: { width: 40, height: 4, borderRadius: 2 },
+  rulesHint: { fontSize: 12 },
+  rulesLayer: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end', alignItems: 'center' },
+  rulesSheet: { width: '100%', height: '62%', borderTopWidth: 1, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingBottom: 16 },
+  rulesSheetWide: { maxWidth: 660 },
+  rulesTop: { alignItems: 'center', gap: 8, paddingTop: 10, paddingBottom: 12 },
+  rulesTitle: { fontSize: 16, fontWeight: '700' },
+  rulesBody: { paddingBottom: 12 },
   badge: { position: 'absolute', right: -8, bottom: -6, width: 15, height: 15, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
   rowLabel: { fontSize: 15, fontWeight: '600' },

@@ -42,7 +42,7 @@ import MoveCardDialog from '@/components/binder/MoveCardDialog';
 import CardList2, { type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import AddCardsButton from '@/components/binder/AddCardsButton';
-import CardScreen from '@/components/binder/CardScreen';
+import CardScreen, { BINDER_ICON } from '@/components/binder/CardScreen';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import { useContentWidth } from '@/hooks/useMenuStyle';
@@ -437,7 +437,7 @@ export default function ListScreen() {
           onOpenFinder={() => { const card = menuCard; setMenuIndex(null); router.push(finderLinkFor(id, card) as never); }}
           onClose={() => setMenuIndex(null)}
           actions={[
-            { label: 'Move to a binder', icon: 'albums-outline', plus: true, onPress: () => moveToBinder(menuIndex) },
+            { label: 'Move to a binder', picture: BINDER_ICON, plus: true, onPress: () => moveToBinder(menuIndex) },
             { label: 'Delete from list', icon: 'trash-outline', kind: 'danger', onPress: () => confirmDelete(menuIndex) },
           ]}
         />
