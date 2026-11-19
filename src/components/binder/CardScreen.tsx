@@ -36,6 +36,9 @@ import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors, useTheme } from '@/hooks/useTheme';
 import { useMenuStyle } from '@/hooks/useMenuStyle';
+import { useSettings } from '@/hooks/useSettings';
+import { STORE_ICONS } from '@/components/settings/PriceStorePicker';
+import { copyPrice, currencyOf, formatPrice, loadCardKingdomPrices } from '@/lib/prices';
 import { pictureSource } from '@/lib/http';
 import type { BinderCard } from '@/lib/binderStorage';
 import { loadOwned } from '@/lib/deckOwnership';
@@ -156,7 +159,17 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
     queryKey: ['edit-print', card.set, card.number],
     queryFn: () => loadOneCard(cardBySetPath(card.set, card.number)),
     staleTime: Infinity,
-    enabled: editing && hasPrinting,
+    // Needed while editing (the finishes it comes in) and for the card's price next to its set
+    enabled: hasPrinting,
+  });
+  // The price of ONE copy of this card at the store chosen in Settings (Card Kingdom's prices come
+  // from their own downloaded list, so that is only fetched when it's the chosen store)
+  const { priceStore } = useSettings();
+  const cardKingdom = useQuery({
+    queryKey: ['card-kingdom-prices'],
+    queryFn: loadCardKingdomPrices,
+    gcTime: Infinity,
+    enabled: priceStore === 'cardkingdom' && hasPrinting,
   });
   const languages = useQuery({
     queryKey: ['edit-languages', card.set, card.number],
@@ -173,6 +186,9 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   const conditionName = conditionLabel(conditionOf(card));
   const conditionAbbr = conditionShort(conditionOf(card));
   const finishOptions = print.data ? finishChoices(print.data) : null;
+  // The price of one copy as text (null while it's still being fetched, "—" when the store has no price for it)
+  const waitingForPrice = !print.data || (priceStore === 'cardkingdom' && !cardKingdom.data);
+  const priceText = waitingForPrice ? null : formatPrice(copyPrice(priceStore, print.data, finish, cardKingdom.data), currencyOf(priceStore));
   const canCycleFinish = !!finishOptions && finishOptions.length > 1;
 
   // Leave edit mode (and close any open drop box)
@@ -217,6 +233,13 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
         <View style={styles.setLine}>
           {setIcon ? <Image source={{ uri: setIcon }} style={styles.setIcon} contentFit="contain" tintColor={rarityTint} /> : null}
           <Text style={[styles.setText, { color: colors.muted }]}>{card.set.toUpperCase()}{card.number ? ` · #${card.number}` : ''}</Text>
+          {/* A gap about two long dashes wide, then the chosen price store's icon and the price of one copy */}
+          {priceText !== null ? (
+            <View style={styles.priceBit} accessible accessibilityLabel={`Price of one copy: ${priceText}`}>
+              <Image source={STORE_ICONS[priceStore]} style={styles.storeIcon} contentFit="contain" />
+              <Text style={[styles.priceText, { color: colors.text }]}>{priceText}</Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -593,6 +616,10 @@ const styles = StyleSheet.create({
   setLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   setIcon: { width: 12, height: 12 },
   setText: { fontSize: 10, fontWeight: '600' },
+  // The price: it sits after a gap about as wide as two long dashes (20 points at this text size)
+  priceBit: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 20 },
+  storeIcon: { width: 13, height: 13, padding: 1, borderRadius: 3, backgroundColor: '#ffffff' },
+  priceText: { fontSize: 10, fontWeight: '600' },
   leftColumn: { width: 230, gap: 12 },
   infoBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   infoText: { fontSize: 10.5 },

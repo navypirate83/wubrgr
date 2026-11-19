@@ -220,7 +220,7 @@ export const helpTopics: HelpTopic[] = [
               in the list. Tap a card to open its card screen (a sheet on a phone, a pop-up in the middle on a wide window; tap
               outside it to close it). Tap the card's picture to open the card in the Card Finder. Under it come the card's name (with a
               <Strong> Foil</Strong> or <Strong>Etched</Strong> tag beside it), its set's symbol in the color of its rarity (red mythic, gold
-              rare, silver uncommon, black common, purple special) with the set code and number, and a bar: language, condition, the
+              rare, silver uncommon, black common, purple special) with the set code and number, then the icon of your <Strong>Price store</Strong> (Settings) and the price of one copy, and a bar: language, condition, the
               list's name with a small list drawing, and how many copies you own in your binders. The icons along the bottom are the <Strong>pencil</Strong> (Edit: copies
               with <Strong>−</Strong> and <Strong>+</Strong>, finish, language and condition; <Strong>−</Strong> on the last copy asks
               whether to delete it), the <Strong>binder with a +</Strong> (Move to a binder: pick a binder, and the card goes into its
@@ -912,7 +912,7 @@ export const helpTopics: HelpTopic[] = [
               window; tap outside it to close it). On a wide window the card's information sits beside the picture, the rules
               text is always showing, and the icons run along the bottom of the pop-up. You see a big picture of the card (tap the picture to
               open the card in the Card Finder). Under it (beside it on a wide window) come the card's name (with a <Strong>Foil</Strong> or <Strong>Etched</Strong> tag beside it), its set's symbol in
-              the color of its rarity (red mythic, gold rare, silver uncommon, black common, purple special) with the set code and number, and a
+              the color of its rarity (red mythic, gold rare, silver uncommon, black common, purple special) with the set code and number, then the icon of your <Strong>Price store</Strong> (Settings) and the price of one copy, and a
               bar: language, condition, the binder's name with a small binder drawing, and, further along, a binder drawing with how many
               copies of the card you own in all your binders. The icons along the bottom are the
               <Strong> pencil</Strong> (Edit), the <Strong>binder with a +</Strong> (Move to another binder) and the red

@@ -19,6 +19,8 @@ const ICONS: Record<PriceStore, number> = {
   cardkingdom: require('../../../assets/images/stores/cardkingdom.png') as number,
   cardmarket: require('../../../assets/images/stores/cardmarket.png') as number,
 };
+// The same icons, for other screens that show a store's price (the card screen's price next to its set)
+export { ICONS as STORE_ICONS };
 
 export default function PriceStorePicker({ value, onChange }: {
   value: PriceStore;
