@@ -542,7 +542,6 @@ export default function AddToBinder({ cardEntry, listEntry, toList, toDeck, from
             onChangeText={setNewListName}
             onSubmitEditing={addCardToNewList}
             returnKeyType="done"
-            autoFocus
             selectTextOnFocus
             maxLength={40}
             autoCapitalize="words"

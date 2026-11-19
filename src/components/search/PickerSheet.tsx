@@ -172,7 +172,6 @@ function PickerDropdown<T>(props: SheetProps<T>) {
             placeholder="Type to filter…"
             placeholderTextColor={colors.muted}
             accessibilityLabel={`Filter ${title}`}
-            autoFocus={Platform.OS === 'web'}
             autoCorrect={false}
             autoCapitalize="none"
             style={[styles.filterBox, { color: colors.text, borderColor: colors.border, backgroundColor: colors.bg }]}

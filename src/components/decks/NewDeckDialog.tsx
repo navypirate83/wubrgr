@@ -75,7 +75,6 @@ export default function NewDeckDialog({ confirmLabel = 'Create', onCreate, onCan
           onChangeText={setName}
           onSubmitEditing={create}
           returnKeyType="done"
-          autoFocus
           selectTextOnFocus
           maxLength={NAME_LIMIT}
           autoCapitalize="words"

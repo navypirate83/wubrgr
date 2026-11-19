@@ -270,7 +270,6 @@ export default function DecksScreen() {
             onChangeText={(name) => setRenaming({ ...renaming, name })}
             onSubmitEditing={saveName}
             returnKeyType="done"
-            autoFocus
             selectTextOnFocus
             maxLength={NAME_LIMIT}
             autoCapitalize="words"

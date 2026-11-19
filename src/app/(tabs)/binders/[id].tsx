@@ -1536,7 +1536,6 @@ function BinderView({ binderId }: { binderId: string }) {
             onSubmitEditing={goToPage}
             keyboardType="number-pad"
             returnKeyType="go"
-            autoFocus
             maxLength={6}
             style={goError ? { borderColor: colors.error } : undefined}
           />

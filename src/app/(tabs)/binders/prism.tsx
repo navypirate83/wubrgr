@@ -181,7 +181,7 @@ export default function PrismScreen() {
                        { label: 'Create', onPress: create, disabled: !naming.trim() },
                      ]}>
           <TextField label="Name" value={naming} onChangeText={setNaming} onSubmitEditing={create} returnKeyType="done"
-                     autoFocus selectTextOnFocus maxLength={SET_NAME_LIMIT} autoCapitalize="words" />
+                     selectTextOnFocus maxLength={SET_NAME_LIMIT} autoCapitalize="words" />
         </PopupWindow>
       )}
 
@@ -212,7 +212,7 @@ export default function PrismScreen() {
                        { label: 'Save', onPress: saveName, disabled: !renaming.name.trim() },
                      ]}>
           <TextField label="Name" value={renaming.name} onChangeText={(name) => setRenaming({ ...renaming, name })} onSubmitEditing={saveName}
-                     returnKeyType="done" autoFocus selectTextOnFocus maxLength={SET_NAME_LIMIT} autoCapitalize="words" />
+                     returnKeyType="done" selectTextOnFocus maxLength={SET_NAME_LIMIT} autoCapitalize="words" />
         </PopupWindow>
       )}
     </KeyboardAvoidingView>

@@ -67,7 +67,6 @@ export default function SlotSearchDialog({ title, query, hint, onChoose, onCance
           placeholder="Type a name…"
           value={text}
           onChangeText={setText}
-          autoFocus
           returnKeyType="search"
           autoCorrect={false}
           autoCapitalize="none"

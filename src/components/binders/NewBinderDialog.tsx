@@ -101,7 +101,7 @@ export default function NewBinderDialog({ onCreate, onCancel, onUpload, onImport
 
   return (
     <PopupWindow title="New binder" onClose={onCancel} buttons={buttons}>
-      <NameField value={name} onChange={setName} autoFocus onSubmit={create} />
+      <NameField value={name} onChange={setName} onSubmit={create} />
       <SymbolChoices legend="Cover symbol (or none)" value={symbol} onChange={setSymbol} />
       <CoverChoices value={cover} onChange={setCover} />
       {/* Import cards (optional): a pasted list or a file, put in the first pockets */}

@@ -306,7 +306,6 @@ export default function ListsScreen() {
             onChangeText={(name) => setRenaming({ ...renaming, name })}
             onSubmitEditing={saveName}
             returnKeyType="done"
-            autoFocus
             selectTextOnFocus
             maxLength={NAME_LIMIT}
             autoCapitalize="words"

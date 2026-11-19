@@ -67,7 +67,7 @@ export default function VersionPicker({ set, number, onPick, onClose }: Props) {
             value={typed} onChangeText={setTyped}
             placeholder="Search by set name, set code or number" placeholderTextColor={colors.muted}
             accessibilityLabel="Search the versions by set name, set code or number"
-            autoCapitalize="none" autoCorrect={false} autoFocus
+            autoCapitalize="none" autoCorrect={false}
             style={[styles.searchInput, { color: colors.text }]}
           />
           {typed.length > 0 && (
