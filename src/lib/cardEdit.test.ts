@@ -6,13 +6,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CONDITIONS, applyEdit, conditionEdit, conditionLabel, conditionOf, finishEdit, languageEdit, normalizeCondition,
+  CONDITIONS, applyEdit, conditionEdit, conditionLabel, conditionOf, conditionShort, finishEdit, languageEdit, normalizeCondition,
 } from './cardEdit.ts';
 
 const bolt = { name: 'Lightning Bolt', set: 'm10', number: '146', face: 0, image: 'https://example.com/en.jpg' };
 
-test('there are six conditions, best first, each with a name', () => {
-  assert.deepEqual(CONDITIONS.map((c) => c.label), ['Mint', 'Near Mint', 'Light Played', 'Moderately Played', 'Heavily Played', 'Damaged']);
+test('there are six conditions, best first, each with a name and a short form', () => {
+  assert.deepEqual(CONDITIONS.map((c) => c.label), ['Mint', 'Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']);
+  assert.deepEqual(CONDITIONS.map((c) => c.short), ['M', 'NM', 'LP', 'MP', 'HP', 'Dmg']);
+  assert.equal(conditionShort('lightly_played'), 'LP');
+  assert.equal(conditionShort('damaged'), 'Dmg');
+  assert.equal(conditionShort('who knows'), 'NM');
 });
 
 test('a card with no condition is near mint, and file wordings are understood', () => {
@@ -21,7 +25,8 @@ test('a card with no condition is near mint, and file wordings are understood', 
   assert.equal(normalizeCondition('Moderately Played'), 'moderately_played');
   assert.equal(normalizeCondition('heavily-played'), 'heavily_played');
   assert.equal(normalizeCondition('who knows'), 'near_mint');
-  assert.equal(conditionLabel('lightly_played'), 'Light Played');
+  assert.equal(conditionLabel('lightly_played'), 'Lightly Played');
+  assert.equal(normalizeCondition('Light Played'), 'lightly_played');
 });
 
 test('setting a condition keeps the card\'s other notes and does not change the original', () => {

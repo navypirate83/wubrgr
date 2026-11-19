@@ -19,14 +19,15 @@ import type { Finish } from './cards';
 
 /* ---------- condition ---------- */
 
-// The six conditions, best first: what's saved, and what's shown
-export const CONDITIONS: { code: string; label: string }[] = [
-  { code: 'mint', label: 'Mint' },
-  { code: 'near_mint', label: 'Near Mint' },
-  { code: 'lightly_played', label: 'Light Played' },
-  { code: 'moderately_played', label: 'Moderately Played' },
-  { code: 'heavily_played', label: 'Heavily Played' },
-  { code: 'damaged', label: 'Damaged' },
+// The six conditions, best first: what's saved, its full name (shown in the
+// drop box) and its short form (shown on the card's info line)
+export const CONDITIONS: { code: string; label: string; short: string }[] = [
+  { code: 'mint', label: 'Mint', short: 'M' },
+  { code: 'near_mint', label: 'Near Mint', short: 'NM' },
+  { code: 'lightly_played', label: 'Lightly Played', short: 'LP' },
+  { code: 'moderately_played', label: 'Moderately Played', short: 'MP' },
+  { code: 'heavily_played', label: 'Heavily Played', short: 'HP' },
+  { code: 'damaged', label: 'Damaged', short: 'Dmg' },
 ];
 
 // Other ways a condition gets written in the files people upload
@@ -49,9 +50,14 @@ export function conditionOf(card: BinderCard): string {
   return normalizeCondition(card.extra?.Condition);
 }
 
-// The name shown for a condition code
+// The full name shown for a condition code
 export function conditionLabel(code: string): string {
   return CONDITIONS.find((c) => c.code === code)?.label ?? 'Near Mint';
+}
+
+// The short form of a condition code (M, NM, LP, MP, HP, Dmg)
+export function conditionShort(code: string): string {
+  return CONDITIONS.find((c) => c.code === code)?.short ?? 'NM';
 }
 
 /* ---------- making a change ---------- */

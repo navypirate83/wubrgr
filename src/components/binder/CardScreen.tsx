@@ -34,7 +34,7 @@ import { useMenuStyle } from '@/hooks/useMenuStyle';
 import { pictureSource } from '@/lib/http';
 import { cardCount, type BinderCard } from '@/lib/binderStorage';
 import { finishOf } from '@/lib/cardDetails';
-import { CONDITIONS, conditionEdit, conditionLabel, conditionOf, finishEdit, languageEdit, type CardEdit } from '@/lib/cardEdit';
+import { CONDITIONS, conditionEdit, conditionLabel, conditionOf, conditionShort, finishEdit, languageEdit, type CardEdit } from '@/lib/cardEdit';
 import { finishChoices, imageFor, languageName, nextFinish, type Finish } from '@/lib/cards';
 import { cardBySetPath, loadLanguages, loadOneCard } from '@/lib/scryfall';
 import { RADIUS } from '@/theme/colors';
@@ -105,6 +105,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
   const finish = finishOf(card);
   const langCode = card.lang ?? 'en';
   const conditionName = conditionLabel(conditionOf(card));
+  const conditionAbbr = conditionShort(conditionOf(card));
   const finishOptions = print.data ? finishChoices(print.data) : null;
   const canCycleFinish = !!finishOptions && finishOptions.length > 1;
 
@@ -136,7 +137,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
         {count} {count === 1 ? 'copy' : 'copies'}
         <Text style={{ color: colors.muted }}>  ·  </Text>{FINISH_WORDS[finish]}
         <Text style={{ color: colors.muted }}>  ·  </Text>{languageName(langCode)}
-        <Text style={{ color: colors.muted }}>  ·  </Text>{conditionName}
+        <Text style={{ color: colors.muted }}>  ·  </Text>{conditionAbbr}
       </Text>
 
       {/* Whatever the page wants to add here */}
@@ -236,7 +237,12 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
     <PickerSheet
       title="Condition" anchor={picker.anchor} items={CONDITIONS} current={CONDITIONS.find((c) => c.label === conditionName) ?? null}
       keyOf={(c) => c.code} labelOf={(c) => c.label}
-      renderRow={(c) => <SheetRowText text={c.label} bold={c.label === conditionName} />}
+      renderRow={(c) => (
+        <>
+          <SheetRowText text={c.label} bold={c.label === conditionName} />
+          <Text style={[styles.abbr, { color: colors.muted }]}>{c.short}</Text>
+        </>
+      )}
       onPick={(c) => { onChange?.(conditionEdit(c.code)); setPicker(null); }}
       onClose={() => setPicker(null)}
     />
@@ -370,6 +376,7 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 15, fontWeight: '600' },
   dropBox: { minWidth: 200 },
   pickerNote: { fontSize: 14, padding: 14 },
+  abbr: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
   rowValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   valueText: { fontSize: 16 },
   stepper: { flexDirection: 'row', alignItems: 'center' },
