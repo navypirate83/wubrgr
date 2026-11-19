@@ -91,10 +91,6 @@ type Props = {
   // lib/binderSort.ts). A header bar goes in wherever the group changes.
   // Leave it out (or give back null) for no header bars.
   headerOf?: (entry: CardEntry) => SortHeader | null;
-  // Collapsing groups: the ids of the groups whose cards are hidden, and what to do when a bar is tapped.
-  // Leave "onToggleGroup" out and the bars just sit there, as before.
-  collapsedGroups?: Set<string>;
-  onToggleGroup?: (id: string) => void;
   // Is this card to be marked with a bold solid red border? (A deck marks the
   // cards that aren't in your binders; leave it out for no marks.)
   // Gives 'card' (not owned: solid red), 'printing' (the card is owned, but not
@@ -112,7 +108,7 @@ type Props = {
 // row of cards (one card in the List view, as many as fit across in the
 // Grid view). "first" is the place in the sorted cards of the row's first card.
 type Row =
-  | { kind: 'header'; id: string; header: SortHeader; count: number; collapsed: boolean }
+  | { kind: 'header'; id: string; header: SortHeader }
   | { kind: 'cards'; id: string; entries: CardEntry[]; first: number };
 
 // A card's picture is 63 by 88 millimeters
@@ -120,7 +116,7 @@ const CARD_RATIO = 88 / 63;
 // The space between grid pictures
 const GRID_GAP = 10;
 
-export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, header, alsoCounted, headerOf, collapsedGroups, onToggleGroup, missing, banned, gameChanger }: Props) {
+export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
@@ -138,18 +134,13 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
     const out: Row[] = [];
     let group: string | undefined;
     let current: Extract<Row, { kind: 'cards' }> | null = null;
-    let bar: Extract<Row, { kind: 'header' }> | null = null;
     entries.forEach((entry, index) => {
       const header = headerOf ? headerOf(entry) : null;
       if (header && header.id !== group) {
         group = header.id;
-        bar = { kind: 'header', id: `header-${index}-${header.id}`, header, count: 0, collapsed: !!onToggleGroup && !!collapsedGroups?.has(header.id) };
-        out.push(bar);
+        out.push({ kind: 'header', id: `header-${index}-${header.id}`, header });
         current = null;
       }
-      // Count the card in its group's bar; a collapsed group's cards aren't drawn
-      if (bar) bar.count += cardCount(entry.card);
-      if (bar?.collapsed) return;
       if (!current || current.entries.length >= columns) {
         current = { kind: 'cards', id: `row-${entry.key}`, entries: [], first: index };
         out.push(current);
@@ -157,7 +148,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
       current.entries.push(entry);
     });
     return out;
-  }, [entries, headerOf, columns, collapsedGroups, onToggleGroup]);
+  }, [entries, headerOf, columns]);
   // Where each row starts (counted from the first row) and how tall it is,
   // for the Grid view, where every row's height is known exactly
   const layout = useMemo(() => {
@@ -314,8 +305,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
       renderItem={({ item: row }) => {
         // A header bar between groups
         if (row.kind === 'header') {
-          return <SortHeaderBar header={row.header} setIcon={row.header.kind === 'set' ? setIcons.data?.get(row.header.code.toLowerCase()) : undefined}
-                                collapsed={row.collapsed} count={row.count} onToggle={onToggleGroup ? () => onToggleGroup(row.header.id) : undefined} />;
+          return <SortHeaderBar header={row.header} setIcon={row.header.kind === 'set' ? setIcons.data?.get(row.header.code.toLowerCase()) : undefined} />;
         }
         // The List view: one card to a row
         if (mode === 'list') {

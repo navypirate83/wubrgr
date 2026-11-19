@@ -256,6 +256,63 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet><Strong>Open it</Strong>: tap it.</Bullet>
             <Bullet>
+              <Strong>Rename or delete it</Strong>: hold it for a moment, then tap <Strong>Rename</Strong> (type
+              the new name and tap <Strong>Save</Strong>) or <Strong>Delete</Strong> (it asks first).
+            </Bullet>
+            <Bullet><Strong>Load again</Strong>: pull the lists down and let go.</Bullet>
+            <P>
+              Inside a list, the cards are shown the way a binder shows its cards, as a <Strong>List</Strong> (a
+              small picture, the name, the set and number, a <Strong>− 3 +</Strong> bar for how many copies you
+              want, and the price) or a <Strong>Grid</Strong> of card pictures. The small list and grid icon buttons under the search
+              box switch between them, and the app remembers your choice (one for a phone-sized window, one for a
+              wide screen, saved with your account). A list has no pockets, so there's no Binder view. The sort button
+              at the right works like a binder's (tap the sort in use again to reverse it), foil cards have the rainbow
+              border, a line above the cards shows how many cards and what they're worth at the store chosen
+              under <Strong>Price store</Strong> in Settings, and the grid can be zoomed in and out (the − and + buttons on the website, or pinching with two fingers on a touch screen).
+              The search box narrows the list as you type to the cards whose name matches (small typos are
+              fine) or whose type contains what you typed, and a line says how many match.
+            </P>
+            <P>
+              Tap the red <Strong>+</Strong> to find a card in the Card Finder, then tap its <Strong>+</Strong> to put it
+              in the list. Tap a card to open its card screen (a sheet on a phone, a pop-up in the middle on a wide window; tap
+              outside it to close it). Tap the card's picture to open the card in the Card Finder. Under it come the card's name (with a
+              <Strong> Foil</Strong> or <Strong>Etched</Strong> tag beside it), its set's symbol in the color of its rarity (red mythic, gold
+              rare, silver uncommon, black common, purple special) with the set code and number, and a bar: language, condition, the
+              list's name with a small list drawing, and how many copies you own in your binders. The icons along the bottom are the <Strong>pencil</Strong> (Edit: copies
+              with <Strong>−</Strong> and <Strong>+</Strong>, finish, language and condition; <Strong>−</Strong> on the last copy asks
+              whether to delete it), the <Strong>binder with a +</Strong> (Move to a binder: pick a binder, and the card goes into its
+              first empty pocket and leaves the list) and the red <Strong>trash can</Strong> (Delete from list, it asks first).
+              What the card does (its rules text, without the flavor text) is on a sheet that slides up over the card screen:
+              slide up from the <Strong>Slide up for rules</Strong> strip (or tap it), and slide the sheet down, or tap outside it, to put it away.
+            </P>
+            <P>
+              Lists are saved like binders: on this device, in your WUBRG'r account when you're logged in,
+              and also in Google Drive if you've turned on the Google Drive backup (as .csv files, in
+              a "Lists" folder inside "MTG Card Binder"). The check mark beside the list's name is green when it's saved and red while
+              it isn't (tap it to see why). The <Strong>down arrow</Strong> button, beside the List and
+              Grid buttons under the search box, downloads the list as a .CSV file.
+            </P>
+          </>
+        ),
+      },
+      {
+        id: 'my-binders-decks',
+        title: 'Decks',
+        body: (
+          <>
+            <P>
+              Decks are where you build decks to play. Tap the <Strong>deck box</Strong> button in the header of
+              The Shelf to see them. Each deck shows its name, its format and how many cards it has.
+              This is the first step: you can make decks, find cards and add them. The commander slot, the sideboard
+              and the format's other rules are coming.
+            </P>
+            <Bullet>
+              <Strong>Make a deck</Strong>: tap <Strong>Add deck</Strong>, type its name, pick its format
+              (Commander, Oathbreaker, Modern and more; only paper formats are offered, and any format you turned off
+              under <Strong>Format legality display</Strong> in Settings is left out), then tap <Strong>Create</Strong>.
+            </Bullet>
+            <Bullet><Strong>Open it</Strong>: tap it.</Bullet>
+            <Bullet>
               <Strong>Fold a group away</Strong>: in a deck, the cards are grouped by type (Creature, Instant, Land...) with a bar above each group. Tap a bar to hide that group's cards (the bar shows how many there are); tap it again to show them.
             </Bullet>
             <Bullet>
@@ -263,7 +320,7 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>
               <Strong>Power bracket</Strong> (Commander decks only): open the deck and tap the button under the command zone
-              ("Set power bracket"). The command zone and the power bracket each have a bar you can tap to fold them away. Choose one of the five Commander Brackets: <Strong>1 Exhibition</Strong>, <Strong>2 Core</Strong>,
+              ("Set power bracket"). Choose one of the five Commander Brackets: <Strong>1 Exhibition</Strong>, <Strong>2 Core</Strong>,
               <Strong> 3 Upgraded</Strong>, <Strong>4 Optimized</Strong> or <Strong>5 cEDH</Strong>, or <Strong>Not rated</Strong>. You
               choose it yourself (the app doesn't work it out from the cards). It then shows on the deck's row on the Decks page
               ("Bracket 3 · Upgraded"), is saved with the deck in your account, and the Decks page's Sort button can put the highest bracket first.

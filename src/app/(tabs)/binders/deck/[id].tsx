@@ -71,7 +71,6 @@ import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
 import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckBracket, setDeckCardCount, setDeckCards, updateDeckCard, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
 import CommandZone from '@/components/decks/CommandZone';
-import CollapseBar from '@/components/decks/CollapseBar';
 import SlotSearchDialog from '@/components/decks/SlotSearchDialog';
 import { allowedInSlot, deckCardFromPrint, secondSpotShows, slotHint, slotName, slotQuery, zoneExtraOf } from '@/lib/deckZones';
 import { deckFormat, skipsCopyWarning } from '@/lib/deckFormats';
@@ -156,18 +155,6 @@ export default function DeckScreen() {
   const reversed = useSyncExternalStore(onBinderViewChange, deckSortReversed, deckSortReversed);
   const gridZoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
   const headersOn = useSyncExternalStore(onBinderViewChange, sortHeadersOn, sortHeadersOn);
-  // Folding sections away: the command zone, the power bracket, and any group of cards
-  // (Creature, Land...) whose bar was tapped. They start open and are remembered while you're on this deck.
-  const [zoneOpen, setZoneOpen] = useState(true);
-  const [bracketOpen, setBracketOpen] = useState(true);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const toggleGroup = useCallback((groupId: string) => {
-    setCollapsedGroups((now) => {
-      const next = new Set(now);
-      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
-      return next;
-    });
-  }, []);
   const contentWidth = useContentWidth();
 
   // Game Changers (Commander only): marked with a yellow border, and they set the lowest bracket the deck may have
@@ -705,24 +692,14 @@ export default function DeckScreen() {
           header={format.command || hasBrackets(format.code)
             ? (
               <View>
-                {/* The command zone and the power bracket each fold away under their own bar */}
+                {/* The command zone, with the power bracket button right under it */}
                 {format.command && (
-                  <CollapseBar title="Command zone" open={zoneOpen} onToggle={() => setZoneOpen((open) => !open)}
-                               summary={deck.cards.filter((c) => c.zone === 'command').map((c) => c.name).join(', ') || 'Empty'}>
-                    <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} gameChanger={hasBrackets(format.code) ? isGameChanger : undefined} />
-                  </CollapseBar>
+                  <CommandZone deck={deck} onChoose={openSlot} onOpenCard={setMenuIndex} onMoveToDeck={moveSlotToDeck} missing={isMissing} banned={isBannedHere} gameChanger={hasBrackets(format.code) ? isGameChanger : undefined} />
                 )}
-                {hasBrackets(format.code) && (
-                  <CollapseBar title="Power bracket" open={bracketOpen} onToggle={() => setBracketOpen((open) => !open)}
-                               summary={bracket ? bracketText(bracket) : 'Not rated'}>
-                    {bracketRow}
-                  </CollapseBar>
-                )}
+                {hasBrackets(format.code) && bracketRow}
               </View>
             )
             : undefined}
-          collapsedGroups={collapsedGroups}
-          onToggleGroup={toggleGroup}
           alsoCounted={commandEntries}
           // The format, at the end of the line of totals (and how many cards aren't in your binders, and the card just dropped)
           note={[format.name, deck.cards.some((c) => c.zone === 'command') ? `${deck.cards.filter((c) => c.zone === 'command').length} in command zone, included` : '', deck.cards.some((c) => isMissing(c) === 'card') ? `${deck.cards.filter((c) => isMissing(c) === 'card').reduce((sum, c) => sum + cardCount(c), 0)} not in your binders` : '', addedNote].filter(Boolean).join(' · ')}
