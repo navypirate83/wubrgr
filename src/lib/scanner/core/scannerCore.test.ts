@@ -276,3 +276,47 @@ test('binarizeForOcr makes the smaller side black text on white, either way roun
   const flipped = binarizeForOcr(paleOnDark, true);
   assert.deepEqual([flipped[10], flipped[0]], [255, 0]);
 });
+
+/* ---------- the AI fingerprint as a ranking clue ---------- */
+
+test('the AI fingerprint alone puts the closest printing first, and a clear gap is "likely"', () => {
+  // Beta's artwork is much closer to the photo than the other two
+  const ai = new Map([['lea', 0.55], ['leb', 0.9], ['2ed', 0.6]]);
+  const result = rankCandidates(BOLT.slice(0, 3), { aiScores: ai });
+  assert.equal(result.ordered[0].id, 'leb');
+  assert.equal(result.likely, true);
+  assert.match(result.why, /AI fingerprint matches \(90% alike\)/);
+  // Every printing about equally close: nothing is clearly ahead
+  const flat = rankCandidates(BOLT.slice(0, 3), { aiScores: new Map([['lea', 0.7], ['leb', 0.71], ['2ed', 0.7]]) });
+  assert.equal(flat.likely, false);
+});
+
+test('with both art clues they are blended: the AI breaks a doubtful hash, and a printing missing from the AI map loses', () => {
+  // The hash slightly prefers Alpha (wrong), the AI clearly prefers Beta (right): the blend follows the AI
+  const art = new Map([['lea', 50], ['leb', 60], ['2ed', 120]]);
+  const ai = new Map([['lea', 0.6], ['leb', 0.9], ['2ed', 0.5]]);
+  assert.equal(rankCandidates(BOLT.slice(0, 3), { artDistances: art }).ordered[0].id, 'lea');
+  assert.equal(rankCandidates(BOLT.slice(0, 3), { artDistances: art, aiScores: ai }).ordered[0].id, 'leb');
+  // When both clues agree the lead is at least as big as with the AI alone would suggest, and both show in the reasons
+  const agree = rankCandidates(BOLT.slice(0, 3), { artDistances: new Map([['lea', 120], ['leb', 20], ['2ed', 118]]), aiScores: ai });
+  assert.equal(agree.ordered[0].id, 'leb');
+  assert.match(agree.why, /art matches/);
+  assert.match(agree.why, /AI fingerprint/);
+  // A printing the AI map does not mention counts as unrelated (closeness 0)
+  const missing = rankCandidates(BOLT.slice(0, 3), { aiScores: new Map([['lea', 0.6], ['leb', 0.7]]) });
+  assert.equal(missing.ordered[2].id, '2ed');
+});
+
+test('an empty or missing AI map changes nothing, and the AI clue works with the other clues', () => {
+  const art = new Map([['lea', 90], ['leb', 10], ['2ed', 14], ['3ed', 120]]);
+  const plain = rankCandidates(BOLT.slice(0, 4), { artDistances: art });
+  const withEmpty = rankCandidates(BOLT.slice(0, 4), { artDistances: art, aiScores: new Map() });
+  assert.deepEqual(ids(withEmpty.ordered), ids(plain.ordered));
+  assert.deepEqual([...withEmpty.scores], [...plain.scores]);
+  assert.equal(withEmpty.why, plain.why);
+  // A tiny AI lead is outweighed by a right year, but a big AI lead is not outweighed by a wrong one
+  const small = rankCandidates(BOLT.slice(0, 3), { aiScores: new Map([['lea', 0.70], ['leb', 0.71], ['2ed', 0.5]]), years: { from: 1993, to: 1993 }, border: 'white' });
+  assert.equal(small.ordered.length, 3);
+  const big = rankCandidates(BOLT.slice(0, 3), { aiScores: new Map([['lea', 0.4], ['leb', 0.9], ['2ed', 0.4]]), years: { from: 1850, to: 1850 } });
+  assert.equal(big.ordered[0].id, 'leb');
+});

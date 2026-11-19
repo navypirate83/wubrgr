@@ -4,6 +4,9 @@
    card's NAME, asks the catalogue for every printing of that name, and then uses every clue it can
    get to put the printings in order, most likely first:
      - the ARTWORK (the strongest clue: how close the photo's art is to each printing's stored fingerprint)
+       There are two ways to measure this, and either or both can be used: the ART HASH (a small black-and-white
+       sketch of the art, compared bit by bit) and the AI FINGERPRINT (a list of numbers from an AI model,
+       compared by "cosine similarity": 1 means the same shape of numbers, 0 means unrelated)
      - the SET SYMBOL (how much the photo's symbol overlaps each set's symbol)
      - the BORDER colour (black or white: tells Unlimited from Revised, 4th from 5th)
      - the COPYRIGHT YEAR ("© 1995")
@@ -39,6 +42,7 @@ export type Clues = {
   border?: string | null;                        // "black" or "white"
   symbolScores?: Map<string, number>;            // by printing id: how much the symbol overlaps (0 to 1)
   artDistances?: Map<string, number>;            // by printing id: how many bits the art differs by (0 to 256)
+  aiScores?: Map<string, number>;                // by printing id: AI fingerprint closeness (cosine, -1 to 1, higher is closer)
 };
 
 // How much each clue counts (found by trying them on real scans)
@@ -46,6 +50,21 @@ const ART_WEIGHT = 3;           // a printing whose art is 256 bits off (nothing
 const SYMBOL_WEIGHT = 0.6;      // times the symbol overlap (0 to 1)
 const BORDER_WEIGHT = 0.15;     // up for the right border colour, down for the wrong one
 const YEAR_WEIGHT = 0.2;        // up if the copyright year fits, down if it doesn't
+// The AI fingerprint's weights. Where they come from: scripts/catalogue/embed/blend-tune.mjs ran the real
+// rankCandidates on the real phone photos whose file names give a set and number and whose card has 2 or
+// more artworks (13 photos), and tried a grid of weights. Results (right artwork first): art hash alone 12 of
+// 13, AI alone 13 of 13 (any weight 2 to 12), every blend 13 of 13. "Likely" answers with the chosen weights:
+// 13 right, 0 wrong (art hash alone: 8 right, 0 wrong). Because every setting tied on the rate, the weights were
+// chosen by SAFETY MARGIN (how far the right artwork stays ahead of the best wrong one): with these weights the
+// smallest margin was 0.57, well above LIKELY_LEAD (0.25), and the blend was never worse than either clue alone.
+// CAVEAT: 13 photos is a small sample and the weights were picked on those same photos, so treat them as a
+// sensible starting point, not a proven setting. Re-tune when more photos are collected.
+//   AI_WEIGHT: the AI closeness (-1 to 1) is multiplied by this and added. Kept near the art hash's own weight
+//     (3) so the AI clue is the leader without drowning the small year, border and symbol clues.
+//   HASH_SHARE_WITH_AI: when BOTH clues exist, the art-hash part is multiplied by this (less than 1) because
+//     the AI was right more often than the hash; the hash still helps break doubts.
+export const AI_WEIGHT = 4;
+export const HASH_SHARE_WITH_AI = 0.75;
 // "Likely" needs this much lead over the best different printing
 export const LIKELY_LEAD = 0.25;
 // Printings within this much of the best one "fit" (are shown first in the list to choose from)
@@ -60,8 +79,16 @@ export type Ranked = {
   why: string;              // the clues that counted, in plain words
 };
 
-export function rankCandidates(candidates: Candidate[], clues: Clues): Ranked {
+// The two blend weights, so an experiment can try other values (the app just uses the defaults)
+export type BlendWeights = { ai: number; hashShare: number };
+
+export function rankCandidates(
+  candidates: Candidate[], clues: Clues, weights: BlendWeights = { ai: AI_WEIGHT, hashShare: HASH_SHARE_WITH_AI },
+): Ranked {
   const artRead = !!clues.artDistances && clues.artDistances.size > 0;
+  const aiRead = !!clues.aiScores && clues.aiScores.size > 0;
+  // With both art clues the hash counts for a share of its usual weight; alone it keeps its full weight
+  const hashWeight = aiRead ? ART_WEIGHT * weights.hashShare : ART_WEIGHT;
   const symbolRead = !!clues.symbolScores && clues.symbolScores.size > 0;
   const scores = new Map<string, number>();
   for (const c of candidates) {
@@ -69,7 +96,11 @@ export function rankCandidates(candidates: Candidate[], clues: Clues): Ranked {
     if (artRead) {
       const distance = clues.artDistances!.get(c.id);
       // A printing with no stored art counts as having art that's nothing like the photo's
-      score -= ((distance ?? 256) / 256) * ART_WEIGHT;
+      score -= ((distance ?? 256) / 256) * hashWeight;
+    }
+    if (aiRead) {
+      // A printing with no stored AI fingerprint counts as unrelated to the photo (closeness 0)
+      score += (clues.aiScores!.get(c.id) ?? 0) * weights.ai;
     }
     const symbolPart = symbolRead ? (clues.symbolScores!.get(c.id) ?? 0) * SYMBOL_WEIGHT : 0;
     if (clues.border) score += c.border === clues.border ? BORDER_WEIGHT : -BORDER_WEIGHT;
@@ -89,6 +120,8 @@ export function rankCandidates(candidates: Candidate[], clues: Clues): Ranked {
   const bits: string[] = [];
   const art = clues.artDistances?.get(best.id);
   if (art !== undefined) bits.push(`art ${art < 40 ? 'matches' : art < 70 ? 'is close' : 'is far off'} (${art} bits)`);
+  const ai = clues.aiScores?.get(best.id);
+  if (ai !== undefined && aiRead) bits.push(`AI fingerprint ${ai >= 0.8 ? 'matches' : ai >= 0.65 ? 'is close' : 'is far off'} (${Math.round(ai * 100)}% alike)`);
   const symbol = clues.symbolScores?.get(best.id);
   if (symbol !== undefined && symbolRead) bits.push(`symbol ${Math.round(symbol * 100)}% alike`);
   if (clues.border && best.border === clues.border) bits.push(`${clues.border} border`);
