@@ -50,8 +50,9 @@ import { createOrderedResults } from '@/lib/scanner/core/resolveQueue';
 import { timingWords } from '@/lib/scanner/core/readPlan';
 import { changeScanOptions, getScanOptions } from '@/lib/scanner/scanSettings';
 import { finishesOf, newScanId, startingFinish, startingFinishFor, type ScanItem } from '@/lib/scanner/scanItems';
-import { allFrontNames, catalogueConfigured, downloadCatalogue, openCatalogue, printingsNamed, type DownloadStage } from '@/lib/scanner/catalogue/catalogue';
+import { allFrontNameIndex, allFrontNames, catalogueConfigured, downloadCatalogue, openCatalogue, printingsNamed, type DownloadStage } from '@/lib/scanner/catalogue/catalogue';
 import { looksLikeAnyName } from '@/lib/scanner/core/fuzzy';
+import { looksLikeAnyNameIndexed, type NameIndex } from '@/lib/scanner/core/nameIndex';
 import { normalizeName } from '@/lib/scanner/core/text';
 
 const STAGE_WORDS: Record<DownloadStage, string> = { downloading: 'Downloading', unpacking: 'Unpacking', saving: 'Saving' };
@@ -87,6 +88,15 @@ export default function ScanScreen() {
   const options = useScanOptions();
   // Every card's name in the plain form, once the catalogue is open (to tell whether some text is a name)
   const names = useRef<string[]>([]);
+  // The quick-lookup version of the same list (core/nameIndex.ts); if it isn't ready the plain list is used
+  const nameIndex = useRef<NameIndex | null>(null);
+  // Reads the name list and its quick-lookup index once the catalogue is open (a scan reports any problem itself)
+  const loadNames = () => {
+    allFrontNames().then((list) => {
+      names.current = list;
+      allFrontNameIndex().then((index) => { nameIndex.current = index; }).catch(() => { /* the plain list still works */ });
+    }).catch(() => { /* a scan reports it */ });
+  };
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Hands out a numbered ticket to each scan and puts the answers to use in ticket order (see core/resolveQueue.ts)
   const ordered = useRef(createOrderedResults());
@@ -105,7 +115,7 @@ export default function ScanScreen() {
       let info: CatalogueInfo | null = null;
       try { info = await openCatalogue(); } catch (err) { say((err as Error).message); }
       setCatalogue(info);
-      if (info) allFrontNames().then((list) => { names.current = list; }).catch(() => { /* a scan reports it */ });
+      if (info) loadNames();
       if (info || !catalogueConfigured()) return;
       const yes = await askYesNo(
         'Get the card catalogue?',
@@ -115,7 +125,7 @@ export default function ScanScreen() {
       if (!yes) return;
       try {
         setCatalogue(await downloadCatalogue((stage, fraction) => setMessage(`${STAGE_WORDS[stage]}${fraction !== null ? ` ${Math.round(fraction * 100)}%` : '…'}`)));
-        allFrontNames().then((list) => { names.current = list; }).catch(() => { /* a scan reports it */ });
+        loadNames();
         say('The catalogue is ready.');
       } catch (err) {
         say((err as Error).message);
@@ -277,7 +287,7 @@ export default function ScanScreen() {
       <ScannerCamera
         onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding || settingsOpen}
         queue={mode === 'stack'}
-        looksLikeName={(text) => text.split('\n').some((line) => { const plain = normalizeName(line); return plain.length >= 3 && looksLikeAnyName(plain, names.current); })}
+        looksLikeName={(text) => text.split('\n').some((line) => { const plain = normalizeName(line); return plain.length >= 3 && (nameIndex.current ? looksLikeAnyNameIndexed(plain, nameIndex.current) : looksLikeAnyName(plain, names.current)); })}
       />
 
       {settingsOpen && <ScanSettingsSheet options={options} onChange={changeScanOptions} onClose={() => setSettingsOpen(false)} />}

@@ -13,6 +13,9 @@
       judged with the crops for its own frame era; see core/rank.ts and core/clueMatch.ts).
       With the optional "AI art matching" on (website only for now; see ai/), the artwork is also compared by
       an AI model, which adds one more clue; if its files or model are missing it is skipped without a word.
+      The AI is slow, so it is only run when it can help: not when the printings all share one artwork, and not
+      when the art hash already puts one artwork far ahead (see core/aiNeeded.ts). That is decided before any of the
+      AI's slow work (finding the card for it, running the model).
       One clearly ahead: "likely". Otherwise "pick" (the person chooses, most likely first, with their
       photo's art beside the candidates). Never "sure": this path never adds a card by itself.
    If the name can't be read either, the answer is "none".
@@ -28,17 +31,19 @@
 
 import { photoClues } from './core/clueMatch';
 import { bestNameMatch, similarity } from './core/fuzzy';
+import { bestNameMatchIndexed } from './core/nameIndex';
 import { parseCopyrightYears, parseInfoLine, type InfoLine } from './core/infoLine';
 import { rankCandidates, type Candidate } from './core/rank';
 import { checkSetCode } from './core/setCode';
 import { decideScan } from './core/decide';
+import { aiIsNeeded } from './core/aiNeeded';
 import { loadMoreClues } from './core/readPlan';
 import { applySetLock } from './core/setLock';
 import { normalizeName } from './core/text';
 import { makeBreather } from './core/timeSlice';
 import type { Printing } from './core/catalogueTypes';
 import { eraOf, type ScanReading } from './core/scannerTypes';
-import { allFrontNames, artHashFor, findPrintings, printingsNamed, setCodes, setSymbol } from './catalogue/catalogue';
+import { allFrontNameIndex, allFrontNames, artHashFor, findPrintings, printingsNamed, setCodes, setSymbol } from './catalogue/catalogue';
 import { aiScoresForReading } from './ai/aiRun';
 
 export type ScanOutcome = {
@@ -77,6 +82,8 @@ const knownSets = async (): Promise<Set<string>> => (realSets ??= new Set(await 
 export async function warmResolve(): Promise<void> {
   await knownSets();
   await allFrontNames();
+  // (and the quick-lookup index over the names, so the first scan doesn't build it)
+  await allFrontNameIndex().catch(() => undefined);
 }
 
 // Each set's symbol, read once per set
@@ -130,21 +137,25 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
     candidates.push({ id: p.id, setCode: p.setCode, year: p.year, border: p.border, group: groupOf(p) });
   }
 
-  // The AI's view of the artwork, when the option is on and everything it needs is here. Any problem at all
-  // (files missing, the model won't run, no picture from the camera) just means no AI clue: the ranking below
-  // then works exactly as it did before the AI existed.
-  let aiScores: Map<string, number> | undefined;
-  if (aiArt) {
-    try { aiScores = (await aiScoresForReading(reading, printings)) ?? undefined; } catch { aiScores = undefined; }
-  }
-
-  const ranked = rankCandidates(candidates, {
+  // What the cheap clues say, before the AI (the artwork's fingerprint, the symbol, the border and the year)
+  const clues = {
     years: parseCopyrightYears(reading.bottomText),
     border: reading.extras?.border ?? null,
     symbolScores,
     artDistances,
-    aiScores,
-  });
+  };
+  let ranked = rankCandidates(candidates, clues);
+
+  // The AI's view of the artwork, when the option is on and everything it needs is here. It is slow, so first
+  // ask whether it can help at all (see core/aiNeeded.ts): not when the printings all share one artwork, and not
+  // when the art hash already puts one artwork far ahead. That is decided here, BEFORE the slow work (finding the
+  // card for the AI, running the model). Any problem at all (files missing, the model won't run, no picture
+  // from the camera) just means no AI clue: the ranking then works exactly as it did before the AI existed.
+  if (aiArt && aiIsNeeded(printings.map((p) => ({ id: p.id, art: p.illus ?? p.id })), ranked.scores)) {
+    let aiScores: Map<string, number> | undefined;
+    try { aiScores = (await aiScoresForReading(reading, printings)) ?? undefined; } catch { aiScores = undefined; }
+    if (aiScores) ranked = rankCandidates(candidates, { ...clues, aiScores });
+  }
   const byId = new Map(printings.map((p) => [p.id, p]));
   // Most likely first (then, with a lock, the card's printings in other sets)
   const ordered = [...ranked.ordered.map((c) => byId.get(c.id)!), ...others];
@@ -169,11 +180,14 @@ async function resolveInner(reading: ScanReading, lockedSet: string | null, aiAr
   const info = parseInfoLine(reading.infoText);
   // The name text may be several lines (the title band's scattered text): the line that matches a real card name best
   const names = await allFrontNames();
+  // The quick-lookup index over the names gives exactly the same answer as looking at every name, only sooner.
+  // If it can't be had for any reason, every name is looked at, as before.
+  const nameIndex = await allFrontNameIndex().catch(() => null);
   const lines = reading.nameText.split('\n').map(normalizeName).filter((line) => line.length >= 4);
   let nameMatch = null as ReturnType<typeof bestNameMatch>;
   let readName = '';
   for (const line of lines) {
-    const match = bestNameMatch(line, names);
+    const match = nameIndex ? bestNameMatchIndexed(line, nameIndex) : bestNameMatch(line, names);
     // A very short name found in scattered text is probably chance: it has to match exactly
     if (match && match.name.length < 5 && match.similarity < 1) continue;
     if (match && (!nameMatch || match.similarity > nameMatch.similarity)) { nameMatch = match; readName = line; }

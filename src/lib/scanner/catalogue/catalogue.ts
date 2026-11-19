@@ -19,6 +19,7 @@
 import { gunzipSync } from 'fflate';
 import { SQL, rowToPrinting, rowsToInfo } from '../core/catalogueQueries';
 import { lookFromRow } from '../core/looks';
+import { buildNameIndex, type NameIndex } from '../core/nameIndex';
 import { SUPPORTED_SCHEMA, type CatalogueInfo, type Printing, type RemoteCatalogue, type SetInfo } from '../core/catalogueTypes';
 import { normalizeName } from '../core/text';
 import { CATALOGUE_URL, REFRESH_AFTER_DAYS } from './catalogueConfig';
@@ -195,6 +196,15 @@ export async function allFrontNames(): Promise<string[]> {
     }
   }
   return frontNames;
+}
+
+// A quick-lookup index over the same names (see core/nameIndex.ts), built from the list once and kept, so a read
+// name is only carefully compared with the few names that could be close. If anything goes wrong building it,
+// the caller falls back to comparing against the plain list.
+let frontNameIndex: NameIndex | null = null;
+export async function allFrontNameIndex(): Promise<NameIndex> {
+  if (!frontNameIndex) frontNameIndex = buildNameIndex(await allFrontNames());
+  return frontNameIndex;
 }
 
 // A set's symbol as a 64 x 64 black-and-white bitmap (1 bit a pixel, 1 = dark,

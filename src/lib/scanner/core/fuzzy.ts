@@ -3,6 +3,8 @@
    The scanner reads the card's name from its title bar with OCR, which gets
    some letters wrong ("Lightning Boit", "Sol Rinq"). This finds the real card
    name that's closest to what was read.
+   (This file is the plain, check-every-name version, kept as the reference and as the fallback; the scanner
+   normally uses the quicker core/nameIndex.ts, which gives exactly the same answers.)
    (Speed: this runs against about 30,000 names per read, so it gives up early on names that can't
    match and reuses its working rows; looksLikeAnyName is the quick yes/no version.)
    Closeness is an "edit distance": the fewest changes (swap, add or take out a
