@@ -173,20 +173,56 @@ export default function DecksScreen() {
       return next;
     });
   }
-  // The rows to draw: each group's bar knows how many decks are in the group, and the decks of a folded group are left out
+  // The rows to draw. When the decks are sorted by format or by bracket, they are grouped BY FORMAT
+  // (Commander, Standard, Pioneer...), and inside a format that has power brackets (Commander) they are
+  // grouped again by bracket. Every bar says how many decks are under it and folds them away when tapped;
+  // folding "Commander" hides all of its brackets too. Other sorts keep their plain bars (folded the same way).
   const shownRows = useMemo(() => {
+    type Item = Extract<(typeof rows)[number], { kind: 'item' }>;
+    type Out = Item | { kind: 'header'; id: string; text: string; count: number; level: 1 | 2; key: string };
+    const out: Out[] = [];
+    const items = rows.filter((r): r is Item => r.kind === 'item');
+    const sortName = parseShelfSort('decks', sortSaved).sort;
+    if (headersOn && (sortName === 'format' || sortName === 'bracket')) {
+      // The formats, in the order their first deck appears
+      const formats: string[] = [];
+      for (const it of items) if (!formats.includes(it.item.format)) formats.push(it.item.format);
+      for (const format of formats) {
+        const inFormat = items.filter((it) => it.item.format === format);
+        const formatKey = `format:${format}`;
+        out.push({ kind: 'header', id: `header-${formatKey}`, text: format, count: inFormat.length, level: 1, key: formatKey });
+        if (folded.has(formatKey)) continue;
+        if (hasBrackets(inFormat[0].item.deck.format)) {
+          // Brackets under this format, in the order their first deck appears (Not rated last)
+          const brackets: string[] = [];
+          for (const it of inFormat) {
+            const name = it.item.bracket ? `Bracket ${it.item.bracket}` : 'Not rated';
+            if (!brackets.includes(name)) brackets.push(name);
+          }
+          for (const name of brackets) {
+            const inBracket = inFormat.filter((it) => (it.item.bracket ? `Bracket ${it.item.bracket}` : 'Not rated') === name);
+            const key = `${formatKey}/${name}`;
+            out.push({ kind: 'header', id: `header-${key}`, text: name, count: inBracket.length, level: 2, key });
+            if (!folded.has(key)) out.push(...inBracket);
+          }
+        } else {
+          out.push(...inFormat);
+        }
+      }
+      return out;
+    }
+    // Any other sort: the plain bars from the sort, each folding its own decks
     const counts = new Map<string, number>();
     let group = '';
     for (const row of rows) {
       if (row.kind === 'header') { group = row.text; counts.set(group, 0); } else if (group) counts.set(group, (counts.get(group) ?? 0) + 1);
     }
-    const out: ((typeof rows)[number] & { count?: number })[] = [];
     group = '';
     for (const row of rows) {
-      if (row.kind === 'header') { group = row.text; out.push({ ...row, count: counts.get(group) }); } else if (!group || !folded.has(group)) out.push(row);
+      if (row.kind === 'header') { group = row.text; out.push({ kind: 'header', id: row.id, text: row.text, count: counts.get(group) ?? 0, level: 1, key: row.text }); } else if (!group || !folded.has(group)) out.push(row);
     }
     return out;
-  }, [rows, folded]);
+  }, [rows, folded, headersOn, sortSaved]);
 
   // Move up / Move down in a held deck's options
   function move(id: string, by: -1 | 1) {
@@ -230,7 +266,11 @@ export default function DecksScreen() {
         }
         renderItem={({ item: row }) => {
           // A header bar between groups
-          if (row.kind === 'header') return <ShelfHeaderBar text={row.text} count={row.count} collapsed={folded.has(row.text)} onToggle={() => toggleGroup(row.text)} />;
+          if (row.kind === 'header') {
+            const bar = <ShelfHeaderBar text={row.text} count={row.count} collapsed={folded.has(row.key)} onToggle={() => toggleGroup(row.key)} />;
+            // A bracket bar sits a little in from its format's bar
+            return row.level === 2 ? <View style={{ marginLeft: 18 }}>{bar}</View> : bar;
+          }
           const item = row.item.deck;
           return (
           // One deck: tap to open, hold for its options

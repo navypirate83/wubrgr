@@ -256,7 +256,7 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet><Strong>Open it</Strong>: tap it.</Bullet>
             <Bullet>
-              <Strong>Fold a group of decks away</Strong>: when the Sort button groups your decks (by format, by power bracket, legal or not), each group has a bar. Tap it to hide that group's decks (the bar says how many decks are in it); tap it again to show them.
+              <Strong>Fold a group of decks away</Strong>: when the Sort button is on <Strong>By format</Strong> or <Strong>Highest bracket first</Strong>, your decks are grouped by format (Commander, Standard, Pioneer...) and the Commander decks are grouped again by power bracket under the Commander bar. Tap a bar to hide its decks (the bar says how many decks are in it); tap it again to show them. Folding Commander hides all of its brackets too.
             </Bullet>
             <Bullet>
               <Strong>Rename or delete it</Strong>: hold it for a moment, then tap <Strong>Rename</Strong> or <Strong>Delete</Strong> (it asks first).
