@@ -139,11 +139,14 @@ export default function ScanScreen() {
   useEffect(() => {
     (async () => {
       let info: CatalogueInfo | null = null;
-      try { info = await openCatalogue(); } catch (err) { say((err as Error).message); }
-      mark(info ? 'catalogue opened' : 'no catalogue on this device');
+      // "couldNotOpen": the catalogue is there but can't be opened (say, this app is missing the phone's database add-on):
+      // that is shown as a message, and downloading the catalogue again wouldn't help, so it isn't offered
+      let couldNotOpen = false;
+      try { info = await openCatalogue(); } catch (err) { couldNotOpen = true; mark('catalogue could not be opened'); say((err as Error).message); }
+      if (!couldNotOpen) mark(info ? 'catalogue opened' : 'no catalogue on this device');
       setCatalogue(info);
       if (info) loadNames();
-      if (info || !catalogueConfigured()) return;
+      if (info || couldNotOpen || !catalogueConfigured()) return;
       const yes = await askYesNo(
         'Get the card catalogue?',
         'The scanner needs a list of every card to tell which one you\'re holding. It is a large download, and once it\'s on this device scanning works with no internet.',

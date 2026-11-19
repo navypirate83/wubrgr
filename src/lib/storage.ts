@@ -39,31 +39,59 @@ export function storageLoadFailed(): boolean {
   return loadFailed;
 }
 
-// Read every saved value once. Throws if AsyncStorage can't be read.
-async function readAll(): Promise<void> {
+// The words of an error, for the crash diary (never any saved value, only what went wrong)
+function whatWentWrong(err: unknown): string {
+  return String((err as { message?: unknown })?.message ?? err).slice(0, 160);
+}
+
+// Read every saved value once. If reading them all in one go fails, it tries them one at a time, so one value that
+// can't be read (too big, say) can't hide all the others. Throws only if even the list of names can't be read.
+// Returns the names of the values that could not be read.
+async function readAll(): Promise<string[]> {
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(PREFIX));
-  const pairs = await AsyncStorage.multiGet(keys);
-  for (const [key, value] of pairs) {
-    if (value !== null) values.set(key.slice(PREFIX.length), value);
+  try {
+    const pairs = await AsyncStorage.multiGet(keys);
+    for (const [key, value] of pairs) {
+      if (value !== null) values.set(key.slice(PREFIX.length), value);
+    }
+    return [];
+  } catch (err) {
+    markSession(`saved values: reading them all at once failed (${whatWentWrong(err)}), reading one by one`);
+    const unreadable: string[] = [];
+    for (const key of keys) {
+      try {
+        const value = await AsyncStorage.getItem(key);
+        if (value !== null) values.set(key.slice(PREFIX.length), value);
+      } catch {
+        unreadable.push(key.slice(PREFIX.length));
+      }
+    }
+    return unreadable;
   }
 }
 
+// How long to wait before each new try (the phone can be busy for a few seconds right after an app update)
+const RETRY_WAITS_MS = [400, 1000, 2500, 5000];
+
 // Read every saved value into memory. Called once, when the app starts.
-// If AsyncStorage can't be read it is tried once more a moment later. If it still can't be read, that is written in the
-// crash diary and the app starts with nothing loaded, but writing is switched off for this run (see loadFailed above).
+// If AsyncStorage can't be read it is tried again a few times, with longer waits. The reason for each failure goes in the
+// crash diary. If it still can't be read the app starts with nothing loaded, but writing is switched off for this run (see
+// loadFailed above), so the real saved values can't be overwritten by empty ones.
 export async function loadStorage(): Promise<void> {
-  try {
-    await readAll();
-  } catch {
-    markSession('saved values unreadable, trying again');
-    await new Promise((resolve) => setTimeout(resolve, 400));
+  for (let attempt = 0; attempt <= RETRY_WAITS_MS.length; attempt++) {
     try {
-      await readAll();
-    } catch {
-      loadFailed = true;
-      markSession('saved values unreadable: nothing loaded, saving switched off this run');
+      const unreadable = await readAll();
+      // Some values could not be read: they are named in the diary (not their contents) and left alone
+      if (unreadable.length > 0) markSession(`saved values: ${unreadable.length} could not be read (${unreadable.slice(0, 6).join(', ')})`);
+      if (attempt > 0) markSession(`saved values read on try ${attempt + 1}`);
+      return;
+    } catch (err) {
+      markSession(`saved values unreadable (${whatWentWrong(err)})${attempt < RETRY_WAITS_MS.length ? ', trying again' : ''}`);
+      if (attempt < RETRY_WAITS_MS.length) await new Promise((resolve) => setTimeout(resolve, RETRY_WAITS_MS[attempt]));
     }
   }
+  loadFailed = true;
+  markSession('saved values unreadable: nothing loaded, saving switched off this run');
 }
 
 // Read a saved value, or null if there isn't one.

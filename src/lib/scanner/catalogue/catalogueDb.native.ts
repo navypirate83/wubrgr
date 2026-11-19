@@ -9,7 +9,8 @@
    imported); the web's version is catalogueDb.web.ts.
    ===================================================================== */
 
-import * as SQLite from 'expo-sqlite';
+// (A type only: nothing from expo-sqlite is loaded until the catalogue is opened, see sqlite() below)
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { CatalogueStore } from '../core/catalogueTypes';
 
@@ -19,12 +20,23 @@ const NEXT_NAME = 'catalogue.next.db';
 // expo-sqlite looks for databases in a folder called "SQLite" in the app's files
 const FOLDER = new Directory(Paths.document, 'SQLite');
 
-let db: SQLite.SQLiteDatabase | null = null;
+let db: SQLiteDatabase | null = null;
+
+// expo-sqlite is loaded the first time the catalogue is opened, not when the Scan screen is. Loading it asks the phone for
+// its SQLite add-on, and if a build of the app doesn't have it that fails with an error. Done here it becomes a plain
+// message the scanner can show, and the Scan screen itself still opens (an error at load time closed the whole app).
+function sqlite(): typeof import('expo-sqlite') {
+  try {
+    return require('expo-sqlite') as typeof import('expo-sqlite');
+  } catch (err) {
+    throw new Error(`The phone's database add-on is missing from this version of the app, so the card catalogue can't be opened. Install the newest Android build. (${(err as Error).message})`);
+  }
+}
 
 async function open(): Promise<boolean> {
   if (db) return true;
   if (!new File(FOLDER, NAME).exists) return false;
-  db = await SQLite.openDatabaseAsync(NAME);
+  db = await sqlite().openDatabaseAsync(NAME);
   return true;
 }
 
@@ -50,7 +62,7 @@ async function install(bytes: Uint8Array): Promise<void> {
 
 async function all(sql: string, params: (string | number)[] = []): Promise<Record<string, unknown>[]> {
   if (!db && !(await open())) throw new Error('There is no catalogue on this device yet');
-  return (db as SQLite.SQLiteDatabase).getAllAsync<Record<string, unknown>>(sql, params);
+  return (db as SQLiteDatabase).getAllAsync<Record<string, unknown>>(sql, params);
 }
 
 async function remove(): Promise<void> {
