@@ -284,16 +284,22 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   //   extras, then the rules); the icons are pinned along the bottom of the pop-up.
   // - Phone: the name and set line are under the picture, then the bar, the icons
   //   and the slide-up rules strip.
-  const view = wide ? (
-    <View style={[styles.details, styles.detailsWide]}>
+  // The name, the set line and the bar sit close together as one group
+  const infoGroup = (
+    <View style={styles.infoGroup}>
       {identity}
       {bar}
+    </View>
+  );
+
+  const view = wide ? (
+    <View style={[styles.details, styles.detailsWide]}>
+      {infoGroup}
       {children}
       {rulesInline}
     </View>
   ) : (
     <View style={styles.details}>
-      {bar}
       {children}
       {iconRowEl}
       {stripEl}
@@ -450,7 +456,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
               ) : (
                 <>
                   <View style={styles.pictureCenter}>{picture}</View>
-                  {!editing && identity}
+                  {!editing && infoGroup}
                 </>
               )}
               {editing ? edit : view}
@@ -551,6 +557,7 @@ const styles = StyleSheet.create({
   // language, condition, where it is and how many you own). Every size here is half
   // of what it was; the Edit screen's title (styles.name) keeps its full size.
   identity: { gap: 3 },
+  infoGroup: { gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   cardName: { fontSize: 10, fontWeight: '700', flexShrink: 1 },
   setLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
