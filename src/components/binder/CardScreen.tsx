@@ -32,6 +32,7 @@ import { Animated, BackHandler, PanResponder, Platform, Pressable, ScrollView, S
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useColors, useTheme } from '@/hooks/useTheme';
 import { useMenuStyle } from '@/hooks/useMenuStyle';
 import { pictureSource } from '@/lib/http';
@@ -41,7 +42,11 @@ import { finishOf } from '@/lib/cardDetails';
 import { CONDITIONS, conditionEdit, conditionLabel, conditionOf, conditionShort, finishEdit, languageEdit, type CardEdit } from '@/lib/cardEdit';
 import { finishChoices, imageFor, languageName, nextFinish, type Finish } from '@/lib/cards';
 import { cardBySetPath, loadLanguages, loadOneCard, loadSetIcons } from '@/lib/scryfall';
-import { RADIUS, type Colors } from '@/theme/colors';
+import { RADIUS } from '@/theme/colors';
+import { rarityColor } from '@/lib/rarity';
+import { versionEdit } from '@/lib/cardVersion';
+import { FOIL_COLORS } from '@/components/binder/FoilFrame';
+import VersionPicker from '@/components/binder/VersionPicker';
 import CardRules from '@/components/binder/CardRules';
 import { PickerButton, PickerSheet, SheetRowText, type Anchor } from '@/components/search/PickerSheet';
 
@@ -53,20 +58,6 @@ export const DECK_ICON = require('../../../assets/images/deckbox-outline.svg') a
 
 // Which drawing goes with where a card is: a binder, a list or a deck
 const WHERE_ICON = { binder: BINDER_ICON, list: LIST_ICON, deck: DECK_ICON };
-
-// The color of a set's symbol for each rarity: red for mythic, gold for rare, silver for
-// uncommon, black for common (shown light on the dark theme, where black can't be seen)
-// and purple for special. A card with no rarity saved gets the quiet gray.
-function rarityColor(rarity: string | undefined, colors: Colors, dark: boolean): string {
-  switch ((rarity ?? '').toLowerCase()) {
-    case 'mythic': return '#e0452b';
-    case 'rare': return '#d9a521';
-    case 'uncommon': return '#aeb4bd';
-    case 'common': return dark ? colors.text : '#000000';
-    case 'special': case 'bonus': return '#9b5de5';
-    default: return colors.muted;
-  }
-}
 
 // One of the page's own icons (move to a binder, add to a list, add to a deck, delete...)
 export type CardScreenAction = {
@@ -125,6 +116,8 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   // where its box is on the screen (so the list opens right under it)?
   const [editing, setEditing] = useState(false);
   const [picker, setPicker] = useState<{ which: 'language' | 'condition'; anchor: Anchor } | null>(null);
+  // Is the list of every version of this card open?
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   // The rules sheet: is it on the screen, and how far up it is (0 is down, 1 is
   // all the way up). It slides up when you slide up from the strip (or tap it),
@@ -171,7 +164,9 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
     enabled: editing && picker?.which === 'language' && !!print.data,
   });
 
-  // What the card is now
+  // What the card is now (the set's name comes from the card's saved details, or from
+  // the printing once it's loaded)
+  const setName = print.data?.set_name ?? card.extra?.['Set name'] ?? card.set.toUpperCase();
   const finish = finishOf(card);
   const langCode = card.lang ?? 'en';
   const conditionName = conditionLabel(conditionOf(card));
@@ -180,10 +175,10 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   const canCycleFinish = !!finishOptions && finishOptions.length > 1;
 
   // Leave edit mode (and close any open drop box)
-  const stopEditing = () => { setEditing(false); setPicker(null); };
+  const stopEditing = () => { setEditing(false); setPicker(null); setVersionsOpen(false); };
 
   // The picture's width: bigger on a wide window, smaller on a phone while editing
-  const pictureWidth = wide ? 230 : editing ? 120 : 190;
+  const pictureWidth = editing ? (wide ? 173 : 90) : wide ? 230 : 190;
   const picture = (
     <Pressable
       accessibilityRole="button"
@@ -209,8 +204,11 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
       <View style={styles.nameRow}>
         <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">{card.name}</Text>
         {card.foil ? (
-          <View style={[styles.foilTag, { borderColor: colors.accent }]}>
-            <Text style={[styles.foilText, { color: colors.accent }]}>{finish === 'etched' ? 'Etched' : 'Foil'}</Text>
+          <View style={styles.foilTag}>
+            {finish === 'etched'
+              ? <LinearGradient colors={['#f4f5f7', '#aeb3bc', '#e6e8ec', '#8f959f']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+              : <LinearGradient colors={[...FOIL_COLORS]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
+            <Text style={styles.foilText}>{finish === 'etched' ? 'Etched' : 'Foil'}</Text>
           </View>
         ) : null}
       </View>
@@ -310,12 +308,25 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
 
   const edit = (
     <View style={[styles.details, wide && styles.detailsWide]}>
+      {/* Set: a drop box showing the set's symbol (in its rarity's color) and name.
+          Tap it to see every version of the card and pick another. */}
+      {hasPrinting && (
+        <EditRow label="Version">
+          <PickerButton accessibilityLabel={`Version: ${setName}. Tap to pick another.`} style={styles.dropBox} boxStyle={styles.smallBox} onPress={() => setVersionsOpen(true)}>
+            <View style={styles.setBox}>
+              {setIcon ? <Image source={{ uri: setIcon }} style={styles.setBoxIcon} contentFit="contain" tintColor={rarityTint} /> : null}
+              <SheetRowText text={setName} size={12} />
+            </View>
+          </PickerButton>
+        </EditRow>
+      )}
+
       {/* Copies: plain orange − and + */}
       {copies && (
         <EditRow label="Copies">
           <View style={styles.stepper}>
             <Pressable accessibilityRole="button" accessibilityLabel={copies.lessLabel} onPress={copies.onLess} hitSlop={6} style={({ pressed }) => [styles.step, pressed && styles.pressed]}>
-              <Ionicons name="remove" size={22} color={colors.accent} />
+              <Ionicons name="remove" size={17} color={colors.accent} />
             </Pressable>
             <Text style={[styles.stepNumber, { color: colors.text }]}>{copies.count}</Text>
             <Pressable
@@ -323,7 +334,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
               disabled={copies.count >= copies.max} onPress={copies.onMore} hitSlop={6}
               style={({ pressed }) => [styles.step, pressed && styles.pressed, copies.count >= copies.max && styles.dimmed]}
             >
-              <Ionicons name="add" size={22} color={colors.accent} />
+              <Ionicons name="add" size={17} color={colors.accent} />
             </Pressable>
           </View>
         </EditRow>
@@ -340,7 +351,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
         <Text style={[styles.rowLabel, { color: colors.text }]}>Finish</Text>
         <View style={styles.rowValue}>
           <Text style={[styles.valueText, { color: finish === 'nonfoil' ? colors.text : colors.accent, fontWeight: '700' }]}>{FINISH_WORDS[finish]}</Text>
-          {canCycleFinish && <Ionicons name="swap-horizontal" size={20} color={colors.accent} />}
+          {canCycleFinish && <Ionicons name="swap-horizontal" size={15} color={colors.accent} />}
         </View>
       </Pressable>
 
@@ -348,20 +359,20 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
           under the box and floats over the screen, so nothing moves. */}
       <EditRow label="Language">
         <PickerButton
-          accessibilityLabel={`Language: ${languageName(langCode)}`} disabled={!hasPrinting} style={styles.dropBox}
+          accessibilityLabel={`Language: ${languageName(langCode)}`} disabled={!hasPrinting} style={styles.dropBox} boxStyle={styles.smallBox}
           onPress={(anchor) => setPicker({ which: 'language', anchor })}
         >
-          <SheetRowText text={languageName(langCode)} />
+          <SheetRowText text={languageName(langCode)} size={12} />
         </PickerButton>
       </EditRow>
 
       {/* Condition: a drop box of the six conditions */}
       <EditRow label="Condition">
         <PickerButton
-          accessibilityLabel={`Condition: ${conditionName}`} style={styles.dropBox}
+          accessibilityLabel={`Condition: ${conditionName}`} style={styles.dropBox} boxStyle={styles.smallBox}
           onPress={(anchor) => setPicker({ which: 'condition', anchor })}
         >
-          <SheetRowText text={conditionName} />
+          <SheetRowText text={conditionName} size={12} />
         </PickerButton>
       </EditRow>
     </View>
@@ -405,7 +416,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   // What the Back button (Android) and the Esc key (website) do: close an open
   // drop box first, then leave the editor, then close the screen. (A ref keeps
   // the newest version, so the listener below never has to be set up again.)
-  const stepBack = rulesShown ? closeRules : picker ? () => setPicker(null) : editing ? stopEditing : onClose;
+  const stepBack = rulesShown ? closeRules : versionsOpen ? () => setVersionsOpen(false) : picker ? () => setPicker(null) : editing ? stopEditing : onClose;
   const stepBackRef = useRef(stepBack);
   stepBackRef.current = stepBack;
   useEffect(() => {
@@ -443,7 +454,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
               <View style={styles.header}>
                 <Text style={[styles.name, styles.headerText, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">Edit {card.name}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Done editing" onPress={stopEditing} hitSlop={6} style={({ pressed }) => [styles.tick, pressed && styles.pressed]}>
-                  <Ionicons name="checkmark" size={24} color={colors.accent} />
+                  <Ionicons name="checkmark" size={18} color={colors.accent} />
                 </Pressable>
               </View>
             )}
@@ -452,7 +463,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
                 name under it) on the left, details right. Phone: one column. */}
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={wide ? styles.bodyWide : styles.bodyNarrow}>
               {wide ? (
-                <View style={styles.leftColumn}>{picture}</View>
+                <View style={[styles.leftColumn, { width: pictureWidth }]}>{picture}</View>
               ) : (
                 <>
                   <View style={styles.pictureCenter}>{picture}</View>
@@ -494,6 +505,17 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
             </ScrollView>
           </Animated.View>
         </View>
+      )}
+      {/* Every version of the card, to pick another printing */}
+      {versionsOpen && card.set && card.number && (
+        <VersionPicker
+          set={card.set} number={card.number}
+          onPick={(version) => {
+            if (version.set !== card.set || version.collector_number !== card.number) onChange?.(versionEdit(card, version));
+            setVersionsOpen(false);
+          }}
+          onClose={() => setVersionsOpen(false)}
+        />
       )}
       {/* The open drop box's list, floating over everything */}
       {pickerList}
@@ -552,7 +574,7 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerText: { flex: 1, minWidth: 0 },
-  name: { fontSize: 20, fontWeight: '700', flexShrink: 1 },
+  name: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
   // The card's own information (the name with its pill, the set line, and the bar of
   // language, condition, where it is and how many you own). Every size here is half
   // of what it was; the Edit screen's title (styles.name) keeps its full size.
@@ -569,9 +591,11 @@ const styles = StyleSheet.create({
   infoName: { flexShrink: 1 },
   infoSpace: { width: 8 },
   smallDrawing: { width: 9, height: 8 },
-  foilTag: { borderWidth: 1, borderRadius: 5, paddingHorizontal: 4, paddingVertical: 0.5 },
-  foilText: { fontSize: 6, fontWeight: '700' },
-  tick: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  // The Foil pill is filled with the rainbow and the Etched pill with silver (like the
+  // Card Finder's finish button), with black text so it reads on either
+  foilTag: { borderRadius: 5, overflow: 'hidden', paddingHorizontal: 4, paddingVertical: 0.5 },
+  foilText: { fontSize: 6, fontWeight: '700', color: '#000000' },
+  tick: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center' },
   bodyWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 24, paddingBottom: 8 },
   bodyNarrow: { gap: 14, paddingBottom: 8 },
   pictureCenter: { alignItems: 'center' },
@@ -597,16 +621,19 @@ const styles = StyleSheet.create({
   rulesTitle: { fontSize: 16, fontWeight: '700' },
   rulesBody: { paddingBottom: 12 },
   badge: { position: 'absolute', right: -8, bottom: -6, width: 15, height: 15, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
-  rowLabel: { fontSize: 15, fontWeight: '600' },
-  dropBox: { minWidth: 200 },
+  row: { minHeight: 39, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth },
+  rowLabel: { fontSize: 11, fontWeight: '600' },
+  dropBox: { minWidth: 150 },
+  smallBox: { minHeight: 35, paddingVertical: 4 },
+  setBox: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
+  setBoxIcon: { width: 14, height: 14 },
   pickerNote: { fontSize: 14, padding: 14 },
   abbr: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-  rowValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  valueText: { fontSize: 16 },
+  rowValue: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  valueText: { fontSize: 12 },
   stepper: { flexDirection: 'row', alignItems: 'center' },
-  step: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  stepNumber: { minWidth: 32, textAlign: 'center', fontSize: 18, fontWeight: '700' },
+  step: { width: 33, height: 33, alignItems: 'center', justifyContent: 'center' },
+  stepNumber: { minWidth: 24, textAlign: 'center', fontSize: 13.5, fontWeight: '700' },
   pressed: { opacity: 0.7 },
   dimmed: { opacity: 0.4 },
 });

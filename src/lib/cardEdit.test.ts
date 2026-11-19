@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CONDITIONS, applyEdit, conditionEdit, conditionLabel, conditionOf, conditionShort, finishEdit, languageEdit, normalizeCondition,
+  CONDITIONS, applyEdit, conditionEdit, conditionLabel, conditionOf, conditionShort, finishEdit, languageEdit, matchesVersion, normalizeCondition,
 } from './cardEdit.ts';
 
 const bolt = { name: 'Lightning Bolt', set: 'm10', number: '146', face: 0, image: 'https://example.com/en.jpg' };
@@ -56,4 +56,24 @@ test('a language gives the card its picture; English takes the language note awa
   const english = applyEdit(japanese, languageEdit('en', 'https://example.com/en.jpg'));
   assert.equal(english.lang, undefined);
   assert.equal(english.image, 'https://example.com/en.jpg');
+});
+
+test('the versions search matches the set name, the set code or the number, every word', () => {
+  const version = { set: 'm10', set_name: 'Magic 2010', collector_number: '146' };
+  assert.equal(matchesVersion(version, ''), true);
+  assert.equal(matchesVersion(version, 'magic'), true);
+  assert.equal(matchesVersion(version, 'M10'), true);
+  assert.equal(matchesVersion(version, '146'), true);
+  assert.equal(matchesVersion(version, '2010 146'), true);
+  assert.equal(matchesVersion(version, 'magic 147'), false);
+  assert.equal(matchesVersion(version, 'alpha'), false);
+});
+
+test('a card can be switched to another printing: set and number change, other notes stay', () => {
+  const next = applyEdit({ ...bolt, extra: { Condition: 'damaged' } }, { set: 'lea', number: '161', face: 0, image: 'https://example.com/lea.jpg', extra: { Rarity: 'common' } });
+  assert.equal(next.set, 'lea');
+  assert.equal(next.number, '161');
+  assert.equal(next.image, 'https://example.com/lea.jpg');
+  assert.equal(next.extra?.Condition, 'damaged');
+  assert.equal(next.extra?.Rarity, 'common');
 });

@@ -16,6 +16,7 @@
 
 import type { BinderCard } from './binderStorage';
 import type { Finish } from './cards';
+import type { ScryfallCard } from './scryfall';
 
 /* ---------- condition ---------- */
 
@@ -65,6 +66,9 @@ export function conditionShort(code: string): string {
 // A change to make to a card. A "null" takes that thing away (no foil, no
 // language note, no note of that name).
 export type CardEdit = {
+  set?: string;                    // another printing: its set code...
+  number?: string;                 // ...its collector number...
+  face?: number;                   // ...and which side shows (0 front, 1 back)
   foil?: boolean;
   lang?: string | null;
   image?: string;
@@ -74,6 +78,9 @@ export type CardEdit = {
 // The card with the change made (a new object: the card given isn't changed)
 export function applyEdit<T extends BinderCard>(card: T, edit: CardEdit): T {
   const next: T = { ...card };
+  if (edit.set !== undefined) next.set = edit.set;
+  if (edit.number !== undefined) next.number = edit.number;
+  if (edit.face !== undefined) next.face = edit.face;
   if (edit.foil !== undefined) {
     if (edit.foil) next.foil = true;
     else delete next.foil;
@@ -102,6 +109,19 @@ export function finishEdit(finish: Finish): CardEdit {
 // The change that gives a card this condition
 export function conditionEdit(code: string): CardEdit {
   return { extra: { Condition: normalizeCondition(code) } };
+}
+
+/* ---------- finding a printing in the list of versions ---------- */
+
+// Does this printing match what was typed in the versions' search box? Every
+// word typed must be somewhere in the printing's set name, set code or
+// collector number (capitals don't matter), so "ice 12" finds number 12 of a
+// set with "ice" in its name.
+export function matchesVersion(version: Pick<ScryfallCard, 'set' | 'set_name' | 'collector_number'>, typed: string): boolean {
+  const words = typed.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = `${version.set_name} ${version.set} ${version.collector_number}`.toLowerCase();
+  return words.every((word) => haystack.includes(word));
 }
 
 // The change that puts a card in this language, with that language's picture

@@ -349,7 +349,7 @@ export const helpTopics: HelpTopic[] = [
               <Strong> Main deck</Strong> and <Strong>Sideboard</Strong> buttons under the search bar. The + and a dragged picture add to
               the one showing, and a card's screen has <Strong>Move to sideboard</Strong> and <Strong>Move to main deck</Strong>.
               Tap a card to open its card screen, the same as in a binder or list: a big picture (tap it to open the card in
-              the Card Finder), the card's name and set, a bar with its language, condition, the deck's name and how many copies you own in your binders, the <Strong>pencil</Strong> (Edit: copies, finish, language, condition),
+              the Card Finder), the card's name and set, a bar with its language, condition, the deck's name and how many copies you own in your binders, the <Strong>pencil</Strong> (Edit: version, copies, finish, language, condition),
               the rules (slide up from the strip at the bottom), and the red <Strong>trash can</Strong> (Delete from deck, it asks first). A deck is not part of your
               collection, so there is no Move to a binder. On a card with a <Strong>solid red border</Strong> (one you don't own) there's
               <Strong> Add to a binder/list</Strong> instead: <Strong>Add to a binder</Strong> if you own it and it's just not in your collection yet
@@ -748,7 +748,7 @@ export const helpTopics: HelpTopic[] = [
         set's release date), in the binder's .CSV and .JSON files too, so the sorts don't wait on the
         internet; cards made before that get them filled in the first time you open their binder. Sorting only changes how the list and grid are shown: it never
         moves a card to another pocket. A foil card has a rainbow border in every view. Tap a card in the list or grid for its card screen: what you own,
-        a pencil to edit it (copies, finish, language, condition), icons to move it, add a copy to a list or a deck, or remove it, tap its picture to open it in the Card Finder, and its rules on a sheet you slide up.
+        a pencil to edit it (its version, copies, finish, language, condition), icons to move it, add a copy to a list or a deck, or remove it, tap its picture to open it in the Card Finder, and its rules on a sheet you slide up.
         In the list, each card's row has its name, then its casting cost (in Magic's own mana symbols),
         its set's symbol, its set code and number (with a <Strong>*</Strong> for a foil or <Strong>**</Strong> for
         an etched foil), and its type line. In the list and the grid, each card has a <Strong>− 3 +</Strong> bar (in the grid it's along the card's
@@ -906,7 +906,7 @@ export const helpTopics: HelpTopic[] = [
               bar: language, condition, the binder's name with a small binder drawing, and, further along, a binder drawing with how many
               copies of the card you own in all your binders. The icons along the bottom are the
               <Strong> pencil</Strong> (Edit), the <Strong>binder with a +</Strong> (Move to another binder) and the red
-              <Strong> trash can</Strong> (Remove from this binder, it asks first). <Strong>Edit</Strong> changes the copies
+              <Strong> trash can</Strong> (Remove from this binder, it asks first). <Strong>Edit</Strong> changes the <Strong>version</Strong> (the drop box at the top: tap it to see every printing of the card, 3 to 5 across, and type a set name, set code or number to narrow them; the picture, set and number change but your copies and condition stay), the copies
               (<Strong>−</Strong> and <Strong>+</Strong>), the <Strong>finish</Strong> (tap it to step through the finishes that
               printing comes in: normal, foil, etched), the <Strong>language</Strong> (the card's picture changes to that language)
               and the <Strong>condition</Strong>: Mint (M), Near Mint (NM), Lightly Played (LP), Moderately Played (MP), Heavily Played (HP)
@@ -1098,7 +1098,7 @@ export const helpTopics: HelpTopic[] = [
               really comes in: <Strong>not foil</Strong> (the button is grayed out), <Strong>Foil</Strong> (the
               button turns rainbow) and <Strong>Etched</Strong> (the button turns silver; etched foil is a special
               silvery foil only some printings have), then back round. The button can't be pressed when
-              the printing comes in only one finish. Foil and etched cards get a rainbow border in your
+              the printing comes in only one finish. Foil and etched cards get a rainbow border (the Foil pill on the card screen is rainbow, Etched is silver) in your
               binders and lists, and a <Strong>*</Strong> (foil) or <Strong>**</Strong> (etched) after the number in
               the List view.
             </P>

@@ -51,13 +51,14 @@ export type Anchor = { x: number; y: number; width: number; height: number };
 
 // "label" is the small heading beside the box ("LANGUAGE", with
 // "inline"), or above it; without one, it's just the box (Set and Version).
-export function PickerButton({ label, inline, disabled, onPress, accessibilityLabel, style, children }: {
+export function PickerButton({ label, inline, disabled, onPress, accessibilityLabel, style, boxStyle, children }: {
   label?: string;
   inline?: boolean;
   disabled?: boolean;
   onPress: (anchor: Anchor) => void;   // handed the box's place on the screen
   accessibilityLabel: string;
   style?: StyleProp<ViewStyle>;
+  boxStyle?: StyleProp<ViewStyle>;     // changes to the box itself (the card screen's editor makes it smaller)
   children: ReactNode;
 }) {
   const colors = useColors();
@@ -83,6 +84,7 @@ export function PickerButton({ label, inline, disabled, onPress, accessibilityLa
           inline && styles.inlineBox,
           { backgroundColor: pressed ? colors.surfaceHover : colors.surface, borderColor: colors.border },
           disabled && styles.disabled,
+          boxStyle,
         ]}
       >
         <View style={styles.boxContent}>{children}</View>
@@ -310,10 +312,10 @@ function PickerPanel<T>(props: SheetProps<T>) {
 
 // One line of text, cut off with "…" if it's too long; bold for the
 // current choice, grey for a box's placeholder word (like "Version")
-export function SheetRowText({ text, bold, muted }: { text: string; bold?: boolean; muted?: boolean }) {
+export function SheetRowText({ text, bold, muted, size }: { text: string; bold?: boolean; muted?: boolean; size?: number }) {
   const colors = useColors();
   return (
-    <Text style={[styles.rowText, { color: muted ? colors.muted : colors.text }, bold && styles.bold]} numberOfLines={1}>{text}</Text>
+    <Text style={[styles.rowText, { color: muted ? colors.muted : colors.text }, bold && styles.bold, size ? { fontSize: size } : null]} numberOfLines={1}>{text}</Text>
   );
 }
 
