@@ -58,6 +58,7 @@ import CardList, { Summary, type CardEntry } from '@/components/binder/CardList'
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import AddCardsButton from '@/components/binder/AddCardsButton';
 import CardScreen from '@/components/binder/CardScreen';
+import { applyEdit, type CardEdit } from '@/lib/cardEdit';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import MoveCardDialog from '@/components/binder/MoveCardDialog';
@@ -644,6 +645,17 @@ function BinderView({ binderId }: { binderId: string }) {
     scheduleDriveSave();
     announce(`${now} ${now === 1 ? 'copy' : 'copies'} of ${card.name}.`);
     return now;
+  }
+  // Change a card's finish, language or condition (from the card screen's
+  // Edit mode: see cardEdit.ts), and save it like any other change
+  function editCard(key: string, edit: CardEdit) {
+    const card = cardsRef.current[key];
+    if (!card) return;
+    if (!commit({ ...cardsRef.current, [key]: applyEdit(card, edit) })) {
+      showMessage('Couldn\'t save', 'Saving isn\'t working on this device, so the change could not be made.');
+      return;
+    }
+    scheduleDriveSave();
   }
   // Versions that never change between redraws, for the pockets (so the
   // pockets don't all redraw every time something changes)
@@ -1436,10 +1448,11 @@ function BinderView({ binderId }: { binderId: string }) {
             onLess: () => { if (changeCopies(menuKey, -1) === 0) setMenuKey(null); },
             onMore: () => changeCopies(menuKey, 1),
           }}
+          onChange={(edit) => editCard(menuKey, edit)}
           onOpenFinder={() => { const key = menuKey; setMenuKey(null); router.push(searchLinkFor(binderId, key, menuCard) as never); }}
           onClose={() => setMenuKey(null)}
           actions={[
-            { label: 'Move to another binder', icon: 'folder-open-outline', onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
+            { label: 'Move to another binder', icon: 'albums-outline', plus: true, onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
             { label: 'Remove from this binder', icon: 'trash-outline', kind: 'danger', onPress: () => { setRemovingKey(menuKey); setMenuKey(null); } },
           ]}
         />

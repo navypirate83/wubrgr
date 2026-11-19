@@ -217,13 +217,14 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <P>
               Tap the red <Strong>+</Strong> to find a card in the Card Finder, then tap its <Strong>+</Strong> to put it
-              in the list. Tap a card to open its card screen (a sheet on a phone, a panel down the right side on a wide window):
-              a big picture of it (tap the picture to open the card in the Card Finder), how many copies
-              (<Strong>−</Strong> and <Strong>+</Strong>; <Strong>−</Strong> on
-              the last copy asks whether to delete it), an <Strong>Open in Card Finder</Strong> button,
-              <Strong> Move to a binder</Strong> (pick a binder: the card goes into its first empty pocket and leaves the
-              list) and <Strong>Delete from list</Strong> (it asks first). What the card does (its rules text, without
-              the flavor text) is folded away under <Strong>Show rules</Strong>: tap it to open it, and again to close it.
+              in the list. Tap a card to open its card screen (a sheet on a phone, a pop-up in the middle on a wide window; tap
+              outside it to close it). Tap the card's picture to open the card in the Card Finder. A line under it says what you
+              own: copies, finish, language and condition. The icons along the bottom are the <Strong>pencil</Strong> (Edit: copies
+              with <Strong>−</Strong> and <Strong>+</Strong>, finish, language and condition; <Strong>−</Strong> on the last copy asks
+              whether to delete it), the <Strong>binder with a +</Strong> (Move to a binder: pick a binder, and the card goes into its
+              first empty pocket and leaves the list) and the red <Strong>trash can</Strong> (Delete from list, it asks first).
+              What the card does (its rules text, without the flavor text) is folded away under <Strong>Show rules</Strong>:
+              tap it to open it, and again to close it.
             </P>
             <P>
               Lists are saved like binders: on this device, in your WUBRG'r account when you're logged in,
@@ -346,7 +347,8 @@ export const helpTopics: HelpTopic[] = [
               <Strong> Main deck</Strong> and <Strong>Sideboard</Strong> buttons under the search bar. The + and a dragged picture add to
               the one showing, and a card's screen has <Strong>Move to sideboard</Strong> and <Strong>Move to main deck</Strong>.
               Tap a card to open its card screen, the same as in a binder or list: a big picture (tap it to open the card in
-              the Card Finder), how many copies, <Strong>Open in Card Finder</Strong>, <Strong>Show rules</Strong> (what the card does, folded away until you tap it), and <Strong>Delete from deck</Strong> (it asks first). A deck is not part of your
+              the Card Finder), a line of what you own, the <Strong>pencil</Strong> (Edit: copies, finish, language, condition),
+              <Strong>Show rules</Strong> (what the card does, folded away until you tap it), and the red <Strong>trash can</Strong> (Delete from deck, it asks first). A deck is not part of your
               collection, so there is no Move to a binder. On a card with a <Strong>solid red border</Strong> (one you don't own) there's
               <Strong> Add to a binder/list</Strong> instead: <Strong>Add to a binder</Strong> if you own it and it's just not in your collection yet
               (say you bought a deck and uploaded its list first), or <Strong>Add to a list</Strong> to keep it on a wishlist. The card stays in
@@ -743,8 +745,8 @@ export const helpTopics: HelpTopic[] = [
         Every card is saved with the details sorting needs (its colors, type, rarity, mana value and
         set's release date), in the binder's .CSV and .JSON files too, so the sorts don't wait on the
         internet; cards made before that get them filled in the first time you open their binder. Sorting only changes how the list and grid are shown: it never
-        moves a card to another pocket. A foil card has a rainbow border in every view. Tap a card in the list or grid for its card screen: copies,
-        open it in the Card Finder, move it or remove it, and its rules under Show rules.
+        moves a card to another pocket. A foil card has a rainbow border in every view. Tap a card in the list or grid for its card screen: what you own,
+        a pencil to edit it (copies, finish, language, condition), icons to move it or remove it, tap its picture to open it in the Card Finder, and its rules under Show rules.
         In the list, each card's row has its name, then its casting cost (in Magic's own mana symbols),
         its set's symbol, its set code and number (with a <Strong>*</Strong> for a foil or <Strong>**</Strong> for
         an etched foil), and its type line. In the list and the grid, each card has a <Strong>− 3 +</Strong> bar (in the grid it's along the card's
@@ -894,11 +896,16 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>Let go anywhere else to put it back.</Bullet>
             <P>
-              <Strong>Tapping a card</Strong> opens its card screen (a sheet on a phone, a panel down the right side on a wide
-              window): a big picture of the card (tap the picture to open the card in the Card Finder), its copies
-              (<Strong>−</Strong> and <Strong>+</Strong>), an <Strong>Open in Card Finder</Strong> button,
-              <Strong> Move to another binder</Strong> and <Strong>Remove from this binder</Strong>. What the card does
-              (its rules text, without the flavor text) is folded away under <Strong>Show rules</Strong>.
+              <Strong>Tapping a card</Strong> opens its card screen (a sheet on a phone, a pop-up in the middle on a wide
+              window; tap outside it to close it): a big picture of the card (tap the picture to open the card in the Card
+              Finder) and a line of what you own: copies, finish, language and condition. The icons along the bottom are the
+              <Strong> pencil</Strong> (Edit), the <Strong>binder with a +</Strong> (Move to another binder) and the red
+              <Strong> trash can</Strong> (Remove from this binder, it asks first). <Strong>Edit</Strong> changes the copies
+              (<Strong>−</Strong> and <Strong>+</Strong>), the <Strong>finish</Strong> (tap it to step through the finishes that
+              printing comes in: normal, foil, etched), the <Strong>language</Strong> (the card's picture changes to that language)
+              and the <Strong>condition</Strong>: Mint, Near Mint, Light Played, Moderately Played, Heavily Played or Damaged. A
+              card with no condition counts as Near Mint, and the condition is saved with the card in your account and in downloaded
+              files. What the card does (its rules text, without the flavor text) is folded away under <Strong>Show rules</Strong>.
             </P>
           </>
         ),

@@ -69,7 +69,7 @@ import CardScreen from '@/components/binder/CardScreen';
 import AddToCollectionDialog from '@/components/decks/AddToCollectionDialog';
 import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
-import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckBracket, setDeckCardCount, setDeckCards, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
+import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckBracket, setDeckCardCount, setDeckCards, updateDeckCard, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
 import CommandZone from '@/components/decks/CommandZone';
 import SlotSearchDialog from '@/components/decks/SlotSearchDialog';
 import { allowedInSlot, deckCardFromPrint, secondSpotShows, slotHint, slotName, slotQuery, zoneExtraOf } from '@/lib/deckZones';
@@ -728,6 +728,7 @@ export default function DeckScreen() {
             onLess: () => changeCopies(menuIndex, -1),
             onMore: () => changeCopies(menuIndex, 1),
           }}
+          onChange={(edit) => { updateDeckCard(id, menuIndex, edit); setDeck(findDeck(id)); }}
           onOpenFinder={() => { const card = menuCard; const spot = menuIndex; setMenuIndex(null); router.push(finderLinkFor(id, spot, card) as never); }}
           onClose={() => setMenuIndex(null)}
           actions={[
@@ -747,7 +748,7 @@ export default function DeckScreen() {
               ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); } }] : []),
             /* A card you don't own (a solid red border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */
             ...(marks.get(menuCard) === 'card'
-              ? [{ label: 'Add to a binder/list', icon: 'albums-outline' as const, onPress: () => addToCollection(menuIndex) }] : []),
+              ? [{ label: 'Add to a binder/list', icon: 'albums-outline' as const, plus: true, onPress: () => addToCollection(menuIndex) }] : []),
             { label: 'Delete from deck', icon: 'trash-outline' as const, kind: 'danger' as const, onPress: () => confirmDelete(menuIndex) },
           ]}
         >

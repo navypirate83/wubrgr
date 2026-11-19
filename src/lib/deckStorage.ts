@@ -17,6 +17,7 @@
 import { storageGet, storageRemove, storageSet } from './storage';
 import { MAX_COPIES, samePrinting } from './binderStorage';
 import { needsDetails, withDetails } from './cardDetails';
+import { applyEdit, type CardEdit } from './cardEdit';
 import type { ScryfallCard } from './scryfall';
 import { cleanDeckFormat, DEFAULT_DECK_FORMAT } from './deckFormats';
 import { cleanBracket } from './deckBrackets';
@@ -228,6 +229,18 @@ export function setDeckCardCount(id: string, index: number, count: number): bool
     cards: d.cards
       .map((card, i) => (i === index ? (count > 1 ? { ...card, count } : count === 1 ? oneCopyIsNoCount(card) : null) : card))
       .filter((card): card is DeckCard => card !== null),
+  }));
+}
+
+// Change one card of a deck (its finish, language, condition: see
+// cardEdit.ts). Returns false if there's no such deck or card, or the device
+// wouldn't save.
+export function updateDeckCard(id: string, index: number, edit: CardEdit): boolean {
+  const deck = findDeck(id);
+  if (!deck || !deck.cards[index]) return false;
+  return changeDeck(id, (d) => ({
+    ...d,
+    cards: d.cards.map((card, i) => (i === index ? applyEdit(card, edit) : card)),
   }));
 }
 

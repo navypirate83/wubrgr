@@ -22,6 +22,7 @@
 import { storageGet, storageKeys, storageRemove, storageSet } from './storage';
 import { samePrinting, type BinderCard } from './binderStorage';
 import { needsDetails, withDetails } from './cardDetails';
+import { applyEdit, type CardEdit } from './cardEdit';
 import type { ScryfallCard } from './scryfall';
 import { movedBy } from './shelfSort';
 
@@ -181,6 +182,18 @@ export function setListCardCount(id: string, index: number, count: number): bool
       else delete next.count;
       return next;
     }),
+  }));
+}
+
+// Change one card of a list (its finish, language, condition: see
+// cardEdit.ts). Returns false if there's no such list or card, or the device
+// wouldn't save.
+export function updateListCard(id: string, index: number, edit: CardEdit): boolean {
+  const list = loadLists().find((l) => l.id === id);
+  if (!list || !list.cards[index]) return false;
+  return changeList(id, (l) => ({
+    ...l,
+    cards: l.cards.map((card, i) => (i === index ? applyEdit(card, edit) : card)),
   }));
 }
 

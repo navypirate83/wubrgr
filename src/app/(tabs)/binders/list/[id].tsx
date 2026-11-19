@@ -54,7 +54,7 @@ import { costAndType, isDoubleSided } from '@/lib/cards';
 import { loadOneCard } from '@/lib/scryfall';
 import { isSearching, makeNameFilter } from '@/lib/nameFilter';
 import { finishParam } from '@/lib/cardDetails';
-import { addCardToList, fillListDetails, findList, removeCardFromList, setListCardCount, type CardList, type ListCard } from '@/lib/listStorage';
+import { addCardToList, fillListDetails, findList, removeCardFromList, setListCardCount, updateListCard, type CardList, type ListCard } from '@/lib/listStorage';
 import { DriveError, isSignedIn, signInWithGoogle, syncList } from '@/lib/googleDrive';
 import { MAX_COPIES, cardCount, cardCountText, isLocalMode, samePrinting } from '@/lib/binderStorage';
 import { copyListText, downloadListCsv, downloadListText } from '@/lib/binderDownload';
@@ -433,10 +433,11 @@ export default function ListScreen() {
             onLess: () => changeCopies(menuIndex, -1),
             onMore: () => changeCopies(menuIndex, 1),
           }}
+          onChange={(edit) => { updateListCard(id, menuIndex, edit); changed(); }}
           onOpenFinder={() => { const card = menuCard; setMenuIndex(null); router.push(finderLinkFor(id, card) as never); }}
           onClose={() => setMenuIndex(null)}
           actions={[
-            { label: 'Move to a binder', icon: 'albums-outline', onPress: () => moveToBinder(menuIndex) },
+            { label: 'Move to a binder', icon: 'albums-outline', plus: true, onPress: () => moveToBinder(menuIndex) },
             { label: 'Delete from list', icon: 'trash-outline', kind: 'danger', onPress: () => confirmDelete(menuIndex) },
           ]}
         />
