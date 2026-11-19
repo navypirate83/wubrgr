@@ -218,8 +218,10 @@ export const helpTopics: HelpTopic[] = [
             <P>
               Tap the red <Strong>+</Strong> to find a card in the Card Finder, then tap its <Strong>+</Strong> to put it
               in the list. Tap a card to open its card screen (a sheet on a phone, a pop-up in the middle on a wide window; tap
-              outside it to close it). Tap the card's picture to open the card in the Card Finder. A line under it says what you
-              own: copies, finish, language and condition. The icons along the bottom are the <Strong>pencil</Strong> (Edit: copies
+              outside it to close it). Tap the card's picture to open the card in the Card Finder. Under it come the card's name (with a
+              <Strong> Foil</Strong> or <Strong>Etched</Strong> tag beside it), its set's symbol in the color of its rarity (red mythic, gold
+              rare, silver uncommon, black common, purple special) with the set code and number, and a bar: language, condition, the
+              list's name with a small list drawing, and how many copies you own in your binders. The icons along the bottom are the <Strong>pencil</Strong> (Edit: copies
               with <Strong>−</Strong> and <Strong>+</Strong>, finish, language and condition; <Strong>−</Strong> on the last copy asks
               whether to delete it), the <Strong>binder with a +</Strong> (Move to a binder: pick a binder, and the card goes into its
               first empty pocket and leaves the list) and the red <Strong>trash can</Strong> (Delete from list, it asks first).
@@ -347,7 +349,7 @@ export const helpTopics: HelpTopic[] = [
               <Strong> Main deck</Strong> and <Strong>Sideboard</Strong> buttons under the search bar. The + and a dragged picture add to
               the one showing, and a card's screen has <Strong>Move to sideboard</Strong> and <Strong>Move to main deck</Strong>.
               Tap a card to open its card screen, the same as in a binder or list: a big picture (tap it to open the card in
-              the Card Finder), a line of what you own, the <Strong>pencil</Strong> (Edit: copies, finish, language, condition),
+              the Card Finder), the card's name and set, a bar with its language, condition, the deck's name and how many copies you own in your binders, the <Strong>pencil</Strong> (Edit: copies, finish, language, condition),
               the rules (slide up from the strip at the bottom), and the red <Strong>trash can</Strong> (Delete from deck, it asks first). A deck is not part of your
               collection, so there is no Move to a binder. On a card with a <Strong>solid red border</Strong> (one you don't own) there's
               <Strong> Add to a binder/list</Strong> instead: <Strong>Add to a binder</Strong> if you own it and it's just not in your collection yet
@@ -898,13 +900,16 @@ export const helpTopics: HelpTopic[] = [
             <P>
               <Strong>Tapping a card</Strong> opens its card screen (a sheet on a phone, a pop-up in the middle on a wide
               window; tap outside it to close it): a big picture of the card (tap the picture to open the card in the Card
-              Finder) and a line of what you own: copies, finish, language and condition. The icons along the bottom are the
+              Finder). Under it come the card's name (with a <Strong>Foil</Strong> or <Strong>Etched</Strong> tag beside it), its set's symbol in
+              the color of its rarity (red mythic, gold rare, silver uncommon, black common, purple special) with the set code and number, and a
+              bar: language, condition, the binder's name with a small binder drawing, and, further along, a binder drawing with how many
+              copies of the card you own in all your binders. The icons along the bottom are the
               <Strong> pencil</Strong> (Edit), the <Strong>binder with a +</Strong> (Move to another binder) and the red
               <Strong> trash can</Strong> (Remove from this binder, it asks first). <Strong>Edit</Strong> changes the copies
               (<Strong>−</Strong> and <Strong>+</Strong>), the <Strong>finish</Strong> (tap it to step through the finishes that
               printing comes in: normal, foil, etched), the <Strong>language</Strong> (the card's picture changes to that language)
               and the <Strong>condition</Strong>: Mint (M), Near Mint (NM), Lightly Played (LP), Moderately Played (MP), Heavily Played (HP)
-              or Damaged (Dmg). The line under the card shows the short forms, and the language by its letters (EN, FR, JA...). A card with no condition counts as Near Mint, and the
+              or Damaged (Dmg). The bar under the card shows the short forms, and the language by its letters (EN, FR, JA...). A card with no condition counts as Near Mint, and the
               condition is saved with the card in your account and in downloaded files. What the card does (its rules text, without the flavor text) is on a sheet that slides up over the
               card screen: slide up from the <Strong>Slide up for rules</Strong> strip (or tap it), and slide it down, or tap outside it, to put it away.
             </P>

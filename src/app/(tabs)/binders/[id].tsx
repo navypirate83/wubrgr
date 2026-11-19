@@ -1447,7 +1447,7 @@ function BinderView({ binderId }: { binderId: string }) {
       {menuCard && menuKey && (
         <CardScreen
           card={menuCard}
-          subtitle={mode === 'binder' ? placeName(menuKey) : undefined}
+          where={{ kind: 'binder', name: binderName(binderId) }}
           copies={{
             count: cardCount(menuCard), max: MAX_COPIES, lessLabel: 'One fewer copy',
             onLess: () => { if (changeCopies(menuKey, -1) === 0) setMenuKey(null); },

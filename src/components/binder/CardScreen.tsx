@@ -27,20 +27,21 @@
    screen only draws them and says what changed (see cardEdit.ts).
    ===================================================================== */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { useColors } from '@/hooks/useTheme';
+import { useColors, useTheme } from '@/hooks/useTheme';
 import { useMenuStyle } from '@/hooks/useMenuStyle';
 import { pictureSource } from '@/lib/http';
-import { cardCount, type BinderCard } from '@/lib/binderStorage';
+import type { BinderCard } from '@/lib/binderStorage';
+import { loadOwned } from '@/lib/deckOwnership';
 import { finishOf } from '@/lib/cardDetails';
 import { CONDITIONS, conditionEdit, conditionLabel, conditionOf, conditionShort, finishEdit, languageEdit, type CardEdit } from '@/lib/cardEdit';
 import { finishChoices, imageFor, languageName, nextFinish, type Finish } from '@/lib/cards';
-import { cardBySetPath, loadLanguages, loadOneCard } from '@/lib/scryfall';
-import { RADIUS } from '@/theme/colors';
+import { cardBySetPath, loadLanguages, loadOneCard, loadSetIcons } from '@/lib/scryfall';
+import { RADIUS, type Colors } from '@/theme/colors';
 import CardRules from '@/components/binder/CardRules';
 import { PickerButton, PickerSheet, SheetRowText, type Anchor } from '@/components/search/PickerSheet';
 
@@ -49,6 +50,23 @@ import { PickerButton, PickerSheet, SheetRowText, type Anchor } from '@/componen
 export const BINDER_ICON = require('../../../assets/images/binder-outline.svg') as number;
 export const LIST_ICON = require('../../../assets/images/notebook-outline.svg') as number;
 export const DECK_ICON = require('../../../assets/images/deckbox-outline.svg') as number;
+
+// Which drawing goes with where a card is: a binder, a list or a deck
+const WHERE_ICON = { binder: BINDER_ICON, list: LIST_ICON, deck: DECK_ICON };
+
+// The color of a set's symbol for each rarity: red for mythic, gold for rare, silver for
+// uncommon, black for common (shown light on the dark theme, where black can't be seen)
+// and purple for special. A card with no rarity saved gets the quiet gray.
+function rarityColor(rarity: string | undefined, colors: Colors, dark: boolean): string {
+  switch ((rarity ?? '').toLowerCase()) {
+    case 'mythic': return '#e0452b';
+    case 'rare': return '#d9a521';
+    case 'uncommon': return '#aeb4bd';
+    case 'common': return dark ? colors.text : '#000000';
+    case 'special': case 'bonus': return '#9b5de5';
+    default: return colors.muted;
+  }
+}
 
 // One of the page's own icons (move to a binder, add to a list, add to a deck, delete...)
 export type CardScreenAction = {
@@ -71,7 +89,7 @@ export type CardScreenCopies = {
 
 type Props = {
   card: BinderCard;
-  subtitle?: string;               // under the name: where the card is
+  where?: { kind: 'binder' | 'list' | 'deck'; name: string };   // what the card is in (shown in the bar)
   copies?: CardScreenCopies;       // leave out for a card that is always one (a commander)
   onChange?: (edit: CardEdit) => void;   // the page saves a change to the card
   onOpenFinder: () => void;
@@ -86,8 +104,18 @@ const CARD_RATIO = 63 / 88;
 // The words for each finish
 const FINISH_WORDS: Record<Finish, string> = { nonfoil: 'Normal', foil: 'Foil', etched: 'Etched' };
 
-export default function CardScreen({ card, subtitle, copies, onChange, onOpenFinder, onClose, actions, children }: Props) {
+export default function CardScreen({ card, where, copies, onChange, onOpenFinder, onClose, actions, children }: Props) {
   const colors = useColors();
+  const dark = useTheme() === 'dark';
+  // The set's symbol picture (once it has downloaded), and the rarity's color for it
+  const setIcons = useQuery({ queryKey: ['set-icons'], queryFn: loadSetIcons });
+  const setIcon = card.set ? setIcons.data?.get(card.set.toLowerCase()) : undefined;
+  const rarityTint = rarityColor(card.extra?.Rarity, colors, dark);
+  // How many copies of this card you own in all your binders (every printing of it)
+  const ownedTotal = useMemo(
+    () => (loadOwned().get(card.name.trim().toLowerCase()) ?? []).reduce((sum, print) => sum + print.count, 0),
+    [card],
+  );
   // A wide window (the side menu is showing) gets the pop-up; a phone gets the sheet
   const wide = useMenuStyle() !== 'none';
   // Are we editing? And which drop box (language or condition) is open, and
@@ -166,18 +194,55 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
 
   /* ---------- the view: what you own, then the row of icons ---------- */
 
-  const count = copies ? copies.count : cardCount(card);
   const normalActions = actions.filter((action) => action.kind !== 'danger');
   const dangerActions = actions.filter((action) => action.kind === 'danger');
+
+  // The card's name (with its Foil or Etched pill to the right of it) and, under
+  // that, its set's symbol (in the color of its rarity) with the set's code and the
+  // card's number. This goes under the card's picture.
+  const identity = (
+    <View style={styles.identity}>
+      <View style={styles.nameRow}>
+        <Text style={[styles.name, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">{card.name}</Text>
+        {card.foil ? (
+          <View style={[styles.foilTag, { borderColor: colors.accent }]}>
+            <Text style={[styles.foilText, { color: colors.accent }]}>{finish === 'etched' ? 'Etched' : 'Foil'}</Text>
+          </View>
+        ) : null}
+      </View>
+      {card.set ? (
+        <View style={styles.setLine}>
+          {setIcon ? <Image source={{ uri: setIcon }} style={styles.setIcon} contentFit="contain" tintColor={rarityTint} /> : null}
+          <Text style={[styles.setText, { color: colors.muted }]}>{card.set.toUpperCase()}{card.number ? ` · #${card.number}` : ''}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
   const view = (
     <View style={[styles.details, wide && styles.detailsWide]}>
-      {/* What you own */}
-      <Text style={[styles.owned, { color: colors.text }]}>
-        {count} {count === 1 ? 'copy' : 'copies'}
-        <Text style={{ color: colors.muted }}>  ·  </Text>{FINISH_WORDS[finish]}
-        <Text style={{ color: colors.muted }}>  ·  </Text>{langCode.toUpperCase()}
-        <Text style={{ color: colors.muted }}>  ·  </Text>{conditionAbbr}
-      </Text>
+      {/* The bar: language, condition, where this card is (a small binder, list or
+          deck drawing with its name), and, a little further along, how many copies
+          of it you own in your binders */}
+      <View style={styles.infoBar}>
+        <Text style={[styles.infoText, { color: colors.text }]}>{langCode.toUpperCase()}</Text>
+        <Text style={[styles.infoText, { color: colors.muted }]}>·</Text>
+        <Text style={[styles.infoText, { color: colors.text }]}>{conditionAbbr}</Text>
+        {where && (
+          <>
+            <Text style={[styles.infoText, { color: colors.muted }]}>·</Text>
+            <Image source={WHERE_ICON[where.kind]} style={styles.smallDrawing} contentFit="contain" tintColor={colors.muted} />
+            <Text style={[styles.infoText, styles.infoName, { color: colors.text }]} numberOfLines={1}>{where.name}</Text>
+          </>
+        )}
+        {ownedTotal > 0 && (
+          <>
+            <View style={styles.infoSpace} />
+            <Image source={BINDER_ICON} style={styles.smallDrawing} contentFit="contain" tintColor={colors.muted} accessibilityLabel="Owned in your binders" />
+            <Text style={[styles.infoText, { color: colors.text }]} accessibilityLabel={`${ownedTotal} owned in your binders`}>{ownedTotal}</Text>
+          </>
+        )}
+      </View>
 
       {/* Whatever the page wants to add here */}
       {children}
@@ -335,33 +400,27 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
             accessibilityViewIsModal
             aria-modal
           >
-            {/* The name and where it is. In the editor: "Edit" and a tick to go back. */}
-            <View style={styles.header}>
-              <View style={styles.headerText}>
-                <Text style={[styles.name, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">
-                  {editing ? `Edit ${card.name}` : card.name}
-                </Text>
-                {!editing && (subtitle || card.foil) && (
-                  <View style={styles.subRow}>
-                    {subtitle ? <Text style={[styles.subtitle, { color: colors.muted }]}>{subtitle}</Text> : null}
-                    {card.foil ? (
-                      <View style={[styles.foilTag, { borderColor: colors.accent }]}>
-                        <Text style={[styles.foilText, { color: colors.accent }]}>{finish === 'etched' ? 'Etched' : 'Foil'}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                )}
-              </View>
-              {editing && (
+            {/* In the editor only: "Edit" with the card's name, and a tick to go back */}
+            {editing && (
+              <View style={styles.header}>
+                <Text style={[styles.name, styles.headerText, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">Edit {card.name}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Done editing" onPress={stopEditing} hitSlop={6} style={({ pressed }) => [styles.tick, pressed && styles.pressed]}>
                   <Ionicons name="checkmark" size={24} color={colors.accent} />
                 </Pressable>
-              )}
-            </View>
+              </View>
+            )}
 
-            {/* The body scrolls if it's taller than the screen. Wide: picture left, details right. Phone: one column. */}
+            {/* The body scrolls if it's taller than the screen. Wide: the picture (with the
+                name under it) on the left, details right. Phone: one column. */}
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={wide ? styles.bodyWide : styles.bodyNarrow}>
-              <View style={wide ? undefined : styles.pictureCenter}>{picture}</View>
+              {wide ? (
+                <View style={styles.leftColumn}>{picture}{!editing && identity}</View>
+              ) : (
+                <>
+                  <View style={styles.pictureCenter}>{picture}</View>
+                  {!editing && identity}
+                </>
+              )}
               {editing ? edit : view}
             </ScrollView>
           </View>
@@ -451,10 +510,21 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 16, gap: 12,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerText: { flex: 1, minWidth: 0, gap: 4 },
-  name: { fontSize: 20, fontWeight: '700' },
-  subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  subtitle: { fontSize: 13 },
+  headerText: { flex: 1, minWidth: 0 },
+  name: { fontSize: 20, fontWeight: '700', flexShrink: 1 },
+  // Under the picture: the name with its pill, then the set line
+  identity: { gap: 6 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  setLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  setIcon: { width: 18, height: 18 },
+  setText: { fontSize: 14, fontWeight: '600' },
+  leftColumn: { width: 230, gap: 12 },
+  // The bar of language, condition, where it is and how many you own
+  infoBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  infoText: { fontSize: 15 },
+  infoName: { flexShrink: 1 },
+  infoSpace: { width: 16 },
+  smallDrawing: { width: 17, height: 15 },
   foilTag: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 1 },
   foilText: { fontSize: 12, fontWeight: '700' },
   tick: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -466,7 +536,6 @@ const styles = StyleSheet.create({
   // which would squash it to nothing inside the scrolling area)
   details: { minWidth: 0, gap: 12 },
   detailsWide: { flex: 1 },
-  owned: { fontSize: 15, lineHeight: 22 },
   iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
   iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   drawing: { width: 26, height: 22 },

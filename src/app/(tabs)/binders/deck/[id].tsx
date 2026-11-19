@@ -721,7 +721,7 @@ export default function DeckScreen() {
       {menuCard && menuIndex !== null && (
         <CardScreen
           card={menuCard}
-          subtitle={zoneOf(menuCard) === 'command' ? 'Command zone' : zoneOf(menuCard) === 'side' ? 'Sideboard' : 'Main deck'}
+          where={{ kind: 'deck', name: deck?.name ?? '' }}
           copies={zoneOf(menuCard) === 'command' ? undefined : {
             count: cardCount(menuCard), max: MAX_COPIES,
             lessLabel: cardCount(menuCard) > 1 ? 'One fewer copy' : 'Delete from deck',

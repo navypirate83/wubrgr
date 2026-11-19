@@ -427,6 +427,7 @@ export default function ListScreen() {
       {menuCard && menuIndex !== null && (
         <CardScreen
           card={menuCard}
+          where={{ kind: 'list', name: list?.name ?? '' }}
           copies={{
             count: cardCount(menuCard), max: MAX_COPIES,
             lessLabel: cardCount(menuCard) > 1 ? 'One fewer copy' : 'Delete from list',
