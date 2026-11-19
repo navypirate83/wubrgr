@@ -904,7 +904,7 @@ export const helpTopics: HelpTopic[] = [
               (<Strong>−</Strong> and <Strong>+</Strong>), the <Strong>finish</Strong> (tap it to step through the finishes that
               printing comes in: normal, foil, etched), the <Strong>language</Strong> (the card's picture changes to that language)
               and the <Strong>condition</Strong>: Mint (M), Near Mint (NM), Lightly Played (LP), Moderately Played (MP), Heavily Played (HP)
-              or Damaged (Dmg). The line under the card shows the short forms. A card with no condition counts as Near Mint, and the
+              or Damaged (Dmg). The line under the card shows the short forms, and the language by its letters (EN, FR, JA...). A card with no condition counts as Near Mint, and the
               condition is saved with the card in your account and in downloaded files. What the card does (its rules text, without the flavor text) is folded away under <Strong>Show rules</Strong>.
             </P>
           </>

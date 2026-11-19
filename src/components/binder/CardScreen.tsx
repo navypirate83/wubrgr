@@ -136,7 +136,7 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
       <Text style={[styles.owned, { color: colors.text }]}>
         {count} {count === 1 ? 'copy' : 'copies'}
         <Text style={{ color: colors.muted }}>  ·  </Text>{FINISH_WORDS[finish]}
-        <Text style={{ color: colors.muted }}>  ·  </Text>{languageName(langCode)}
+        <Text style={{ color: colors.muted }}>  ·  </Text>{langCode.toUpperCase()}
         <Text style={{ color: colors.muted }}>  ·  </Text>{conditionAbbr}
       </Text>
 
@@ -226,7 +226,12 @@ export default function CardScreen({ card, subtitle, copies, onChange, onOpenFin
       title="Language" anchor={picker.anchor} items={languages.data ?? []} current={languages.data?.find((v) => v.lang === langCode) ?? null}
       keyOf={(version) => version.lang} labelOf={(version) => languageName(version.lang)}
       header={!languages.data ? <Text style={[styles.pickerNote, { color: colors.muted }]}>{languages.isError || print.isError ? 'Couldn\'t load the languages.' : 'Loading languages...'}</Text> : undefined}
-      renderRow={(version) => <SheetRowText text={languageName(version.lang)} bold={version.lang === langCode} />}
+      renderRow={(version) => (
+        <>
+          <SheetRowText text={languageName(version.lang)} bold={version.lang === langCode} />
+          <Text style={[styles.abbr, { color: colors.muted }]}>{version.lang.toUpperCase()}</Text>
+        </>
+      )}
       onPick={(version) => {
         if (version.lang !== langCode) onChange?.(languageEdit(version.lang, imageFor(version, card.face, ['normal', 'large'])));
         setPicker(null);
