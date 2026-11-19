@@ -556,12 +556,12 @@ export const helpTopics: HelpTopic[] = [
             <Bullet><Strong>Card Finder</Strong> (the magnifying glass): the MTG Card Finder, to look up any card.</Bullet>
             <Bullet>
               <Strong>Scan</Strong> (the camera): the card scanner, to point your camera at a card and add it to a binder.
-              In the phone app it uses the phone's own camera and Google's text reader (no internet needed): line a card up in the corners and tap the round button, pinch to zoom, tap the picture to focus, and use the torch button in dim light (the picture button next to it chooses a photo of a card). On a phone with more than one lens on the back, small buttons on the picture (Ultra-wide, Main, Zoom) switch lens while you watch. The <Strong>Auto scan</Strong> button at the top makes the phone look for a card by itself, again and again, and scan it once it has read the same title twice in a row (so a card still sliding in is skipped until it settles); take the card away before the next one (with Stack mode on, that is hands-free). The first time, it asks to use your camera. The rest of this works the same on both. On the website it shows the
+              In the phone app it uses the phone's own camera and Google's text reader (no internet needed): line a card up in the corners and tap the round button, pinch to zoom, tap the picture to focus, and use the torch button in dim light (the picture button next to it chooses a photo of a card). On a phone with more than one lens on the back, small buttons on the picture (Ultra-wide, Main, Zoom) switch lens while you watch. The <Strong>Auto scan</Strong> button at the top makes the phone look for a card by itself, again and again, and scan it once it has read the same title twice in a row (so a card still sliding in is skipped until it settles); take the card away before the next one, or just put a different card down in its place (with Stack mode on, that is hands-free). The first time, it asks to use your camera. The rest of this works the same on both. On the website it shows the
               camera with a card-shaped guide: line a card up in the corners and tap the round button (or tap the picture button
               to choose a photo of a card). The <Strong>Track card</Strong> button at the top switches to a mode with no lining up:
               hold the card at any angle on a plain surface that isn't the same colour as the card, an outline appears around it,
               and when it holds still for a moment it is straightened and scanned by itself (the round button scans it at once).
-              Move the card away, or to a new spot, to scan another. Tap Track card again to go back to the guide. It reads the card's name and the small print at the bottom left, finds the exact
+              Move the card away, or to a new spot, or put a different card down in its place, to scan another. Tap Track card again to go back to the guide. It reads the card's name and the small print at the bottom left, finds the exact
               printing in the <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, and
               slides up a sheet with the card's picture, set and number, how many (− 1 +), the finish button (foil, like in the Card
               Finder), the language (just its letters; the list has the full names) and <Strong>Add to binder</Strong>, which asks
@@ -968,7 +968,7 @@ export const helpTopics: HelpTopic[] = [
             <Step n={3}>
               Tap one of your other binders. The card goes into its first empty pocket, or, if
               that binder already has the same printing (and both are foil, or both aren't), it's
-              added to that card's copies. Full binders are greyed out.
+              added to that card's copies. If that binder has no empty pocket left, a new page is added to it for the card.
             </Step>
             <Step n={4}>
               Or, to start a new binder with the card in it, tap <Strong>New binder</Strong> at the

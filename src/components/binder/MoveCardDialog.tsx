@@ -6,7 +6,7 @@
    kind as the Card Finder's "Add to which binder?"): one row for each of
    your other binders, with its cover color and card count. Tap one and
    the card goes into that binder's first empty pocket (and leaves this
-   one). "New binder" at the end opens the New binder window, and makes
+   one). If every pocket is full, a new page is added to that binder first. "New binder" at the end opens the New binder window, and makes
    a new binder with just this card.
    If the pocket has several copies, the top of the list also asks how
    many to move (− and + buttons); the rest stay here. Copies moved into
@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
-  DEFAULT_PAGES, pocketsPerPage,
+  DEFAULT_PAGES,
   binderName, binderPages, cardCount, firstEmptyPocket, isLocalMode, loadBinder, loadBinderList,
   pocketKey, samePrinting, saveBinder, saveBinderList, withCount,
   type Binder, type BinderCard,
@@ -62,10 +62,9 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel, mode
   const [stage, setStage] = useState<'list' | 'closing' | 'new'>('list');
   const [, setCountsChanged] = useState(0);
 
-  // The other binders, and each one's card count (and whether it's full)
+  // The other binders, and each one's card count (a full binder is fine: it gets a new page)
   const others = loadBinderList().filter((b) => b.id !== binderId);
   const countOf = (binder: Binder) => Object.keys(loadBinder(binder.id)).length;
-  const isFull = (binder: Binder) => countOf(binder) >= binderPages(binder.id) * pocketsPerPage();
 
   // The counts come from this device's copies, which can be out of date
   // (a binder may have been filled on another device). So once the
@@ -105,12 +104,13 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel, mode
         cards[sameKey] = withCount(cards[sameKey], cardCount(cards[sameKey]) + amount);
         page = Number(sameKey.split('-')[0]);
       } else {
-        // Not there yet: use its first gap.
-        const spot = firstEmptyPocket(cards, binderPages(targetId));
+        // Not there yet: use its first gap. If every pocket is taken, the binder gets one more
+        // page (saved in the binder list) and the card goes in that page's first pocket.
+        let spot = firstEmptyPocket(cards, binderPages(targetId));
         if (!spot) {
-          setBusy(false);
-          setMessage({ text: `"${binderName(targetId)}" is full.`, error: true });
-          return;
+          const pages = binderPages(targetId) + 1;
+          saveBinderList(loadBinderList().map((b) => (b.id === targetId ? { ...b, pages } : b)));
+          spot = { page: pages, slot: 1 };
         }
         cards[pocketKey(spot.page, spot.slot)] = withCount(card, amount);
         page = spot.page;
@@ -168,9 +168,9 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel, mode
       keyOf={(binder) => binder.id}
       labelOf={(binder) => {
         const count = countOf(binder);
-        return `${binder.name}, ${isFull(binder) ? 'full' : `${count} ${count === 1 ? 'card' : 'cards'}`}`;
+        return `${binder.name}, ${count} ${count === 1 ? 'card' : 'cards'}`;
       }}
-      isDisabled={(binder) => busy || isFull(binder)}
+      isDisabled={() => busy}
       renderRow={(binder) => {
         const count = countOf(binder);
         return (
@@ -179,7 +179,7 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel, mode
             <CoverSwatch shades={coverLook(binder.cover).shades} style={styles.dot} />
             <SymbolText style={[styles.name, { color: colors.text }]} numberOfLines={1}>{binder.name}</SymbolText>
             <Text style={[styles.count, { color: colors.muted }]}>
-              {isFull(binder) ? 'Full' : `${count} ${count === 1 ? 'card' : 'cards'}`}
+              {count} {count === 1 ? 'card' : 'cards'}
             </Text>
           </>
         );
