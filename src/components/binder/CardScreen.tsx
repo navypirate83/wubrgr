@@ -28,7 +28,7 @@
    ===================================================================== */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Animated, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, BackHandler, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
@@ -107,6 +107,9 @@ const FINISH_WORDS: Record<Finish, string> = { nonfoil: 'Normal', foil: 'Foil', 
 export default function CardScreen({ card, where, copies, onChange, onOpenFinder, onClose, actions, children }: Props) {
   const colors = useColors();
   const dark = useTheme() === 'dark';
+  // The icons in the row grow and shrink a little with the window: smaller on a
+  // very narrow phone, larger on a wide window (the row also shares out its width)
+  const { width: windowWidth } = useWindowDimensions();
   // The set's symbol picture (once it has downloaded), and the rarity's color for it
   const setIcons = useQuery({ queryKey: ['set-icons'], queryFn: loadSetIcons });
   const setIcon = card.set ? setIcons.data?.get(card.set.toLowerCase()) : undefined;
@@ -194,6 +197,7 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
 
   /* ---------- the view: what you own, then the row of icons ---------- */
 
+  const iconSize = windowWidth < 360 ? 22 : wide ? 26 : 24;
   const normalActions = actions.filter((action) => action.kind !== 'danger');
   const dangerActions = actions.filter((action) => action.kind === 'danger');
 
@@ -249,12 +253,12 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
 
       {/* The row of icons, centered: Edit first, then the page's own, then the red trash can */}
       <View style={[styles.iconRow, { borderTopColor: colors.border }]}>
-        <IconButton label="Edit this card" icon="create-outline" onPress={() => setEditing(true)} />
+        <IconButton label="Edit this card" icon="create-outline" size={iconSize} onPress={() => setEditing(true)} />
         {normalActions.map((action) => (
-          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} onPress={action.onPress} />
+          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} />
         ))}
         {dangerActions.map((action) => (
-          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} onPress={action.onPress} danger />
+          <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} danger />
         ))}
       </View>
 
@@ -463,8 +467,8 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
 /* ---------- small pieces ---------- */
 
 // One icon you tap in the row, with an optional small + in its lower-right corner
-function IconButton({ label, icon, picture, plus, danger, onPress }: {
-  label: string; icon?: keyof typeof Ionicons.glyphMap; picture?: number; plus?: boolean; danger?: boolean; onPress: () => void;
+function IconButton({ label, icon, picture, plus, danger, size, onPress }: {
+  label: string; icon?: keyof typeof Ionicons.glyphMap; picture?: number; plus?: boolean; danger?: boolean; size: number; onPress: () => void;
 }) {
   const colors = useColors();
   const color = danger ? colors.error : colors.text;
@@ -472,8 +476,8 @@ function IconButton({ label, icon, picture, plus, danger, onPress }: {
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
       <View>
         {picture !== undefined
-          ? <Image source={picture} style={styles.drawing} contentFit="contain" tintColor={color} />
-          : <Ionicons name={icon ?? 'help-outline'} size={24} color={color} />}
+          ? <Image source={picture} style={{ width: Math.round(size * 1.08), height: Math.round(size * 0.92) }} contentFit="contain" tintColor={color} />
+          : <Ionicons name={icon ?? 'help-outline'} size={size} color={color} />}
         {plus && (
           <View style={[styles.badge, { backgroundColor: colors.accent, borderColor: colors.surface }]}>
             <Ionicons name="add" size={11} color={colors.accentText} />
@@ -536,9 +540,11 @@ const styles = StyleSheet.create({
   // which would squash it to nothing inside the scrolling area)
   details: { minWidth: 0, gap: 12 },
   detailsWide: { flex: 1 },
-  iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
-  iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  drawing: { width: 26, height: 22 },
+  // The icons share the row's width equally (each slot is at most 84 wide, so a wide
+  // pop-up keeps them together in the middle) and each is at least 40 wide, so five
+  // or six still fit on a narrow phone
+  iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
+  iconButton: { flex: 1, maxWidth: 84, minWidth: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
   rulesStrip: { minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 6 },
   grip: { width: 40, height: 4, borderRadius: 2 },
   rulesHint: { fontSize: 12 },
