@@ -5,9 +5,10 @@
    It lists everyone with an account, when each was last used, and the rights each has:
      - No extra rights: the normal app
      - PRISM: also the PRISM section
-     - Admin: everything, PRISM included, and this page
+     - AIScan: also the scanner's AI art matching option (it downloads the AI files)
+     - Admin: everything, PRISM and AIScan included, and this page
    Search by name or email, or narrow the list with the buttons (All, Admin,
-   PRISM, No extra rights). Tap a person to change their rights (Save) or to
+   PRISM, AIScan, No extra rights). Tap a person to change their rights (Save) or to
    delete them and everything they own.
    Deleting asks twice: a window listing what goes, with a box where the person's
    name has to be typed before the red button turns on.
@@ -33,11 +34,12 @@ import { RIGHTS_ABOUT, RIGHTS_LABEL, deletePerson, joinedText, lastAccessText, l
 // The page is never wider than this (points)
 const PAGE_MAX_WIDTH = 900;
 
-const LEVELS: Rights[] = ['user', 'prism', 'admin'];
+const LEVELS: Rights[] = ['user', 'prism', 'aiscan', 'admin'];
 const FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'admin', label: 'Admin' },
   { id: 'prism', label: 'PRISM' },
+  { id: 'aiscan', label: 'AIScan' },
   { id: 'user', label: 'No extra rights' },
 ] as const;
 type FilterId = (typeof FILTERS)[number]['id'];
@@ -199,11 +201,11 @@ export default function AdminScreen() {
               {/* When this account was last used */}
               <Text style={[styles.lastSeen, { color: colors.muted }]} numberOfLines={1}>Last used: {lastAccessText(item.lastAccessAt)}</Text>
             </View>
-            {/* The level, as a pill: Admin in the accent color, PRISM in purple, the rest quiet */}
+            {/* The level, as a pill: Admin in the accent color, PRISM in purple, AIScan in blue, the rest quiet */}
             <View style={[styles.pill, {
-              backgroundColor: item.role === 'admin' ? `${colors.accent}33` : item.role === 'prism' ? `${colors.manaB}33` : colors.surfaceHover,
+              backgroundColor: item.role === 'admin' ? `${colors.accent}33` : item.role === 'prism' ? `${colors.manaB}33` : item.role === 'aiscan' ? `${colors.manaU}33` : colors.surfaceHover,
             }]}>
-              <Text style={[styles.pillText, { color: item.role === 'admin' ? colors.accent : item.role === 'prism' ? colors.manaB : colors.muted }]}>
+              <Text style={[styles.pillText, { color: item.role === 'admin' ? colors.accent : item.role === 'prism' ? colors.manaB : item.role === 'aiscan' ? colors.manaU : colors.muted }]}>
                 {RIGHTS_LABEL[item.role]}
               </Text>
             </View>
@@ -248,7 +250,7 @@ export default function AdminScreen() {
             {/* Admin can change everyone's rights, so giving it gets a warning first */}
             {choice === 'admin' && picked.role !== 'admin' && (
               <Text style={[styles.warn, { borderColor: colors.error, color: colors.text }]}>
-                <Text style={{ color: colors.error, fontWeight: '700' }}>Admin can change everyone's rights.</Text> Only give it to someone you trust. An Admin also has PRISM.
+                <Text style={{ color: colors.error, fontWeight: '700' }}>Admin can change everyone's rights.</Text> Only give it to someone you trust. An Admin also has PRISM and AIScan.
               </Text>
             )}
             {isMe && (

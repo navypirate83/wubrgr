@@ -4,13 +4,15 @@
    (aiIndex.ts), the model for this device (aiModel) and the clue maker
    (aiClue.ts). scanResolve.ts calls aiScoresForReading when the card has
    several printings to tell apart and the "AI art matching" option is on.
-   It answers null whenever the AI can't be used (no pictures from the camera,
+   It answers null whenever the AI can't be used (an account without AI scanner
+   access, even if the option was switched on earlier; no pictures from the camera,
    a device with no model, files not downloaded, ...), and the caller also
    wraps it so that anything that goes wrong just means "no AI clue".
    The saved fingerprints are read from the browser's storage once, the first
    time they're needed, and kept in memory after that (about 17 MB).
    ===================================================================== */
 
+import { hasAiScanAccess } from '../../session';
 import type { Printing } from '../core/catalogueTypes';
 import type { ScanReading } from '../core/scannerTypes';
 import { aiScoresFor } from './aiClue';
@@ -40,6 +42,8 @@ export function forgetAiIndex(): void {
 
 // The AI closeness of the photo to each of these printings (null: the AI can't help here)
 export async function aiScoresForReading(reading: ScanReading, printings: Printing[]): Promise<Map<string, number> | null> {
+  // Only accounts with AI scanner access may use it, whatever the saved option says
+  if (!hasAiScanAccess()) return null;
   if (!reading.aiPictures || !aiModel.available || !(await aiReady())) return null;
   const pictures = await reading.aiPictures();
   if (pictures.length === 0) return null;

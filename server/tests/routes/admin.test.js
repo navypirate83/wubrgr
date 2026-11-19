@@ -29,9 +29,9 @@ const as = (user) => ({
 });
 
 describe('only admins get in', () => {
-  test('an ordinary account and a prism account are turned away from every admin route', async () => {
+  test('an ordinary, a prism and an aiscan account are turned away from every admin route', async () => {
     const target = await makeUser();
-    for (const role of ['user', 'prism']) {
+    for (const role of ['user', 'prism', 'aiscan']) {
       const me = as(await makeUser({ role }));
       expect((await me.get('/admin/users')).status).toBe(403);
       expect((await me.patch(`/admin/users/${target._id}`, { role: 'admin' })).status).toBe(403);

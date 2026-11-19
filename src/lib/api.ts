@@ -147,6 +147,25 @@ export async function apiRequest<T = unknown>(
   return data as T;
 }
 
+// Ask the server for a FILE (not JSON), with the login token added, and get the raw
+// reply back so the caller can read it piece by piece (for a progress bar). It
+// renews an expired token and tries again once, just like apiRequest. A "no" from
+// the server (not signed in, no access, not found) throws an ApiError with the
+// server's own sentence. Throws RequestError if there is no reply at all.
+export async function apiDownload(path: string, timeoutMs: number = SERVER_TIMEOUT_MS): Promise<Response> {
+  let response = await sendOnce(path, 'GET', undefined, true, timeoutMs);
+  if (response.status === 401) {
+    if (await refreshOnce()) response = await sendOnce(path, 'GET', undefined, true, timeoutMs);
+    else handlers.signedOut();
+  }
+  if (!response.ok) {
+    let message = 'Something went wrong.';
+    try { message = ((await response.json()) as { error?: string }).error ?? message; } catch { /* not JSON: keep the plain message */ }
+    throw new ApiError(response.status, message);
+  }
+  return response;
+}
+
 // Is this error "no reply at all" (offline, slow, unreachable)? Used to
 // decide to keep changes on the device and try again later.
 export function isOffline(err: unknown): boolean {

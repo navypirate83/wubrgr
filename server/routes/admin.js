@@ -5,7 +5,7 @@
    admin can NOT read other people's binders or lists (a privacy choice).
    - GET    /admin/users        everyone's account details (never passwords), a page at a time,
                                 including when each account was last used (lastAccessAt)
-   - PATCH  /admin/users/:id    change one person's rights: { role: "user" | "prism" | "admin" }
+   - PATCH  /admin/users/:id    change one person's rights: { role: "user" | "prism" | "aiscan" | "admin" }
    - DELETE /admin/users/:id    delete a person and everything they own: { name } must be
                                 their name (or username, or email) typed out, as a last check
    Two rules protect the admins: nobody can change or delete their OWN account here (so an
@@ -38,7 +38,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
-const ROLES = ['user', 'prism', 'admin'];
+const ROLES = ['user', 'prism', 'aiscan', 'admin'];
 
 // The person in the address, or null (no such account, or not even an id)
 async function findPerson(id) {
@@ -54,7 +54,7 @@ async function isLastAdmin(person) {
 router.patch('/users/:id', async (req, res) => {
   try {
     const role = req.body?.role;
-    if (!ROLES.includes(role)) return res.status(400).json({ error: 'The rights must be user, prism or admin' });
+    if (!ROLES.includes(role)) return res.status(400).json({ error: 'The rights must be user, prism, aiscan or admin' });
     const person = await findPerson(req.params.id);
     if (!person) return res.status(404).json({ error: 'No such person' });
     if (String(person._id) === req.user.sub) return res.status(403).json({ error: 'You can\'t change your own rights' });

@@ -76,6 +76,11 @@ export function getServerUser(): ServerUser | null {
 export function hasPrismAccess(who: ServerUser | null = user): boolean {
   return who?.role === 'prism' || who?.role === 'admin';
 }
+// May this person download and use the AI scanner files? Accounts with the "aiscan" role may,
+// and so may admins. (The server checks it again on every download.)
+export function hasAiScanAccess(who: ServerUser | null = user): boolean {
+  return who?.role === 'aiscan' || who?.role === 'admin';
+}
 // Is this an admin? (Only admins see the Admin page; the server checks it again on every request.)
 export function isAdminUser(who: ServerUser | null = user): boolean {
   return who?.role === 'admin';

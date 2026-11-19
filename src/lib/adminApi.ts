@@ -3,7 +3,7 @@
    Only an account with the Admin right can use these (the server refuses
    everyone else, whatever the app does). They are:
      - listPeople: everyone with an account, with their rights and when they last used it
-     - setRights: give or take away PRISM or Admin
+     - setRights: give or take away PRISM, AIScan or Admin
      - deletePerson: delete a person and everything they own (the person's
        name has to be sent too: the page makes you type it)
    The server also refuses to change or delete your own account, and to take
@@ -13,8 +13,8 @@
 
 import { apiRequest } from './api';
 
-// The three levels of rights. Admin includes PRISM (and everything else).
-export type Rights = 'user' | 'prism' | 'admin';
+// The four levels of rights. Admin includes PRISM and AIScan (and everything else).
+export type Rights = 'user' | 'prism' | 'aiscan' | 'admin';
 
 export type Person = {
   id: string;
@@ -30,11 +30,12 @@ export type Person = {
 type ServerPerson = { _id: string; email: string; username?: string; name?: string; role?: string; createdAt?: string; lastAccessAt?: string };
 
 // The words for each level, shown on the page
-export const RIGHTS_LABEL: Record<Rights, string> = { user: 'No extra rights', prism: 'PRISM', admin: 'Admin' };
+export const RIGHTS_LABEL: Record<Rights, string> = { user: 'No extra rights', prism: 'PRISM', aiscan: 'AIScan', admin: 'Admin' };
 export const RIGHTS_ABOUT: Record<Rights, string> = {
   user: 'The normal app: shelf, binders, lists, decks, scanner and Card Finder.',
   prism: 'Everything above, plus the PRISM section.',
-  admin: 'Everything, PRISM included, plus the Admin page.',
+  aiscan: 'Everything above, plus the AI art matching option in the scanner (it downloads the AI files).',
+  admin: 'Everything, PRISM and AIScan included, plus the Admin page.',
 };
 
 const PAGE = 100;       // the server sends at most 100 people at a time
@@ -50,7 +51,7 @@ export async function listPeople(): Promise<Person[]> {
         email: p.email,
         username: p.username ?? p.email,
         name: p.name?.trim() || p.username || p.email,
-        role: p.role === 'admin' || p.role === 'prism' ? p.role : 'user',
+        role: p.role === 'admin' || p.role === 'prism' || p.role === 'aiscan' ? p.role : 'user',
         createdAt: p.createdAt ?? '',
         lastAccessAt: p.lastAccessAt ?? '',
       });

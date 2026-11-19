@@ -580,7 +580,9 @@ export const helpTopics: HelpTopic[] = [
               choices, <Strong>Best guess</Strong> takes the most likely printing and carries on, and you can still change a card in the list),
               <Strong>Start cards as</Strong> (non-foil or foil), <Strong>Show how long each scan took</Strong> and, on the website only for now,
               <Strong>AI art matching (experimental)</Strong>: an extra way of telling printings of the same card apart by comparing their artwork
-              with an AI model. It is off until you turn it on, and needs a one-time download of about 42 MB (the line under the switch says
+              with an AI model. It only shows for accounts with the <Strong>AIScan</Strong> right (and Admins), given on the Admin page; everyone
+              else doesn't see it, and the scanner never uses the AI for them. It is off until you turn it on, and needs a one-time download of about 42 MB
+              from the WUBRG'r server (the line under the switch says
               <Strong>AI files not downloaded</Strong> and has a <Strong>Download AI files</Strong> button, then <Strong>AI files: ready</Strong>);
               without the files it does nothing and the scanner works as usual. Once the catalogue is on the device, and you've opened the
               scanner once with a connection, it works with no internet.
@@ -1703,8 +1705,9 @@ export const helpTopics: HelpTopic[] = [
           <>
             <P>
               The page lists everyone with an account, with a pill for what they can do. <Strong>No extra rights</Strong> is the
-              normal app. <Strong>PRISM</Strong> also shows the PRISM section. <Strong>Admin</Strong> is everything, PRISM
-              included, and this page. Search by name or email, or use the buttons (All, Admin, PRISM, No extra rights, each with a
+              normal app. <Strong>PRISM</Strong> also shows the PRISM section. <Strong>AIScan</Strong> also shows the scanner's
+              AI art matching option, which downloads the AI files from the server. <Strong>Admin</Strong> is everything, PRISM
+              and AIScan included, and this page. Each person has one level. Search by name or email, or use the buttons (All, Admin, PRISM, AIScan, No extra rights, each with a
               count) to narrow the list. Under each email, <Strong>Last used</Strong> says when the account was last signed in
               to or renewed its login (it updates about every 15 minutes while the app is open). Accounts that haven't been
               used since that began say "Not since tracking began".

@@ -13,6 +13,8 @@
    - AI ART MATCHING (website only for now): an optional extra way of telling printings apart by their
      artwork, using an AI model. It needs some files downloaded once; the sheet says whether they are here
      and has the Download button. With it off, or the files missing, nothing changes.
+     It is only shown to accounts with AI scanner access (the AIScan role, or an admin); for everyone
+     else this part of the sheet is not there at all, and the scanner never uses the AI.
    Each change is saved straight away, on this device (see lib/scanner/scanSettings.ts).
    ===================================================================== */
 
@@ -22,6 +24,7 @@ import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { PickerButton, PickerSheet, type Anchor } from '@/components/search/PickerSheet';
 import { SettingBlock, SwitchRow } from '@/components/settings/SettingsParts';
+import { useAccount } from '@/hooks/useAccount';
 import { useColors } from '@/hooks/useTheme';
 import { allSets } from '@/lib/scanner/catalogue/catalogue';
 import type { SetInfo } from '@/lib/scanner/core/catalogueTypes';
@@ -121,6 +124,8 @@ function AiFilesStatus() {
 
 export default function ScanSettingsSheet({ options, onChange, onClose }: Props) {
   const colors = useColors();
+  // Whether this account may use the AI at all (the AI part of the sheet is hidden if not)
+  const { hasAiScan } = useAccount();
   // Every set in the catalogue (read once when the sheet opens), and whether the set list is open
   const [sets, setSets] = useState<SetInfo[]>([]);
   const [listOpen, setListOpen] = useState(false);
@@ -168,8 +173,9 @@ export default function ScanSettingsSheet({ options, onChange, onClose }: Props)
 
         <SwitchRow name="Show how long each scan took" value={options.showTimings} onChange={(showTimings) => onChange({ showTimings })} />
 
-        {/* AI art matching: only where this build can run the AI model (the website for now) */}
-        {aiModel.available && (
+        {/* AI art matching: only where this build can run the AI model (the website for now),
+            and only for an account with AI scanner access */}
+        {aiModel.available && hasAiScan && (
           <>
             <SwitchRow
               name="AI art matching (experimental)"

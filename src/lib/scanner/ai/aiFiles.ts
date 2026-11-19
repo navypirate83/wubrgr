@@ -5,16 +5,19 @@
    card catalogue's. This file:
    - aiReady(): are all four files saved here? (false in the Android app, which
      has no browser storage and, for now, no AI)
-   - checkAiRemote(): reads the download folder's ai.json (null if it can't be reached)
+   - checkAiRemote(): reads the server's ai.json (null if it can't be reached or this account may not)
    - downloadAiFiles(): downloads every file, with progress, checks each one's
      size (and its checksum when the browser can work one out) and saves it
    - readAiFile(): gives back a saved file's bytes
    - removeAiFiles(): deletes them
+   The files come from the WUBRG'r server and only to an account with AI scanner
+   access, so every download sends the login token (and renews it if it ran out).
    Everything that can go wrong ends up as a thrown message or a "no", and the
    scanner then just works the way it did before the AI existed.
    ===================================================================== */
 
-import { AI_FILE_NAMES, AI_URL, SUPPORTED_AI_VERSION, type AiFileName, type AiManifest } from './aiConfig';
+import { ApiError, apiDownload } from '../../api';
+import { AI_FILE_NAMES, AI_PATH, SUPPORTED_AI_VERSION, type AiFileName, type AiManifest } from './aiConfig';
 
 // The browser's saved-file store: one database with one "shelf" of files, each kept under its name
 const DATABASE = 'wubrgr-ai';
@@ -71,14 +74,36 @@ export async function readAiFile(name: AiFileName): Promise<Uint8Array | null> {
   return saved('get', name);
 }
 
-// What the download folder says the files are (null: no address, can't be reached, or a design this app doesn't know)
+// Turn the server saying "no" into a sentence for the person (anything else keeps its own message)
+function plainProblem(err: unknown): Error {
+  if (err instanceof ApiError) {
+    if (err.status === 401) return new Error('Please sign in to download the AI files.');
+    if (err.status === 403) return new Error("Your account doesn't have AI scanner access.");
+    if (err.status === 404) return new Error('The AI files are not on the server yet.');
+    if (err.status === 429) return new Error('Too many tries just now. Please wait a minute and try again.');
+  }
+  return err instanceof Error ? err : new Error('The AI files could not be reached. Check your connection and try again.');
+}
+
+// What the server says the files are. Throws a plain-English problem if the server says no or can't be reached,
+// or if the list is in a design this app doesn't know yet.
+async function fetchManifest(): Promise<AiManifest> {
+  let manifest: AiManifest;
+  try {
+    manifest = (await (await apiDownload(`${AI_PATH}/ai.json`)).json()) as AiManifest;
+  } catch (err) {
+    throw plainProblem(err);
+  }
+  if (!manifest || typeof manifest !== 'object' || manifest.version > SUPPORTED_AI_VERSION || !manifest.files) {
+    throw new Error('The AI files on the server need a newer version of the app.');
+  }
+  return manifest;
+}
+
+// What the server says the files are (null if it can't be said: no access, no connection, or a design this app doesn't know)
 export async function checkAiRemote(): Promise<AiManifest | null> {
   try {
-    const response = await fetch(`${AI_URL}/ai.json`, { cache: 'no-store' });
-    if (!response.ok) return null;
-    const manifest = (await response.json()) as AiManifest;
-    if (!manifest || typeof manifest !== 'object' || manifest.version > SUPPORTED_AI_VERSION || !manifest.files) return null;
-    return manifest;
+    return await fetchManifest();
   } catch {
     return null;
   }
@@ -95,8 +120,12 @@ async function checksum(bytes: Uint8Array): Promise<string | null> {
 
 // Download one file, reading it in pieces so progress can be reported. "onBytes" hears how many bytes each new piece added.
 async function fetchFile(name: AiFileName, onBytes: (added: number) => void): Promise<Uint8Array> {
-  const response = await fetch(`${AI_URL}/${name}`);
-  if (!response.ok) throw new Error(`The AI file ${name} could not be downloaded (${response.status})`);
+  let response: Response;
+  try {
+    response = await apiDownload(`${AI_PATH}/${name}`);
+  } catch (err) {
+    throw plainProblem(err);
+  }
   const reader = response.body?.getReader?.();
   if (!reader) {
     const whole = new Uint8Array(await response.arrayBuffer());
@@ -122,8 +151,7 @@ async function fetchFile(name: AiFileName, onBytes: (added: number) => void): Pr
 // Nothing is saved until every file has arrived whole, so a broken download leaves the old files as they were.
 export async function downloadAiFiles(onProgress?: (fraction: number) => void): Promise<void> {
   if (!haveStorage()) throw new Error('This device cannot keep the AI files');
-  const manifest = await checkAiRemote();
-  if (!manifest) throw new Error('The AI files could not be reached. Check your connection and try again.');
+  const manifest = await fetchManifest();
   const total = AI_FILE_NAMES.reduce((sum, name) => sum + (manifest.files[name]?.bytes ?? 0), 0);
   let received = 0;
   const arrived: { name: AiFileName; bytes: Uint8Array }[] = [];

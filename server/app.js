@@ -14,7 +14,7 @@ import cors from 'cors';
 import { rateLimit } from 'express-rate-limit';
 import { loadConfig } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { requireAuth, requireAdmin, requirePrism } from './middleware/auth.js';
+import { requireAuth, requireAdmin, requirePrism, requireAiScan } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import bindersRouter from './routes/binders.js';
 import listsRouter from './routes/lists.js';
@@ -22,6 +22,7 @@ import decksRouter from './routes/decks.js';
 import settingsRouter from './routes/settings.js';
 import prismRouter from './routes/prism.js';
 import adminRouter from './routes/admin.js';
+import aiFilesRouter from './routes/aiFiles.js';
 import makeScryfallRouter from './routes/scryfall.js';
 import { createImportRouter } from './routes/importDeck.js';
 
@@ -115,6 +116,16 @@ app.use('/decks', requireAuth, decksRouter);
 app.use('/settings', requireAuth, settingsRouter);
 // The person's PRISM sets (only accounts with the PRISM role, and admins)
 app.use('/prism', requireAuth, requirePrism, prismRouter);
+// The AI scanner's files (only accounts with the AI scanner role, and admins).
+// They are big downloads, so this route has its own, stricter limit per
+// visitor (30 requests a minute: a whole download is only 5 requests).
+app.use('/ai', rateLimit({
+  windowMs: 60 * 1000,
+  limit: Math.min(config.rateLimitMax, 30),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please wait a minute and try again.' },
+}), requireAuth, requireAiScan, aiFilesRouter);
 // Card information from Scryfall, for logged-in people only (each person
 // has their own limit per minute, so nobody can use up the shared allowance)
 app.use('/scryfall', requireAuth, makeScryfallRouter(config.scryfallRateLimitMax));

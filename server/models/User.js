@@ -20,9 +20,10 @@ const userSchema = new mongoose.Schema(
     // The email: saved lowercase and trimmed, and no two accounts share one
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
     name: { type: String, trim: true, maxlength: 100 },
-    // "user", "admin" or "prism" (who may see the PRISM section: an admin
-    // can too). Nobody can set this through the API: it is set in the database.
-    role: { type: String, enum: ['user', 'admin', 'prism'], default: 'user' },
+    // "user", "admin", "prism" or "aiscan" (who may see the PRISM section, or
+    // download the AI scanner files: an admin can do both). Only an admin can
+    // change this, through the admin route; signing up never sets it.
+    role: { type: String, enum: ['user', 'admin', 'prism', 'aiscan'], default: 'user' },
     // Google's own stable id for the person (only for Google sign-ins).
     // Its unique rule is "sparse": accounts without one don't clash.
     googleId: { type: String, maxlength: 255 },
