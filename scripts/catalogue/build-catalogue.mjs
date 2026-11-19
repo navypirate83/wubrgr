@@ -293,6 +293,12 @@ const SCHEMA = `
     id TEXT PRIMARY KEY, full_art INTEGER NOT NULL, textless INTEGER NOT NULL,
     frame_effects TEXT NOT NULL, promo_types TEXT NOT NULL
   );
+  -- FLAVOR NAMES: some printings (Secret Lair, Universes Beyond...) show another name on the card than
+  -- the card's real one (Command Tower printed as "Croft Manor"). One row for each flavor name: the
+  -- name in the plain matching form (see text.ts) and the printing it belongs to. A new table, so
+  -- apps that don't know about it never ask for it.
+  CREATE TABLE flavor (flavor_norm TEXT NOT NULL, id TEXT NOT NULL);
+  CREATE INDEX flavor_name ON flavor (flavor_norm);
   CREATE INDEX printings_set_number ON printings (set_code, collector_number);
   CREATE INDEX printings_front ON printings (front_norm);
   CREATE INDEX printings_illus ON printings (illus);
@@ -319,12 +325,19 @@ async function main() {
   const rows = [];
   // The printings that look unusual (full art, showcase...): their id and look
   const looks = [];
+  // Each flavor name a printing wears, with the printing's id (a card's own, and each face's)
+  const flavors = [];
   let digitalSkipped = 0;
   for await (const card of cardsIn(defaultFile)) {
     if (!(card.games ?? []).includes('paper')) { digitalSkipped++; continue; }
     rows.push(printingRow(card));
     const look = lookFromScryfall(card);
     if (needsLookRow(look)) looks.push({ id: card.id, ...lookToRow(look) });
+    const flavorNames = new Set([card.flavor_name, ...(Array.isArray(card.card_faces) ? card.card_faces.map((f) => f.flavor_name) : [])].filter(Boolean));
+    for (const flavor of flavorNames) {
+      const plain = normalizeName(String(flavor).split(' // ')[0]);
+      if (plain) flavors.push({ flavor_norm: plain, id: card.id });
+    }
   }
   const wanted = [...new Set(rows.flatMap((r) => [r.illus, r.illus_back]).filter(Boolean))];
 
@@ -362,6 +375,8 @@ async function main() {
   for (const row of rows) addPrinting.run(...columns.map((c) => row[c]));
   const addLook = db.prepare('INSERT INTO looks (id, full_art, textless, frame_effects, promo_types) VALUES (?, ?, ?, ?, ?)');
   for (const look of looks) addLook.run(look.id, look.full_art, look.textless, look.frame_effects, look.promo_types);
+  const addFlavor = db.prepare('INSERT INTO flavor (flavor_norm, id) VALUES (?, ?)');
+  for (const flavor of flavors) addFlavor.run(flavor.flavor_norm, flavor.id);
   const addArt = db.prepare('INSERT INTO art (illus, hash) VALUES (?, ?)');
   let artRows = 0;
   for (const id of wanted) {
@@ -393,6 +408,7 @@ async function main() {
   const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
   console.log('\nDONE');
   console.log(`  printings:  ${rows.length} (paper; ${digitalSkipped} digital-only left out)`);
+  console.log(`  flavor names: ${flavors.length} printings wear another name (Croft Manor on a Command Tower...)`);
   console.log(`  looks:      ${looks.length} printings look unusual (full art, showcase, extended art, etched...)`);
   console.log(`  sets:       ${sets.length} (${sets.filter((s) => symbols[s.icon_svg_uri]).length} with a symbol bitmap)`);
   console.log(`  art hashes: ${artRows} of ${wanted.length} illustrations wanted`);

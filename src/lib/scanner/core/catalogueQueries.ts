@@ -27,6 +27,10 @@ export const SQL = {
   // Every set with its name, release date and symbol picture address, newest first (for choosing a set to lock to)
   allSets: 'SELECT code, name, released, icon_url FROM sets ORDER BY released DESC, name',
   frontNames: 'SELECT DISTINCT front_norm FROM printings',
+  // Flavor names (another name printed on a card, like Croft Manor on a Command Tower). A catalogue
+  // built before this existed has no such table, so asking can fail: the callers cope with that.
+  flavorNames: 'SELECT DISTINCT flavor_norm FROM flavor',
+  byFlavorName: `${PRINTING_SELECT} WHERE p.id IN (SELECT id FROM flavor WHERE flavor_norm = ?) ORDER BY p.released`,
   setSymbol: 'SELECT symbol FROM sets WHERE code = ?',
   artHash: 'SELECT hash FROM art WHERE illus = ?',
   // The special looks (full art, showcase...) of these printings: add "(?, ?, ...)" with one ? for each id.

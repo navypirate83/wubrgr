@@ -146,7 +146,16 @@ export async function findPrintings(setCode: string, collectorNumber: string, la
 
 // Every printing of a card by its (front) name, spelled any way (case, accents and punctuation don't matter)
 export async function printingsNamed(name: string): Promise<Printing[]> {
-  return withLooks((await catalogueDb.all(SQL.byFrontName, [normalizeName(name.split(' // ')[0])])).map(rowToPrinting));
+  const plain = normalizeName(name.split(' // ')[0]);
+  const rows = await catalogueDb.all(SQL.byFrontName, [plain]);
+  if (rows.length > 0) return withLooks(rows.map(rowToPrinting));
+  // Not a card's real name: maybe a flavor name printed on it (like Croft Manor on a Command Tower).
+  // That gives just the printing(s) wearing that name. An older catalogue has no such table.
+  try {
+    return withLooks((await catalogueDb.all(SQL.byFlavorName, [plain])).map(rowToPrinting));
+  } catch {
+    return [];
+  }
 }
 
 // Printings whose front name starts with this (for typing a name in)
@@ -175,7 +184,16 @@ export async function allSets(): Promise<SetInfo[]> {
 // the first time it's asked for, for the scanner's fuzzy name matching
 let frontNames: string[] | null = null;
 export async function allFrontNames(): Promise<string[]> {
-  if (!frontNames) frontNames = (await catalogueDb.all(SQL.frontNames)).map((r) => String(r.front_norm));
+  if (!frontNames) {
+    const names = (await catalogueDb.all(SQL.frontNames)).map((r) => String(r.front_norm));
+    // plus the flavor names printed on some cards (an older catalogue has none)
+    try {
+      const flavor = (await catalogueDb.all(SQL.flavorNames)).map((r) => String(r.flavor_norm));
+      frontNames = [...new Set([...names, ...flavor])];
+    } catch {
+      frontNames = names;
+    }
+  }
   return frontNames;
 }
 
