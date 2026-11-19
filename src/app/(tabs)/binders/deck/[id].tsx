@@ -65,7 +65,7 @@ import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import DeckSearchBar, { type DeckSearchMode } from '@/components/decks/DeckSearchBar';
 import CardList, { type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
-import CardRules from '@/components/binder/CardRules';
+import CardScreen from '@/components/binder/CardScreen';
 import AddToCollectionDialog from '@/components/decks/AddToCollectionDialog';
 import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
@@ -714,14 +714,43 @@ export default function DeckScreen() {
         <Pressable accessibilityLabel="Close the card search" style={styles.cover} onPress={() => setAddOpen(false)} />
       )}
 
-      {/* THE CARD'S WINDOW: its picture (tap it to open the card in the Card
-          Finder), what it does, how many copies, then Move to a binder and
-          Delete from deck */}
+      {/* THE CARD SCREEN: its picture (tap it to open the card in the Card
+          Finder), how many copies, Open in Card Finder, then the deck's own
+          buttons (command zone, sideboard, add to a binder or list, delete),
+          and the rules folded away (see CardScreen.tsx) */}
       {menuCard && menuIndex !== null && (
-        <PopupWindow title={menuCard.name} onClose={() => setMenuIndex(null)}
-                     buttons={[{ label: 'Close', onPress: () => setMenuIndex(null), kind: 'secondary' }]}>
-          <CardRules card={menuCard}
-                     onOpen={() => { const card = menuCard; const spot = menuIndex; setMenuIndex(null); router.push(finderLinkFor(id, spot, card) as never); }} />
+        <CardScreen
+          card={menuCard}
+          subtitle={zoneOf(menuCard) === 'command' ? 'Command zone' : zoneOf(menuCard) === 'side' ? 'Sideboard' : 'Main deck'}
+          copies={zoneOf(menuCard) === 'command' ? undefined : {
+            count: cardCount(menuCard), max: MAX_COPIES,
+            lessLabel: cardCount(menuCard) > 1 ? 'One fewer copy' : 'Delete from deck',
+            onLess: () => changeCopies(menuIndex, -1),
+            onMore: () => changeCopies(menuIndex, 1),
+          }}
+          onOpenFinder={() => { const card = menuCard; const spot = menuIndex; setMenuIndex(null); router.push(finderLinkFor(id, spot, card) as never); }}
+          onClose={() => setMenuIndex(null)}
+          actions={[
+            /* The command zone: put this card in its spot (or take it back out) */
+            ...(format.command && zoneOf(menuCard) === 'main' && canMake ? [{
+              label: format.command.kind === 'oathbreaker'
+                ? ((menuCard.typeLine ?? '').includes('Planeswalker') ? 'Make Oathbreaker' : 'Make signature spell')
+                : 'Make commander',
+              icon: 'star-outline' as const, onPress: () => makeCommander(menuIndex),
+            }] : []),
+            /* The sideboard */
+            ...(format.sideboard > 0 && zoneOf(menuCard) === 'main'
+              ? [{ label: 'Move to sideboard', icon: 'arrow-down-outline' as const, onPress: () => moveCardTo(menuIndex, 'side') }] : []),
+            ...(zoneOf(menuCard) === 'side'
+              ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => moveCardTo(menuIndex, 'main') }] : []),
+            ...(zoneOf(menuCard) === 'command'
+              ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); } }] : []),
+            /* A card you don't own (a solid red border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */
+            ...(marks.get(menuCard) === 'card'
+              ? [{ label: 'Add to a binder/list', icon: 'albums-outline' as const, onPress: () => addToCollection(menuIndex) }] : []),
+            { label: 'Delete from deck', icon: 'trash-outline' as const, kind: 'danger' as const, onPress: () => confirmDelete(menuIndex) },
+          ]}
+        >
           {/* The printings you own of this card (a dashed red border): tap one to use it */}
           {marks.get(menuCard) === 'printing' && menuChoices.length > 0 && (
             <View style={styles.printings}>
@@ -743,45 +772,7 @@ export default function DeckScreen() {
               <Button label="Done" kind="secondary" onPress={() => setMenuIndex(null)} />
             </View>
           )}
-          {/* How many copies: − and + (a command zone card is always one) */}
-          {zoneOf(menuCard) !== 'command' && (
-            <View style={styles.menuCopies}>
-              <Button label="−" kind="secondary" accessibilityLabel={cardCount(menuCard) > 1 ? 'One fewer copy' : 'Delete from deck'}
-                      onPress={() => changeCopies(menuIndex, -1)} />
-              <Text style={[styles.menuCount, { color: colors.text }]}>
-                {cardCount(menuCard)} {cardCount(menuCard) === 1 ? 'copy' : 'copies'}
-              </Text>
-              <Button label="+" kind="secondary" accessibilityLabel="One more copy" disabled={cardCount(menuCard) >= MAX_COPIES}
-                      onPress={() => changeCopies(menuIndex, 1)} />
-            </View>
-          )}
-          <View style={styles.menu}>
-            {/* The command zone: put this card in its spot (or take it back out) */}
-            {format.command && zoneOf(menuCard) === 'main' && canMake && (
-              <Button
-                label={format.command.kind === 'oathbreaker'
-                  ? ((menuCard.typeLine ?? '').includes('Planeswalker') ? 'Make Oathbreaker' : 'Make signature spell')
-                  : 'Make commander'}
-                icon="star-outline" kind="secondary" onPress={() => makeCommander(menuIndex)} />
-            )}
-            {/* The sideboard */}
-            {format.sideboard > 0 && zoneOf(menuCard) === 'main' && (
-              <Button label="Move to sideboard" icon="arrow-down-outline" kind="secondary" onPress={() => moveCardTo(menuIndex, 'side')} />
-            )}
-            {zoneOf(menuCard) === 'side' && (
-              <Button label="Move to main deck" icon="arrow-up-outline" kind="secondary" onPress={() => moveCardTo(menuIndex, 'main')} />
-            )}
-            {zoneOf(menuCard) === 'command' && (
-              <Button label="Move to main deck" icon="arrow-up-outline" kind="secondary"
-                      onPress={() => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); }} />
-            )}
-            {/* A card you don't own (a solid red border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */}
-            {marks.get(menuCard) === 'card' && (
-              <Button label="Add to a binder/list" icon="albums-outline" kind="secondary" onPress={() => addToCollection(menuIndex)} />
-            )}
-            <Button label="Delete from deck" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuIndex)} />
-          </View>
-        </PopupWindow>
+        </CardScreen>
       )}
 
       {/* THE POWER BRACKET WINDOW: the five brackets, and "Not rated". Tapping one saves it and closes the window. */}
@@ -886,9 +877,6 @@ const styles = StyleSheet.create({
   printChoice: { alignItems: 'center', gap: 4, width: 84 },
   printPicture: { width: 84, height: 117, borderRadius: 6 },
   printLabel: { fontSize: 12 },
-  menuCopies: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
-  menuCount: { fontSize: 16, fontWeight: '600', minWidth: 90, textAlign: 'center' },
-  menu: { gap: 8 },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   missingText: { fontSize: 16, textAlign: 'center' },
 });

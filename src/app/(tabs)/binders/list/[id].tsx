@@ -42,7 +42,7 @@ import MoveCardDialog from '@/components/binder/MoveCardDialog';
 import CardList2, { type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import AddCardsButton from '@/components/binder/AddCardsButton';
-import CardRules from '@/components/binder/CardRules';
+import CardScreen from '@/components/binder/CardScreen';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import { useContentWidth } from '@/hooks/useMenuStyle';
@@ -421,29 +421,25 @@ export default function ListScreen() {
         {dropOver && <View pointerEvents="none" style={[styles.dropOutline, { borderColor: colors.accent }]} />}
       </View>
 
-      {/* THE CARD'S WINDOW: its picture (tap it to open the card in the Card
-          Finder), what it does, how many copies, then Move to a binder and
-          Delete from list */}
+      {/* THE CARD SCREEN: its picture (tap it to open the card in the Card
+          Finder), how many copies, Open in Card Finder, then Move to a binder
+          and Delete from list, and the rules folded away (see CardScreen.tsx) */}
       {menuCard && menuIndex !== null && (
-        <PopupWindow title={menuCard.name} onClose={() => setMenuIndex(null)}
-                     buttons={[{ label: 'Close', onPress: () => setMenuIndex(null), kind: 'secondary' }]}>
-          <CardRules card={menuCard}
-                     onOpen={() => { const card = menuCard; setMenuIndex(null); router.push(finderLinkFor(id, card) as never); }} />
-          {/* How many copies: − and + */}
-          <View style={styles.menuCopies}>
-            <Button label="−" kind="secondary" accessibilityLabel={cardCount(menuCard) > 1 ? 'One fewer copy' : 'Delete from list'}
-                    onPress={() => changeCopies(menuIndex, -1)} />
-            <Text style={[styles.menuCount, { color: colors.text }]}>
-              {cardCount(menuCard)} {cardCount(menuCard) === 1 ? 'copy' : 'copies'}
-            </Text>
-            <Button label="+" kind="secondary" accessibilityLabel="One more copy" disabled={cardCount(menuCard) >= MAX_COPIES}
-                    onPress={() => changeCopies(menuIndex, 1)} />
-          </View>
-          <View style={styles.menu}>
-            <Button label="Move to a binder" icon="albums-outline" kind="secondary" onPress={() => moveToBinder(menuIndex)} />
-            <Button label="Delete from list" icon="trash-outline" kind="danger" onPress={() => confirmDelete(menuIndex)} />
-          </View>
-        </PopupWindow>
+        <CardScreen
+          card={menuCard}
+          copies={{
+            count: cardCount(menuCard), max: MAX_COPIES,
+            lessLabel: cardCount(menuCard) > 1 ? 'One fewer copy' : 'Delete from list',
+            onLess: () => changeCopies(menuIndex, -1),
+            onMore: () => changeCopies(menuIndex, 1),
+          }}
+          onOpenFinder={() => { const card = menuCard; setMenuIndex(null); router.push(finderLinkFor(id, card) as never); }}
+          onClose={() => setMenuIndex(null)}
+          actions={[
+            { label: 'Move to a binder', icon: 'albums-outline', onPress: () => moveToBinder(menuIndex) },
+            { label: 'Delete from list', icon: 'trash-outline', kind: 'danger', onPress: () => confirmDelete(menuIndex) },
+          ]}
+        />
       )}
 
       {/* "Move to a binder": the pop-up list of binders (the same one a
@@ -502,7 +498,4 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.5 },
   // The card's window: a big picture, the copies, then the buttons
   menuPicture: { width: '100%', height: 260 },
-  menuCopies: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
-  menuCount: { fontSize: 17, fontWeight: '700' },
-  menu: { gap: 8 },
 });

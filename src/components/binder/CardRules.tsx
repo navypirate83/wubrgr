@@ -1,49 +1,56 @@
 /* =====================================================================
-   THE CARD IN A CARD'S MENU: ITS PICTURE AND WHAT IT DOES
-   The top of the menu that opens when you tap a card in a binder or a list:
-   - the card's big picture. Tapping it opens the card in the Card Finder
-     (there's no separate "Open in Card Finder" button).
-   - under it, the card's rules text: what it does, in Scryfall's wording,
-     with the mana and tap symbols drawn as pictures. The flavor text isn't
-     shown. A two-sided card (or a split or adventure card) shows each side's
-     text under its name.
-   The rules text is looked up when the menu opens (see loadRulesText in
-   scryfall.ts) and kept, so it's quick the next time.
+   A CARD'S RULES TEXT (folded away until you ask for it)
+   Part of the card screen you get when you tap a card in a binder, a
+   list or a deck (see CardScreen.tsx). It shows a "Show rules" button;
+   tapping it opens what the card does, in Scryfall's wording, with the
+   mana and tap symbols drawn as pictures. The flavor text isn't shown. A
+   two-sided card (or a split or adventure card) shows each side's text
+   under its name.
+   The rules text is only looked up once you open the button (see
+   loadRulesText in scryfall.ts), and kept, so it's quick the next time.
    ===================================================================== */
 
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useTheme';
-import { pictureSource } from '@/lib/http';
 import { symbolUrl } from '@/lib/cards';
 import { loadRulesText } from '@/lib/scryfall';
 import type { BinderCard } from '@/lib/binderStorage';
+import { RADIUS } from '@/theme/colors';
 
 // The symbols' size in the text (points)
 const SYMBOL = 15;
 
-export default function CardRules({ card, onOpen }: { card: BinderCard; onOpen: () => void }) {
+export default function CardRules({ card }: { card: BinderCard }) {
   const colors = useColors();
+  // Is the rules text showing? It starts folded away.
+  const [open, setOpen] = useState(false);
+  // The text is only asked for once the button has been opened
   const rules = useQuery({
     queryKey: ['rules', card.set, card.number],
     queryFn: () => loadRulesText(card.set, card.number),
     staleTime: Infinity,
+    enabled: open,
   });
   return (
-    <>
-      {/* The picture: tap it to open the card in the Card Finder */}
+    <View style={styles.wrap}>
+      {/* The button that opens and closes the rules */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Open ${card.name} in the Card Finder`}
-        onPress={onOpen}
-        style={({ pressed }) => pressed && styles.pressed}
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={open ? 'Hide rules' : 'Show rules'}
+        onPress={() => setOpen(!open)}
+        style={({ pressed }) => [styles.toggle, { backgroundColor: colors.surfaceHover }, pressed && styles.pressed]}
       >
-        <Image source={pictureSource(card.image)} style={styles.picture} contentFit="contain" />
+        <Text style={[styles.toggleText, { color: colors.text }]}>{open ? 'Hide rules' : 'Show rules'}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
       </Pressable>
 
       {/* What the card does (nothing here for a card with no rules text, like a basic land) */}
-      {rules.data && rules.data.length > 0 && (
+      {open && rules.data && rules.data.length > 0 && (
         <View style={styles.rules} accessibilityLabel="Rules text">
           {rules.data.map((face, index) => (
             <View key={index} style={styles.face}>
@@ -55,7 +62,11 @@ export default function CardRules({ card, onOpen }: { card: BinderCard; onOpen: 
           ))}
         </View>
       )}
-    </>
+      {/* Opened, but the card has no rules text */}
+      {open && rules.data && rules.data.length === 0 && (
+        <Text style={[styles.text, { color: colors.muted }]}>This card has no rules text.</Text>
+      )}
+    </View>
   );
 }
 
@@ -80,10 +91,15 @@ function RulesLine({ line, color }: { line: string; color: string }) {
   );
 }
 
-// The look: the picture at the top, the rules as small paragraphs under it
+// The look: a button to open the rules, then the rules as small paragraphs under it
 const styles = StyleSheet.create({
+  wrap: { gap: 10 },
+  toggle: {
+    minHeight: 44, paddingHorizontal: 14, borderRadius: RADIUS * 1.4,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  toggleText: { fontSize: 14, fontWeight: '600' },
   pressed: { opacity: 0.7 },
-  picture: { width: '100%', height: 260 },
   rules: { gap: 8 },
   face: { gap: 4 },
   faceName: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },

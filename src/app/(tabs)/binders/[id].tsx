@@ -57,7 +57,7 @@ import Pocket from '@/components/binder/Pocket';
 import CardList, { Summary, type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import AddCardsButton from '@/components/binder/AddCardsButton';
-import CardRules from '@/components/binder/CardRules';
+import CardScreen from '@/components/binder/CardScreen';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import MoveCardDialog from '@/components/binder/MoveCardDialog';
@@ -1424,32 +1424,25 @@ function BinderView({ binderId }: { binderId: string }) {
       </View>
       )}
 
-      {/* THE CARD'S MENU (tap a card): its picture (tap that to open the
-          card in the Card Finder), what it does, how many copies, and what
-          else can be done with it */}
+      {/* THE CARD SCREEN (tap a card): its picture (tap that to open the
+          card in the Card Finder), how many copies, Open in Card Finder,
+          Move and Remove, and the rules folded away (see CardScreen.tsx) */}
       {menuCard && menuKey && (
-        <PopupWindow title={menuCard.name} onClose={() => setMenuKey(null)}
-                     buttons={[{ label: 'Close', onPress: () => setMenuKey(null), kind: 'secondary' }]}>
-          <CardRules card={menuCard}
-                     onOpen={() => { const key = menuKey; setMenuKey(null); router.push(searchLinkFor(binderId, key, menuCard) as never); }} />
-          <Text style={[styles.menuWhere, { color: colors.muted }]}>
-            {mode === 'binder' ? placeName(menuKey) : ''}{mode === 'binder' && menuCard.foil ? ' · ' : ''}{menuCard.foil ? 'foil' : ''}
-          </Text>
-          {/* How many copies: − and + */}
-          <View style={styles.menuCopies}>
-            <Button label="−" kind="secondary" accessibilityLabel="One fewer copy"
-                    onPress={() => { if (changeCopies(menuKey, -1) === 0) setMenuKey(null); }} />
-            <Text style={[styles.menuCount, { color: colors.text }]}>
-              {cardCount(menuCard)} {cardCount(menuCard) === 1 ? 'copy' : 'copies'}
-            </Text>
-            <Button label="+" kind="secondary" accessibilityLabel="One more copy" disabled={cardCount(menuCard) >= MAX_COPIES}
-                    onPress={() => changeCopies(menuKey, 1)} />
-          </View>
-          <Button label="Move to another binder" icon="folder-open-outline" kind="secondary"
-                  onPress={() => { setMovingKey(menuKey); setMenuKey(null); }} />
-          <Button label="Remove from this binder" icon="trash-outline" kind="danger"
-                  onPress={() => { setRemovingKey(menuKey); setMenuKey(null); }} />
-        </PopupWindow>
+        <CardScreen
+          card={menuCard}
+          subtitle={mode === 'binder' ? placeName(menuKey) : undefined}
+          copies={{
+            count: cardCount(menuCard), max: MAX_COPIES, lessLabel: 'One fewer copy',
+            onLess: () => { if (changeCopies(menuKey, -1) === 0) setMenuKey(null); },
+            onMore: () => changeCopies(menuKey, 1),
+          }}
+          onOpenFinder={() => { const key = menuKey; setMenuKey(null); router.push(searchLinkFor(binderId, key, menuCard) as never); }}
+          onClose={() => setMenuKey(null)}
+          actions={[
+            { label: 'Move to another binder', icon: 'folder-open-outline', onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
+            { label: 'Remove from this binder', icon: 'trash-outline', kind: 'danger', onPress: () => { setRemovingKey(menuKey); setMenuKey(null); } },
+          ]}
+        />
       )}
 
       {/* "Remove card?": "No" comes first, the safe choice */}
@@ -1573,8 +1566,5 @@ const styles = StyleSheet.create({
   summaryRow: { paddingHorizontal: 12, paddingTop: 6 },
   emptyList: { alignItems: 'center', gap: 12, paddingTop: 40, paddingHorizontal: 24 },
   menuPicture: { width: '100%', height: 260 },
-  menuWhere: { textAlign: 'center' },
-  menuCopies: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
-  menuCount: { fontSize: 17, fontWeight: '700' },
   dialogText: { fontSize: 16, lineHeight: 22 },
 });
