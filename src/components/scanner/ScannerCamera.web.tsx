@@ -41,6 +41,7 @@ import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { blendQuads, findCard, quadCentre, quadShift } from '@/lib/scanner/core/cardFinder';
 import { longestSide, warpCard, type Point, type Quad } from '@/lib/scanner/core/perspective';
 import { snapCorners } from '@/lib/scanner/core/cornerSnap';
+import { findCardByShape } from '@/lib/scanner/core/shapeFinder';
 import { Tracker } from '@/lib/scanner/core/tracker';
 import { sharpnessOf } from '@/lib/scanner/core/viewBlend';
 import { changedFrame, signatureDifference, tinyFromRgba } from '@/lib/scanner/core/frameChange';
@@ -79,6 +80,17 @@ const STEADY_BELOW = 0.06;
 // Whether the person left Track on, remembered on this device (the browser may not allow saving; then it starts off)
 const TRACK_KEY = 'wubrgr.scanner.track';
 const savedTrack = () => { try { return globalThis.localStorage?.getItem(TRACK_KEY) === '1'; } catch { return false; } };
+
+// Finding the card in a small look at the camera picture: first by its EDGES and SHAPE (core/shapeFinder.ts, from the
+// legacy scanner: it doesn't care what colour the card is, so black-bordered, foil and full-art cards work), and if that
+// finds nothing, by how different its COLOUR is from the table (core/cardFinder.ts)
+function findCardInLook(look: ImageData): Quad | null {
+  try {
+    const byShape = findCardByShape(look, look.width);
+    if (byShape) return byShape;
+  } catch { /* the shape finder failing only means the colour finder is used */ }
+  return findCard(look);
+}
 
 type Rect = { x: number; y: number; w: number; h: number };
 // What the tracker currently sees: the card's corners (as fractions of the video picture), how far
@@ -317,7 +329,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       if (small.width !== LOOK_WIDTH || small.height !== lookHeight) { small.width = LOOK_WIDTH; small.height = lookHeight; }
       context.drawImage(video, 0, 0, LOOK_WIDTH, lookHeight);
       const look = context.getImageData(0, 0, LOOK_WIDTH, lookHeight);
-      const looked = findCard(look);
+      const looked = findCardInLook(look);
       tracker.update(looked ? [{ quad: looked, score: 1 }] : []);
       // The card being followed (null while it is only seen once, or was missed this look)
       const quad = tracker.activeTrack()?.quad ?? null;
@@ -398,7 +410,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         small.height = Math.max(1, Math.round((LOOK_WIDTH * bitmap.height) / bitmap.width));
         const smallContext = small.getContext('2d', { willReadFrequently: true })!;
         smallContext.drawImage(bitmap, 0, 0, small.width, small.height);
-        const quad = findCard(smallContext.getImageData(0, 0, small.width, small.height));
+        const quad = findCardInLook(smallContext.getImageData(0, 0, small.width, small.height));
         if (quad) {
           const flat = straighten(bitmap, bitmap.width, bitmap.height, quad);
           await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height });
