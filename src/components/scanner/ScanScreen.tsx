@@ -44,6 +44,12 @@ import AddToBinderDialog from './AddToBinderDialog';
 import CrashTrailNotice from './CrashTrailNotice';
 import { useColors } from '@/hooks/useTheme';
 import { useScanOptions } from '@/hooks/useScanOptions';
+import { useAccount } from '@/hooks/useAccount';
+import { storageGet, storageSet } from '@/lib/storage';
+import { aiModel } from '@/lib/scanner/ai/aiModel';
+import { aiStore } from '@/lib/scanner/ai/aiStore';
+import { aiReady, downloadAiFiles } from '@/lib/scanner/ai/aiFiles';
+import { forgetAiIndex } from '@/lib/scanner/ai/aiRun';
 import { askYesNo } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import type { Finish } from '@/lib/cards';
@@ -78,6 +84,9 @@ function itemFor(outcome: ScanOutcome, printing: Printing, flag: ScanItem['flag'
     flag, candidates: outcome.candidates, matched: outcome.matched, reading: outcome.reading,
   };
 }
+
+// Where each device remembers that the AI scanner download has been offered (so it is only offered once)
+const AI_ASKED_KEY = 'wubrgr.scanner.aiAsked';
 
 export default function ScanScreen() {
   const colors = useColors();
@@ -162,6 +171,39 @@ export default function ScanScreen() {
       }
     })();
   }, [say]);
+
+  /* ----- the AI scanner: offer the download the first time ----- */
+  // An account that may use the AI scanner (the AIScan right, or an Admin) is asked ONCE on each device, the first time the
+  // scanner is opened there, whether to download the AI files (about 42 MB). Yes downloads them, with the progress on the
+  // camera's message line. No is remembered, so the question does not come back; the files can still be downloaded later
+  // from the scanner options (the gear button). Nothing is asked when the files are already here, or on a device that
+  // cannot run the AI or keep its files.
+  const { hasAiScan } = useAccount();
+  useEffect(() => {
+    if (!hasAiScan || !aiModel.available || !aiStore.available) return;
+    let alive = true;
+    (async () => {
+      try {
+        if (await storageGet(AI_ASKED_KEY)) return;
+        if (await aiReady()) return;
+        if (!alive) return;
+        // Remembered before the answer, so leaving the screen with the question open does not bring it back either
+        await storageSet(AI_ASKED_KEY, '1');
+        const yes = await askYesNo(
+          'Download the AI scanner?',
+          'Your account can use the AI scanner. It recognises a card by its artwork, which helps when the name or the small print cannot be read. It needs a one-time download of about 42 MB to this device. You can also do this later from the scanner options (the gear button).',
+          'Download', 'Not now',
+        );
+        if (!yes) return;
+        await downloadAiFiles((fraction) => { if (alive) setMessage(`Downloading the AI scanner… ${Math.round(fraction * 100)}%`); });
+        forgetAiIndex();
+        if (alive) say('The AI scanner is ready.');
+      } catch (err) {
+        if (alive) say(`The AI scanner could not be downloaded: ${(err as Error).message}`);
+      }
+    })();
+    return () => { alive = false; };
+  }, [hasAiScan, say]);
 
   /* ----- warming up: get the reader, the name lists and (if on) the AI ready before the first scan ----- */
   // Starts once the catalogue is open, and again if the AI option is switched on or off. Closing the screen stops
