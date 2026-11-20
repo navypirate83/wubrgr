@@ -47,6 +47,13 @@
    READ_CARDS_FROM_FRAMES is also on. Frames are used only after a check against a real photo has shown they come
    out the right way up, and any trouble at all (no frame, wrong shape, too small, a camera error) quietly goes
    back to taking photos, as before. The sums and safety rules are in core/liveFrames.ts (with tests).
+   FINDING THE CARD IN THE PHOTO (NEW, needs a build with the add-on's flattenCard; older builds skip it): the card is first read from
+   the box the guide (or, for a chosen photo, the middle of the picture) marks out. If that read makes little sense (no real card
+   name, no real set and number: see core/cardCuts.ts), the card is looked for in the whole photo with the same edge-and-shape finder
+   the website uses (core/shapeFinder.ts), cut out flat by the add-on (so a tilted or off-centre card, or one smaller than the
+   guide, is read from the right place), and read again. The cut-out is tried as found, with the border put back (a dark border can be
+   missed, taking the collector number's strip with it), and both upside down; the read that makes the most sense is kept. A chosen
+   photo is always checked this way unless the first read was already perfect, since the card there is rarely where the middle box is.
    SAFETY NET: if the camera can't be set up with the chosen photo settings (an error from the camera), the photo taker is
    remade with the camera library's own plain settings and tried again once, instead of leaving a dead screen. Each step the
    camera reaches is also written in the crash trail (lib/scanner/crashTrail.ts) so a crash can be traced afterwards.
@@ -60,7 +67,12 @@ import { useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Camera, useCameraDevice, useCameraDevices, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
 import { useColors } from '@/hooks/useTheme';
-import { cardOcr, cardSignature, finishPhoto, photoSize, readCardPhoto, readTitleOnly } from '@/lib/scanner/ocr/ocr.native';
+import { canCutOutCards, cardOcr, cardSignature, cutOutCard, finishPhoto, photoSize, readCardPhoto, readTitleOnly, wholePhotoGray } from '@/lib/scanner/ocr/ocr.native';
+import { FOUND_SCORE, FULL_SCORE, readingScore } from '@/lib/scanner/core/cardCuts';
+import { findCardByShape } from '@/lib/scanner/core/shapeFinder';
+import { cutOutTries, flatHeight, grayToRgba } from '@/lib/scanner/core/photoCard';
+import { parseInfoLine } from '@/lib/scanner/core/infoLine';
+import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { cardInPickedPhoto, guideInPhoto, type Fractions, type Rect } from '@/lib/scanner/core/cardInPhoto';
 import {
@@ -103,7 +115,7 @@ const START_WITH_PLAIN_PHOTO = true;
 
 export type ScannerCameraLiveProps = ScannerCameraProps & { plainFromStart?: boolean };
 
-export default function ScannerCameraLive({ onReading, message, bar, paused, looksLikeName, queue, plainFromStart }: ScannerCameraLiveProps) {
+export default function ScannerCameraLive({ onReading, message, bar, paused, looksLikeName, readingSense, queue, plainFromStart }: ScannerCameraLiveProps) {
   const colors = useColors();
   const { hasPermission, canRequestPermission, requestPermission } = useCameraPermission();
   const defaultDevice = useCameraDevice('back');
@@ -295,7 +307,54 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
   // "shotMs" is how long the camera took to get it (for the timings shown after the scan) and "key" says whether
   // it was a photo or a frame. A card read from a FRAME whose name does not come out as a real card name is read
   // again from a real photo, so a rough frame can never make a scan worse than before.
-  async function scanPhoto(path: string, card: Fractions, fresh: boolean, shotMs?: number, key: 'photo' | 'frame' = 'photo') {
+  // How much sense a reading makes (core/cardCuts.ts): the scan screen asks the catalogue (is the title a real card's name? are the set
+  // and number a real printing?); without that, a rougher answer from whether the title looks like a name and a number was read.
+  async function scoreOf(reading: ScanReading): Promise<number> {
+    if (readingSense) { try { return await readingSense(reading); } catch { /* the rougher answer below */ } }
+    const nameLike = looksLikeName ? looksLikeName(reading.nameText) : reading.nameText.trim().length >= 3;
+    return readingScore({ name: nameLike ? 'real' : 'no', printingExists: false, setIsReal: false, numberWasRead: parseInfoLine(reading.infoText).collectorNumber !== null });
+  }
+
+  // When the read from the guide's box (or the middle of a chosen photo) makes little sense, look for the card in the whole photo, cut it
+  // out flat, and read that. Gives the new picture file and its reading when one made MORE sense than "first", otherwise null (and the
+  // photo is left as it was). "level": 'always' also tries when the first read had a name but no set and number (a chosen photo);
+  // 'weak' only when it had neither. Never throws: any trouble just means the first read is used.
+  async function findCardInPhoto(path: string, first: ScanReading, level: 'weak' | 'always'): Promise<{ path: string; reading: ScanReading } | null> {
+    try {
+      if (!canCutOutCards()) return null;
+      let bestScore = await scoreOf(first);
+      if (bestScore >= (level === 'always' ? FULL_SCORE : FOUND_SCORE)) return null;
+      mark('looking for the card in the photo');
+      const gray = await wholePhotoGray(path, 640);
+      if (!gray) return null;
+      const quad = findCardByShape(grayToRgba(gray), Math.max(gray.width, gray.height));
+      if (!quad) return null;
+      const [width, height] = await photoSize(path);
+      let best: { path: string; reading: ScanReading } | null = null;
+      const tries = cutOutTries(quad);
+      for (let i = 0; i < tries.length; i++) {
+        const flat = await cutOutCard(path, tries[i], flatHeight(tries[i], { w: width, h: height }));
+        if (!flat) continue;
+        let reading: ScanReading;
+        try { reading = await readCardPhoto(flat, [0, 0, 1, 1], looksLikeName); } catch { await finishPhoto(flat, true); continue; }
+        const score = await scoreOf(reading);
+        if (score > bestScore) {
+          if (best) await finishPhoto(best.path, true);
+          best = { path: flat, reading };
+          bestScore = score;
+        } else {
+          await finishPhoto(flat, true);
+        }
+        // Stop when this one is perfect, or (after each pair: as found + border put back) when one has a real name or printing
+        if (bestScore >= FULL_SCORE || (i % 2 === 1 && bestScore >= FOUND_SCORE)) break;
+      }
+      return best;
+    } catch {
+      return null;
+    }
+  }
+
+  async function scanPhoto(path: string, card: Fractions, fresh: boolean, shotMs?: number, key: 'photo' | 'frame' = 'photo', find: 'weak' | 'always' = 'weak') {
     // True once the photo has been given to the queue, which then deletes it when it's finished with it
     let handedOver = false;
     // The file the reading finally comes from (a photo taken instead, if the frame was no good)
@@ -310,6 +369,15 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         reading = await readCardPhoto(still.path, still.card, looksLikeName);
         shotMs = still.ms;
         key = 'photo';
+      }
+      // The card may not be where the box was: look for it in the photo if the read makes little sense
+      const found = await findCardInPhoto(usePath, reading, find);
+      if (found) {
+        // The picture file that was cut out is ours to delete when the scan is done; the original photo is let go now
+        await finishPhoto(usePath, fresh);
+        usePath = found.path;
+        fresh = true;
+        reading = found.reading;
       }
       if (shotMs !== undefined) reading.timings = { [key]: shotMs, ...reading.timings };
       if (queue) {
@@ -378,7 +446,7 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
       const path = decodeURIComponent(picked.assets[0].uri.replace(/^file:\/\//, ''));
       try {
         const [width, height] = await photoSize(path);
-        await scanPhoto(path, cardInPickedPhoto({ w: width, h: height }, CARD_ASPECT), false);
+        await scanPhoto(path, cardInPickedPhoto({ w: width, h: height }, CARD_ASPECT), false, undefined, 'photo', 'always');
       } catch (err) {
         await finishPhoto(path, false);
         throw err;

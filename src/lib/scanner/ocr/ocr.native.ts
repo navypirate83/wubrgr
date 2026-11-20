@@ -20,6 +20,9 @@ import { tinyFromGray } from '../core/frameChange';
 import { readCardStaged, readTitle, type PartReader } from '../core/readPlan';
 import type { CardOcr } from './ocr';
 import { mark } from '../crashTrail';
+import { quadNumbers } from '../core/photoCard';
+import type { Quad } from '../core/perspective';
+import type { GrayPicture } from '../core/scannerTypes';
 
 // What the add-on offers (see CardTextReaderModule.kt)
 type CardTextReaderModule = {
@@ -33,6 +36,10 @@ type CardTextReaderModule = {
   jpegCrop(path: string, card: Fractions, part: Fractions, width: number): Promise<string>;
   // Let go of a photo (and remove its file if the camera took it)
   deletePhoto(path: string, deleteFile: boolean): Promise<void>;
+  // A card found in the photo, cut out flat and upright as a new picture file (its path comes back). "quad" is eight numbers (x, y of
+  // each corner: top-left, top-right, bottom-right, bottom-left) as shares of the upright photo. Only in builds made after this was
+  // added (NEW NATIVE CODE, not yet tried on a phone): older builds don't have it, so it is only called if it exists.
+  flattenCard?(path: string, quad: number[], outHeight: number): Promise<string>;
   // Get Google's reader loaded and ready by reading a tiny blank picture. Only in builds made after this was added
   // (NEW NATIVE CODE, not yet tried on a phone): older builds don't have it, so it is only called if it exists.
   warmUp?(): Promise<void>;
@@ -93,6 +100,34 @@ function partsOf(path: string, card: Fractions): PartReader {
       return `data:image/jpeg;base64,${await reader().jpegCrop(path, card, asFractions(ART_BOX), 240)}`;
     },
   };
+}
+
+// Whether this build's add-on can cut a found card out of a photo (builds made before it was added can't)
+export const canCutOutCards = (): boolean => {
+  try { return typeof reader().flattenCard === 'function'; } catch { return false; }
+};
+
+// The whole photo as one small grey picture, no wider than "width" pixels, for finding the card in it. Null if anything goes wrong.
+export async function wholePhotoGray(path: string, width: number): Promise<GrayPicture | null> {
+  try {
+    const [picture] = await reader().grayCrops(path, [0, 0, 1, 1], [[0, 0, 1, 1]], [width]);
+    return decodeGray(picture);
+  } catch {
+    return null;
+  }
+}
+
+// Cut a card found in the photo out flat and upright, as a new picture file; gives its path (null if that isn't possible).
+// The new file is read like a photo with the card filling it, and removed with finishPhoto(path, true).
+export async function cutOutCard(path: string, quad: Quad, outHeight: number): Promise<string | null> {
+  try {
+    const add = reader();
+    if (typeof add.flattenCard !== 'function') return null;
+    mark('cutting the found card out');
+    return await add.flattenCard(path, quadNumbers(quad), outHeight);
+  } catch {
+    return null;
+  }
 }
 
 // A tiny grey "signature" of the card area in a photo (see core/frameChange.ts), for noticing that the camera is

@@ -5,6 +5,8 @@
 //   readParts(...)         -> the text in each requested part of the card
 //   grayCrops(...)         -> parts of the card as grey pictures (for telling older printings apart)
 //   jpegCrop(...)          -> one part of the card as a small JPEG picture (to show on screen)
+//   flattenCard(...)       -> a card found in the photo (four corners, can be tilted) cut out flat and upright as a new picture file
+//                             (NEW, not yet tried on a phone: the app only calls it if it exists, so an older build is unaffected)
 //   deletePhoto(path)      -> tidy up a photo the camera took
 //   catalogueOpen / catalogueQuery / catalogueClose -> the card catalogue (a SQLite file), see CatalogueReader.kt
 //   readStoredValue(key)   -> rescue a saved value too big for AsyncStorage's own reading, see CatalogueReader.kt
@@ -25,7 +27,9 @@ package expo.modules.cardtextreader
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.media.ExifInterface
 import android.util.Base64
 import com.google.android.gms.tasks.Tasks
@@ -38,6 +42,7 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.Executors
 
 // How wide the card should be when opened, in pixels, at the least. A photo that would still
@@ -310,6 +315,53 @@ class CardTextReaderModule : Module() {
           promise.resolve(Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP))
         } catch (error: Throwable) {
           fail(promise, "ERR_CARD_CROP", "The card could not be cropped", error)
+        }
+      }
+    }
+
+    // A card that was FOUND in the photo (four corners, so it may be tilted or seen from the side) cut out flat and upright, and saved
+    // as a new small picture file whose path is given back. The app then reads that file exactly like a photo with the card filling it
+    // (the card is the whole picture), and deletes it with deletePhoto. "quad" is eight numbers: x then y for the card's top-left, top-right,
+    // bottom-right and bottom-left corners, as shares of the UPRIGHT photo (0 to 1; a little outside is fine). "outHeight" is how tall the
+    // flat picture is (its width follows the card's shape, 63 : 88).
+    // (NEW, not yet tried on a phone: the app's JavaScript only calls it if it exists, so an older build is unaffected.)
+    AsyncFunction("flattenCard") { path: String, quad: List<Double>, outHeight: Int, promise: Promise ->
+      worker.execute {
+        var upright: Bitmap? = null
+        var flat: Bitmap? = null
+        try {
+          val context = appContext.reactContext ?: throw IllegalStateException("The app is not ready")
+          if (quad.size != 8) throw IllegalArgumentException("Four corners are needed")
+          val height = outHeight.coerceIn(200, 2000)
+          val width = Math.round(height * 63.0 / 88.0).toInt()
+          // The box round the card, as shares of the photo, only to decide how big to open the photo
+          val xs = listOf(quad[0], quad[2], quad[4], quad[6])
+          val ys = listOf(quad[1], quad[3], quad[5], quad[7])
+          val left = xs.min().coerceIn(0.0, 1.0)
+          val top = ys.min().coerceIn(0.0, 1.0)
+          val box = listOf(left, top, (xs.max().coerceIn(0.0, 1.0) - left).coerceAtLeast(0.05), (ys.max().coerceIn(0.0, 1.0) - top).coerceAtLeast(0.05))
+          val photo = openFor(path, box)
+          // The whole photo turned upright (a copy), so the corners' shares apply straight to it
+          val whole = cut(photo, listOf(0.0, 0.0, 1.0, 1.0))
+          upright = whole
+          val source = FloatArray(8) { index -> (quad[index] * (if (index % 2 == 0) whole.width else whole.height)).toFloat() }
+          val target = floatArrayOf(0f, 0f, width.toFloat(), 0f, width.toFloat(), height.toFloat(), 0f, height.toFloat())
+          val matrix = Matrix()
+          if (!matrix.setPolyToPoly(source, 0, target, 0, 4)) throw IllegalStateException("The corners do not make a card shape")
+          val made = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+          flat = made
+          Canvas(made).drawBitmap(whole, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
+          whole.recycle()
+          upright = null
+          val file = File.createTempFile("flat-", ".jpg", context.cacheDir)
+          FileOutputStream(file).use { made.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+          made.recycle()
+          flat = null
+          promise.resolve(file.absolutePath)
+        } catch (error: Throwable) {
+          try { upright?.recycle() } catch (ignored: Throwable) { /* nothing more to free */ }
+          try { flat?.recycle() } catch (ignored: Throwable) { /* nothing more to free */ }
+          fail(promise, "ERR_CARD_FLATTEN", "The card could not be cut out", error)
         }
       }
     }
