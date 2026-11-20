@@ -22,7 +22,7 @@
    ===================================================================== */
 
 import { rgbaToGray } from '../core/phash';
-import { binarizeForOcr, removeEdgeBlobs } from '../core/ocrPrep';
+import { binarizeForOcr, removeEdgeBlobs, stretchContrast } from '../core/ocrPrep';
 import { parseInfoLine } from '../core/infoLine';
 import { borderFromBrightness } from '../core/borderColor';
 import { readCardStaged, readNameBothWays, type PartReader } from '../core/readPlan';
@@ -147,7 +147,8 @@ const KINDS = {
 type Kind = keyof typeof KINDS;
 
 // The part of the photo as a clean black-on-white picture, made bigger
-function prepare(source: CanvasImageSource, from: { x: number; y: number; w: number; h: number }, flip: boolean, clearEdges = false, biggest = 3.5): HTMLCanvasElement {
+// "mode": 'binary' = pure black and white (the usual), 'stretched' = grey with its contrast stretched, 'grey' = the plain grey picture
+function prepare(source: CanvasImageSource, from: { x: number; y: number; w: number; h: number }, flip: boolean, clearEdges = false, biggest = 3.5, mode: 'binary' | 'stretched' | 'grey' = 'binary'): HTMLCanvasElement {
   // About 3 times bigger, but not enormous
   const scale = Math.max(1, Math.min(biggest, 1600 / from.w));
   const crop = document.createElement('canvas');
@@ -158,7 +159,8 @@ function prepare(source: CanvasImageSource, from: { x: number; y: number; w: num
   context.imageSmoothingQuality = 'high';
   context.drawImage(source, from.x, from.y, from.w, from.h, 0, 0, crop.width, crop.height);
   const picture = context.getImageData(0, 0, crop.width, crop.height);
-  const clean = binarizeForOcr(rgbaToGray(picture.data, crop.width, crop.height), flip);
+  const gray = rgbaToGray(picture.data, crop.width, crop.height);
+  const clean = mode === 'grey' ? Uint8Array.from(gray) : mode === 'stretched' ? stretchContrast(gray) : binarizeForOcr(gray, flip);
   // The info line's crop also catches the edge of the text box above it and of the frame: wipe what is joined to the crop's edge
   if (clearEdges) removeEdgeBlobs(clean, crop.width, crop.height);
   for (let i = 0; i < clean.length; i++) {
@@ -217,7 +219,16 @@ async function readPart(source: CanvasImageSource, card: { x: number; y: number;
     // for background). If very little was read, try the other way and keep the one with more letters
     // (unless the first read was already a real name: see readNameBothWays in core/readPlan.ts).
     if (kind !== 'name') return first;
-    return readNameBothWays(async (flip) => (flip ? once(true) : first), looksLikeName);
+    const main = await readNameBothWays(async (flip) => (flip ? once(true) : first), looksLikeName);
+    // Black and white breaks the letters up on a textured title bar (an old frame, a foil, a coloured bar). If that didn't give a
+    // real name, read the same title as a grey picture, with its contrast stretched and then plain: on made-up phone photos
+    // each way reads names the others miss (11, 12 and 10 of 24 names), and together they read about 16 of them.
+    if (!looksLikeName || looksLikeName(main)) return main;
+    for (const mode of ['stretched', 'grey'] as const) {
+      const again = (await reader.recognize(prepare(source, part, false, false, 3.5, mode))).data.text.trim();
+      if (looksLikeName(again)) return again;
+    }
+    return main;
   });
 }
 

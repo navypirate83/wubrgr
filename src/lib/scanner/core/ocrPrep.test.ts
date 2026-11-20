@@ -45,3 +45,19 @@ test('a blob touching the edge only at a corner is wiped too (diagonal contact c
   assert.equal(p[2 * 40 + 2], 255);
   assert.equal(p[10 * 40 + 12], 0);
 });
+
+import { stretchContrast } from './ocrPrep.ts';
+
+test('a dull picture is stretched to use the whole range, keeping its order', () => {
+  const dull = new Uint8Array(200);
+  for (let i = 0; i < 200; i++) dull[i] = 100 + Math.floor(i / 10);   // 100 to 119
+  const out = stretchContrast(dull);
+  assert.ok(Math.min(...out) <= 5);
+  assert.ok(Math.max(...out) >= 250);
+  assert.ok(out[0] <= out[100] && out[100] <= out[199]);
+});
+
+test('a flat picture stays flat instead of blowing up', () => {
+  const out = stretchContrast(new Uint8Array(50).fill(128));
+  assert.equal(new Set(out).size, 1);
+});

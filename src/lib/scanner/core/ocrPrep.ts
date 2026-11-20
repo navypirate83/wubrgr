@@ -89,3 +89,22 @@ export function removeEdgeBlobs(binary: Uint8Array, width: number, height: numbe
   for (const k of wiped) binary[k] = 255;
   return true;
 }
+
+// The grey picture with its contrast stretched: the darkest 2% of the pixels become black and the lightest 2% white, and the rest
+// is spread between them. (Without turning it into pure black and white, which breaks letters up on a textured background:
+// the text reader copes with grey, and the stretch gives it the contrast a dull or faded title bar lacks.)
+export function stretchContrast(gray: ArrayLike<number>): Uint8Array {
+  const histogram = new Array<number>(256).fill(0);
+  for (let i = 0; i < gray.length; i++) histogram[gray[i]]++;
+  const total = gray.length;
+  let seen = 0;
+  let low = 0;
+  while (low < 255 && seen + histogram[low] < total * 0.02) seen += histogram[low++];
+  seen = 0;
+  let high = 255;
+  while (high > 0 && seen + histogram[high] < total * 0.02) seen += histogram[high--];
+  const out = new Uint8Array(gray.length);
+  const spread = Math.max(1, high - low);
+  for (let i = 0; i < gray.length; i++) out[i] = Math.max(0, Math.min(255, Math.round(((gray[i] - low) / spread) * 255)));
+  return out;
+}

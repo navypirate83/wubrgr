@@ -271,6 +271,9 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       }
       if (dark) setHint('It is dark. Light the card better (or use the torch) and scan again.');
       // The answer comes back later (the card is worked out meanwhile): a "nothing could be read" in Track mode means look again
+      // For the developer-only scanner lab (scripts/scanner-lab): remember the last reading so a test can see what the text reader read.
+      // Nothing is kept in a production build.
+      if (process.env.NODE_ENV !== 'production') (globalThis as { __scannerDebug?: unknown }).__scannerDebug = { reading, card };
       const answer = Promise.resolve(onReading(reading));
       answer.then((read) => {
         const state = live.current;

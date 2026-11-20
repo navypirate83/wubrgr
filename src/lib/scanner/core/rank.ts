@@ -43,6 +43,7 @@ export type Clues = {
   symbolScores?: Map<string, number>;            // by printing id: how much the symbol overlaps (0 to 1)
   artDistances?: Map<string, number>;            // by printing id: how many bits the art differs by (0 to 256)
   aiScores?: Map<string, number>;                // by printing id: AI fingerprint closeness (cosine, -1 to 1, higher is closer)
+  numberScores?: Map<string, number>;            // by printing id: a bonus when the collector number (and set) read from the card fit it (see numberClue.ts)
 };
 
 // How much each clue counts (found by trying them on real scans)
@@ -105,7 +106,9 @@ export function rankCandidates(
     const symbolPart = symbolRead ? (clues.symbolScores!.get(c.id) ?? 0) * SYMBOL_WEIGHT : 0;
     if (clues.border) score += c.border === clues.border ? BORDER_WEIGHT : -BORDER_WEIGHT;
     if (clues.years) score += c.year >= clues.years.from && c.year <= clues.years.to ? YEAR_WEIGHT : -YEAR_WEIGHT;
-    scores.set(c.id, score + symbolPart);
+    // The collector number and set read from the card: the one clue that can tell apart printings sharing a picture
+    const numberPart = clues.numberScores?.get(c.id) ?? 0;
+    scores.set(c.id, score + symbolPart + numberPart);
   }
   // Highest score first; printings with equal scores stay in the order the catalogue gave (oldest first)
   const ordered = candidates.map((c, i) => ({ c, i })).sort((a, b) => scores.get(b.c.id)! - scores.get(a.c.id)! || a.i - b.i).map((x) => x.c);
@@ -122,6 +125,8 @@ export function rankCandidates(
   if (art !== undefined) bits.push(`art ${art < 40 ? 'matches' : art < 70 ? 'is close' : 'is far off'} (${art} bits)`);
   const ai = clues.aiScores?.get(best.id);
   if (ai !== undefined && aiRead) bits.push(`AI fingerprint ${ai >= 0.8 ? 'matches' : ai >= 0.65 ? 'is close' : 'is far off'} (${Math.round(ai * 100)}% alike)`);
+  const numberBonus = clues.numberScores?.get(best.id);
+  if (numberBonus !== undefined && numberBonus > 0) bits.push(numberBonus >= 2 ? 'collector number matches' : 'collector number is close');
   const symbol = clues.symbolScores?.get(best.id);
   if (symbol !== undefined && symbolRead) bits.push(`symbol ${Math.round(symbol * 100)}% alike`);
   if (clues.border && best.border === clues.border) bits.push(`${clues.border} border`);

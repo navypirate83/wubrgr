@@ -34,6 +34,7 @@ import { bestNameMatch, similarity } from './core/fuzzy';
 import { bestNameMatchIndexed } from './core/nameIndex';
 import { parseCopyrightYears, parseInfoLine, type InfoLine } from './core/infoLine';
 import { rankCandidates, type Candidate } from './core/rank';
+import { numberBonus } from './core/numberClue';
 import { checkSetCode } from './core/setCode';
 import { decideScan } from './core/decide';
 import { aiIsNeeded } from './core/aiNeeded';
@@ -66,6 +67,11 @@ export type ResolveOptions = {
 
 // Printings with the same set and artwork look the same in a photo, so they share a "group"
 const groupOf = (p: Printing): string => `${p.setCode}|${p.illus ?? p.id}`;
+
+// The name read from the title bar must match a card's name at least this well for the scanner to call a printing "likely" on the
+// strength of the artwork and other clues. A worse match (a few letters read, some junk) is only a guess at the card itself, so
+// the person is asked to pick. (The main path, where the info line names the printing, has its own check.)
+const LIKELY_MIN_NAME = 0.8;
 
 // Working out a card is a lot of plain calculation on the app's one line of work, which the camera and the
 // screen share. "breathe" is called now and then inside the long stretches: it pauses for a moment once
@@ -114,7 +120,12 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
       reason: `Locked to ${lockCode}`,
     };
   }
-  if (printings.length === 1) return { ...base, status: 'likely', printing: printings[0], candidates: printings, reason: 'The only printing of that card' };
+  if (printings.length === 1) {
+    // (a name read badly enough to be a guess is checked by the person)
+    return nameSimilarity >= LIKELY_MIN_NAME
+      ? { ...base, status: 'likely', printing: printings[0], candidates: printings, reason: 'The only printing of that card' }
+      : { ...base, status: 'pick', printing: null, candidates: printings, matched: 1, reason: 'The only printing of the closest name; the name was only partly read' };
+  }
 
   // Several printings to tell apart: only now are the slower clues worth reading from the photo
   await loadMoreClues(reading);
@@ -137,12 +148,24 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
     candidates.push({ id: p.id, setCode: p.setCode, year: p.year, border: p.border, group: groupOf(p) });
   }
 
-  // What the cheap clues say, before the AI (the artwork's fingerprint, the symbol, the border and the year)
+  // The collector number and set code read from the info line, even when they could not be used together on the main path
+  // (a set code that is not a real set, or a number one digit off): each printing gets a bonus for fitting them (core/numberClue.ts)
+  const readSet = checkSetCode(info.setCode, await knownSets())?.code ?? null;
+  const numberScores = new Map<string, number>();
+  if (info.collectorNumber || readSet) {
+    for (const p of printings) {
+      const bonus = numberBonus(info.collectorNumber, readSet, p);
+      if (bonus > 0) numberScores.set(p.id, bonus);
+    }
+  }
+
+  // What the cheap clues say, before the AI (the artwork's fingerprint, the symbol, the border, the year and the collector number)
   const clues = {
     years: parseCopyrightYears(reading.bottomText),
     border: reading.extras?.border ?? null,
     symbolScores,
     artDistances,
+    numberScores,
   };
   let ranked = rankCandidates(candidates, clues);
 
@@ -161,8 +184,16 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   const ordered = [...ranked.ordered.map((c) => byId.get(c.id)!), ...others];
   // A lock the card doesn't have a printing in is mentioned, and never makes the answer "likely" by itself
   const note = lock.missing ? `Not in the locked set (${lockCode}). ` : lock.locked ? `Locked to ${lockCode}. ` : '';
-  if (ranked.likely) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `${note}Likely (${ranked.why})` };
-  return { ...base, status: 'pick', printing: null, candidates: ordered, matched: ranked.fits, reason: `${note}${ranked.fits} printings fit best (${ranked.why})` };
+  // "Likely" is only said when nothing leaves the choice open between printings that LOOK ALIKE: several printings of one set with the
+  // same artwork (a plain, a borderless and a promo one, say) can only be told apart by the collector number, and if it wasn't read
+  // (or didn't favour one of them) the scanner shouldn't pick one for the person. A name read only partly is not trusted either.
+  const bestOne = ranked.ordered[0];
+  const lookAlikes = bestOne ? ranked.ordered.filter((c) => c.group === bestOne.group && Math.abs(ranked.scores.get(c.id)! - ranked.scores.get(bestOne.id)!) < 0.05) : [];
+  const openChoice = lookAlikes.length > 1;
+  const weakName = nameSimilarity < LIKELY_MIN_NAME;
+  if (ranked.likely && !openChoice && !weakName) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `${note}Likely (${ranked.why})` };
+  const doubt = openChoice ? '; printings of one set share this picture and the collector number did not tell them apart' : weakName ? '; the name was only partly read' : '';
+  return { ...base, status: 'pick', printing: null, candidates: ordered, matched: Math.max(ranked.fits, lookAlikes.length), reason: `${note}${ranked.fits} printings fit best (${ranked.why}${doubt})` };
 }
 
 // Works out the printing, then lets go of the photo's "read more" step (it holds on to the picture,

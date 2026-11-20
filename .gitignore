@@ -56,3 +56,6 @@ modules/**/android/.gradle/
 
 # The AI files for the scanner, copied together by scripts/catalogue/build-ai-files.mjs (big; rebuilt from the cache)
 scripts/catalogue/out-ai/
+
+# The scanner lab: downloaded card pictures, made-up phone photos and results
+scripts/scanner-lab/cache/
