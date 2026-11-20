@@ -17,7 +17,7 @@
    - showTimings: show how long each scan took, after the scan.
    - aiArt: "AI art matching" (website only for now): also compare the photo's
      artwork with the saved artworks using an AI model, which needs extra files
-     downloaded once (see ai/). Off by default; with it off, or with the files
+     downloaded once (see ai/). On by default (only for accounts with AI scanner access); with it off, or with the files
      missing, the scanner works exactly as before.
    The options are saved on the device (see ../scanSettings.ts). Anything
    saved that isn't one of these values is ignored and the usual choice is
@@ -44,7 +44,7 @@ export const DEFAULT_SCAN_OPTIONS: ScanOptions = {
   unsure: 'ask',
   startFinish: 'nonfoil',
   showTimings: true,
-  aiArt: false,
+  aiArt: true,
 };
 
 // Turn whatever was saved (anything at all, even junk) into a proper set of options,

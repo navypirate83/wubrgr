@@ -581,7 +581,7 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Start cards as</Strong> (non-foil or foil), <Strong>Show how long each scan took</Strong> and, on the website only for now,
               <Strong>AI art matching (experimental)</Strong>: an extra way of telling printings of the same card apart by comparing their artwork
               with an AI model. It only shows for accounts with the <Strong>AIScan</Strong> right (and Admins), given on the Admin page; everyone
-              else doesn't see it, and the scanner never uses the AI for them. It is off until you turn it on, and needs a one-time download of about 42 MB
+              else doesn't see it, and the scanner never uses the AI for them. It starts switched on (you can switch it off), and needs a one-time download of about 42 MB
               from the WUBRG'r server (the line under the switch says
               <Strong>AI files not downloaded</Strong> and has a <Strong>Download AI files</Strong> button, then <Strong>AI files: ready</Strong>);
               without the files it does nothing and the scanner works as usual. Once the catalogue is on the device, and you've opened the
