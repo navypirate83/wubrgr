@@ -495,7 +495,18 @@ export function findShapes(picture: RgbaPicture, workLongSide = WORK_LONG_SIDE):
   return kept.map(({ quad, score, fill }) => ({ quad, score, fill }));
 }
 
+// Ours: when looking for THE card in a live picture, a shape smaller than this share of the picture is not taken
+// (a card held up to be scanned fills far more; on the test photos a stray 1% corner of a hand was once taken for one)
+export const MIN_CARD_SHARE = 0.04;
+
 // The best card in the picture, or null (the same kind of answer as findCard in cardFinder.ts)
 export function findCardByShape(picture: RgbaPicture, workLongSide = WORK_LONG_SIDE): Quad | null {
-  return findShapes(picture, workLongSide)[0]?.quad ?? null;
+  for (const found of findShapes(picture, workLongSide)) {
+    // The corners are fractions of the picture, so the card's area share is the area of its corners
+    const q = found.quad;
+    let twice = 0;
+    for (let i = 0; i < 4; i++) twice += q[i].x * q[(i + 1) % 4].y - q[(i + 1) % 4].x * q[i].y;
+    if (Math.abs(twice) / 2 >= MIN_CARD_SHARE) return q;
+  }
+  return null;
 }

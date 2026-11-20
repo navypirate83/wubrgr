@@ -51,6 +51,10 @@ test('a card touching the edge of the picture is not taken (it is only partly in
   assert.equal(findCardByShape(scene([{ x: 0, y: 100, w: 140, h: 196 }], true), 320), null);
 });
 
+test('a card-shaped speck far too small to be a held-up card is not taken', () => {
+  assert.equal(findCardByShape(scene([{ x: 150, y: 200, w: 36, h: 50 }]), 320), null);
+});
+
 test('two cards side by side are both found, and the best comes first', () => {
   const found = findShapes(scene([{ x: 20, y: 120, w: 120, h: 168 }, { x: 180, y: 120, w: 120, h: 168 }]), 320);
   assert.equal(found.length, 2);
