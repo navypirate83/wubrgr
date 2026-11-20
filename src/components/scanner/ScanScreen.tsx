@@ -217,6 +217,8 @@ export default function ScanScreen() {
     const lookupStart = Date.now();
     mark('looking the card up');
     const outcome = await resolveReading(reading, { lockedSet: chosen.lockedSet?.code ?? null, aiArt: chosen.aiArt });
+    // For the developer-only scanner lab (scripts/scanner-lab): remember how the last card was worked out. Nothing is kept in a production build.
+    if (process.env.NODE_ENV !== 'production') (globalThis as { __scannerOutcome?: unknown }).__scannerOutcome = outcome;
     const doneAt = Date.now();
     mark('card looked up');
     return { use: () => putOnScreen(reading, outcome, chosen, lookupStart, doneAt), read: outcome.status !== 'none' };

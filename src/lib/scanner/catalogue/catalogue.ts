@@ -159,6 +159,11 @@ export async function printingsNamed(name: string): Promise<Printing[]> {
   }
 }
 
+// Every printing wearing one artwork (the AI's guess at a card from its picture alone gives artwork ids, not names)
+export async function printingsWithArt(illustrationId: string): Promise<Printing[]> {
+  return withLooks((await catalogueDb.all(SQL.byIllustration, [illustrationId, illustrationId])).map(rowToPrinting));
+}
+
 // Printings whose front name starts with this (for typing a name in)
 export async function searchNames(start: string, limit = 25): Promise<Printing[]> {
   const normal = normalizeName(start);

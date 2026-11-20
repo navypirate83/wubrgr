@@ -86,6 +86,7 @@
           // Wait until the screen is quiet (the last photo's message gone)
           for (let i = 0; i < 40; i++) { const s = state(); if (!s.none && !s.added && !s.sheet && !s.picker && !s.reading) break; await sleep(250); }
           window.__scannerDebug = null;
+          window.__scannerOutcome = null;
           const started = performance.now();
           await sendPhoto(`${SERVER}/${options.folder || 'cache/photos'}/${photo.file}`);
           for (let i = 0; i < 20; i++) { await sleep(200); if (state().reading) break; }
@@ -103,9 +104,15 @@
             const sameNumber = match && match[2].toLowerCase() === String(photo.number).toLowerCase();
             outcome = sameSet && sameNumber ? 'RIGHT' : 'WRONG';
           } else if (s.picker) { outcome = 'PICKER'; shown = s.picker; }
+          // How the scanner worked the card out (the lab hook in ScanScreen.tsx): its status, its reason, and where the RIGHT printing is
+          // in the list it offers (0 = first, -1 = not in the list at all)
+          const worked = window.__scannerOutcome;
+          const tidy = (number) => String(number).toLowerCase().replace(/^0+(?=\d)/, '');
+          const truthRank = worked ? (worked.candidates || []).findIndex((c) => c.setCode.toLowerCase() === String(photo.set).toLowerCase() && tidy(c.collectorNumber) === tidy(photo.number)) : null;
           lab.results.push({
             file: photo.file, name: photo.name, set: photo.set, number: photo.number, group: photo.group, finishes: photo.finishes, frame: photo.frame,
             background: photo.background, glare: photo.glare, landscape: photo.landscape,
+            status: worked ? worked.status : '', reason: worked ? String(worked.reason || '').slice(0, 170) : '', truthRank, candidateCount: worked ? (worked.candidates || []).length : 0,
             outcome, shown, seconds: +((performance.now() - started) / 1000).toFixed(1),
             nameText: debug ? (debug.reading.nameText || '').slice(0, 60) : '', infoText: debug ? (debug.reading.infoText || '').slice(0, 60) : '',
           });

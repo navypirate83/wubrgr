@@ -87,6 +87,12 @@ for (const tag of tags) {
   const backgrounds = [...new Set(results.map((r) => r.background))];
   console.log('--- by background');
   for (const b of backgrounds) console.log(b.padEnd(24), count(results.filter((r) => r.background === b)));
+  // Where the right printing sits in the list the scanner offered (only for runs saved with the lab hook)
+  const ranked = results.filter((r) => r.truthRank !== undefined && r.truthRank !== null && r.outcome !== 'RIGHT' && r.outcome !== 'NONE');
+  if (ranked.length) {
+    const first = ranked.filter((r) => r.truthRank === 0).length, top3 = ranked.filter((r) => r.truthRank >= 0 && r.truthRank < 3).length, missing = ranked.filter((r) => r.truthRank === -1).length;
+    console.log('in the lists offered:'.padEnd(24), `${ranked.length} lists: right printing first in ${first}, in the top 3 in ${top3}, not in the list at all in ${missing}`);
+  }
   if (verbose) {
     console.log('--- not right:');
     for (const r of results.filter((x) => x.outcome !== 'RIGHT')) {

@@ -23,6 +23,8 @@ export const SQL = {
   // By the card's front name (normalised: see text.ts), the start of it
   byFrontNameStart: `${PRINTING_SELECT} WHERE p.front_norm LIKE ? ORDER BY p.front_norm, p.released LIMIT ?`,
   byFrontName: `${PRINTING_SELECT} WHERE p.front_norm = ? ORDER BY p.released`,
+  // Every printing wearing one artwork (by the artwork id, front or back), oldest first: used when the AI finds a card from its picture alone
+  byIllustration: `${PRINTING_SELECT} WHERE p.illus = ? OR p.illus_back = ? ORDER BY p.released`,
   setCodes: 'SELECT code FROM sets ORDER BY code',
   // Every set with its name, release date and symbol picture address, newest first (for choosing a set to lock to)
   allSets: 'SELECT code, name, released, icon_url FROM sets ORDER BY released DESC, name',

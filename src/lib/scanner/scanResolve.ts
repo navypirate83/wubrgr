@@ -44,8 +44,8 @@ import { normalizeName } from './core/text';
 import { makeBreather } from './core/timeSlice';
 import type { Printing } from './core/catalogueTypes';
 import { eraOf, type ScanReading } from './core/scannerTypes';
-import { allFrontNameIndex, allFrontNames, artHashFor, findPrintings, printingsNamed, setCodes, setSymbol } from './catalogue/catalogue';
-import { aiScoresForReading } from './ai/aiRun';
+import { allFrontNameIndex, allFrontNames, artHashFor, findPrintings, printingsNamed, printingsWithArt, setCodes, setSymbol } from './catalogue/catalogue';
+import { aiArtGuesses, aiScoresForReading } from './ai/aiRun';
 
 export type ScanOutcome = {
   status: 'sure' | 'likely' | 'pick' | 'none';
@@ -205,6 +205,47 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   return { ...base, status: 'pick', printing: null, candidates: ordered, matched: Math.max(ranked.fits, lookAlikes.length), reason: `${note}${ranked.fits} printings fit best (${ranked.why}${doubt})` };
 }
 
+// The AI's closeness (cosine, 0 to 1) the best artwork must reach for the card to be offered at all when no name could be read, and the
+// closeness at which it is "likely" (with a clear lead over the best different card)
+const ART_ONLY_MIN = 0.6;
+const ART_ONLY_LIKELY = 0.85;
+const ART_ONLY_LEAD = 0.06;
+
+// THE LAST RESORT: no name could be read, so the AI looks for the card by its artwork alone (when the option is on and its files are here).
+// Gives the printings wearing the closest artworks, best first (the collector number read from the info line, if any, puts the
+// right one of several look-alikes first). Mostly "pick": the person chooses, with the right card usually first; "likely" only when
+// the AI is clearly sure. Null when the AI can't help (off, no files, nothing close enough).
+async function fromArtOnly(reading: ScanReading, info: InfoLine): Promise<ScanOutcome | null> {
+  let guesses: Awaited<ReturnType<typeof aiArtGuesses>> = null;
+  try { guesses = await aiArtGuesses(reading); } catch { guesses = null; }
+  if (!guesses || guesses.length === 0 || guesses[0].similarity < ART_ONLY_MIN) return null;
+  const readSet = checkSetCode(info.setCode, await knownSets())?.code ?? null;
+  const scored: { printing: Printing; score: number; closeness: number }[] = [];
+  const seen = new Set<string>();
+  for (const guess of guesses) {
+    for (const printing of await printingsWithArt(guess.illustrationId)) {
+      if (seen.has(printing.id)) continue;
+      seen.add(printing.id);
+      scored.push({ printing, closeness: guess.similarity, score: guess.similarity * 4 + numberBonus(info.collectorNumber, readSet, printing) });
+    }
+  }
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+  const rival = scored.find((s) => s.printing.name !== best.printing.name);
+  const clearLead = !rival || best.closeness - rival.closeness >= ART_ONLY_LEAD || best.score - rival.score >= 1;
+  // Printings wearing the SAME artwork (a card reprinted in several sets, or a plain and a borderless one of one set) look alike in a
+  // photo: the picture can find the card but never which printing, so only a collector number that was read (and fits) can pick one
+  const lookAlike = scored.some((s) => s !== best && s.closeness === best.closeness && Math.abs(s.score - best.score) < 1.5);
+  const likely = best.closeness >= ART_ONLY_LIKELY && clearLead && !lookAlike;
+  const base = { reading, info, lang: info.lang, name: best.printing.name };
+  const candidates = scored.map((s) => s.printing);
+  const why = `no name could be read; found by its artwork (${Math.round(best.closeness * 100)}% alike)`;
+  return likely
+    ? { ...base, status: 'likely', printing: best.printing, candidates, reason: `Likely (${why})` }
+    : { ...base, status: 'pick', printing: null, candidates, matched: Math.max(1, scored.filter((s) => Math.abs(s.score - best.score) < 0.15).length), reason: `${scored.length} printings fit best (${why})` };
+}
+
 // Works out the printing, then lets go of the photo's "read more" step (it holds on to the picture,
 // and a reading is kept in the stack list for a long time afterwards)
 export async function resolveReading(reading: ScanReading, options: ResolveOptions = {}): Promise<ScanOutcome> {
@@ -266,10 +307,13 @@ async function resolveInner(reading: ScanReading, lockedSet: string | null, aiAr
       const fallback = await fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet, aiArt);
       return fallback;
     }
+    if (aiArt) { const byArt = await fromArtOnly(reading, info); if (byArt) return byArt; }
     return { ...base, status: 'none', printing: null, candidates: found, reason: verdict.reason };
   }
 
   // 2. The fallback: the name, and the clues
   if (name) return fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet, aiArt);
+  // 3. No name at all: the AI may still know the card by its artwork
+  if (aiArt) { const byArt = await fromArtOnly(reading, info); if (byArt) return byArt; }
   return { reading, info, lang: info.lang, name: null, status: 'none', printing: null, candidates: [], reason: 'Neither the info line nor the name could be read' };
 }

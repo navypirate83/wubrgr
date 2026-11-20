@@ -15,8 +15,8 @@
 import { hasAiScanAccess } from '../../session';
 import type { Printing } from '../core/catalogueTypes';
 import type { ScanReading } from '../core/scannerTypes';
-import { MODEL_SIZE } from '../core/modelInput';
-import { aiScoresFor } from './aiClue';
+import { ART_BOXES, MODEL_SIZE, artTensor, standardCard } from '../core/modelInput';
+import { STRONG_MATCH, aiScoresFor, pictureOrder } from './aiClue';
 import { aiReady, readAiFile } from './aiFiles';
 import { createAiIndex, type AiIndex } from './aiIndex';
 import { aiModel } from './aiModel';
@@ -49,6 +49,32 @@ export async function aiScoresForReading(reading: ScanReading, printings: Printi
   const pictures = await reading.aiPictures();
   if (pictures.length === 0) return null;
   return aiScoresFor(pictures, printings.map((p) => ({ id: p.id, illus: p.illus, illusBack: p.illusBack, frame: p.frame })), { embed: aiModel.embed, index: await loadAiIndex() }, { earlierLooks: reading.aiEarlierLooks });
+}
+
+// The artworks in the WHOLE catalogue closest to the photo's art, best first: for a card whose name could not be read at all, so the
+// card itself has to be found from its picture. (null: the AI can't help here, as for aiScoresForReading.) Each try cuts the art out of
+// the straightened card with one art box and one turn and asks the saved fingerprints; the search stops at the first clearly
+// strong match (like aiClue.ts), else the closest of everything tried is used. The modern frame's box is tried first, then the
+// whole card (full-art cards), upright and then upside down.
+export type ArtGuess = { illustrationId: string; similarity: number };
+export async function aiArtGuesses(reading: ScanReading, count = 10): Promise<ArtGuess[] | null> {
+  if (!hasAiScanAccess()) return null;
+  if (!reading.aiPictures || !aiModel.available || !(await aiReady())) return null;
+  const pictures = await reading.aiPictures();
+  if (pictures.length === 0) return null;
+  const index = await loadAiIndex();
+  let best: ArtGuess[] | null = null;
+  for (const pictureAt of pictureOrder(pictures.length)) {
+    for (const turn of [0, 180] as const) {
+      const card = standardCard(pictures[pictureAt], turn);
+      for (const box of ['2015', 'full']) {
+        const hits = index.nearestArt(index.shrink(await aiModel.embed(artTensor(card, ART_BOXES[box]))), count);
+        if (hits.length > 0 && (!best || hits[0].similarity > best[0].similarity)) best = hits;
+        if (best && best[0].similarity >= STRONG_MATCH) return best;
+      }
+    }
+  }
+  return best;
 }
 
 // Get the AI ready before the first scan that needs it: load the saved fingerprints into memory, make the model's
