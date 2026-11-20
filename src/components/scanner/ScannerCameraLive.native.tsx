@@ -10,9 +10,9 @@
    lib/scanner/ocr/ocr.native.ts). The reading goes to the scan screen exactly
    like the website's does, so everything after it (finding the card, the
    confirm sheet, the stack list) is shared.
-   LENSES: a phone with more than one lens on the back (ultra-wide, main, zoom) gets a row of small
-   buttons on the picture itself, so the change is seen live; tap one to look through that lens. Nothing
-   shows on a phone with a single lens (see core/lenses.ts).
+   LENSES: a row of small buttons on the picture itself (like "0.6x  1x  2x") sets the zoom level, and the
+   phone swaps to its ultra-wide or zoom lens by itself as the level changes, so the change is seen live.
+   On a phone that lists its lenses as separate cameras, a button opens that camera instead (see core/lenses.ts).
    You can also pinch to zoom, tap to focus, turn the torch on, or pick a photo
    of a card from the phone ("Choose a photo").
    The camera is switched off whenever you leave the Scan tab or the app goes to
@@ -65,7 +65,7 @@ import { ActivityIndicator, AppState, Linking, Pressable, StyleSheet, Text, View
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import { Camera, useCameraDevice, useCameraDevices, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
+import { Camera, useCameraDevice, useCameraDevices, useCameraPermission, usePhotoOutput, type CameraRef } from 'react-native-vision-camera';
 import { useColors } from '@/hooks/useTheme';
 import { canCutOutCards, cardOcr, cardSignature, cutOutCard, finishPhoto, photoSize, readCardPhoto, readTitleOnly, wholePhotoGray } from '@/lib/scanner/ocr/ocr.native';
 import { FOUND_SCORE, FULL_SCORE, readingScore } from '@/lib/scanner/core/cardCuts';
@@ -84,7 +84,7 @@ import {
 } from '@/lib/scanner/core/liveFrames';
 import { titlesAgree, titlesClearlyDiffer } from '@/lib/scanner/core/frameAgree';
 import { sameFrame } from '@/lib/scanner/core/frameChange';
-import { findLens, lensChoices, type LensChoice } from '@/lib/scanner/core/lenses';
+import { findCamera, lensChoices, mainCamera, type LensChoice } from '@/lib/scanner/core/lenses';
 import { mark, markCameraRunning, markCleanExit } from '@/lib/scanner/crashTrail';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 import { READ_CARDS_FROM_FRAMES, useLiveFrames } from './useLiveFrames.native';
@@ -122,16 +122,21 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
   const colors = useColors();
   const { hasPermission, canRequestPermission, requestPermission } = useCameraPermission();
   const defaultDevice = useCameraDevice('back');
-  // Every camera the phone has, and the one the person picked with the lens buttons (none = the usual one)
+  // Every camera the phone has, and the lens button the person picked (none = the main camera at 1x).
+  // A button is a camera AND a zoom level on it (see core/lenses.ts for why).
   const allDevices = useCameraDevices();
   const [lensId, setLensId] = useState<string | null>(null);
-  const lenses = lensChoices(allDevices);
-  // The picked lens if the phone still has it, otherwise the usual back camera
-  const device = findLens(allDevices, lensId) ?? defaultDevice;
-  // Which button is lit: the picked lens, or (before anything is picked) the one that matches the usual camera
-  const litLens = lensId && lenses.some((l) => l.id === lensId)
-    ? lensId
-    : lenses.find((l) => l.id === defaultDevice?.id)?.id ?? lenses.find((l) => l.type === 'wide-angle')?.id ?? null;
+  const lenses = lensChoices(allDevices, defaultDevice?.id ?? null);
+  const pickedLens = lenses.find((l) => l.id === lensId) ?? null;
+  // The camera to use: the picked button's camera if the phone still has it, otherwise the main back camera
+  const device = findCamera(allDevices, pickedLens?.deviceId ?? null) ?? mainCamera(allDevices, defaultDevice?.id ?? null) ?? defaultDevice;
+  // Which button is lit: the picked one, or (before anything is picked) this camera's 1x button
+  const litLens = pickedLens?.id ?? lenses.find((l) => l.deviceId === device?.id && l.zoom === 1)?.id ?? null;
+  // The camera on the screen (to set its zoom), and the zoom level the lit button asks for. The level is kept in a
+  // note-to-self too, because it is put back each time the camera starts again (a restarted camera begins at 1x).
+  const cameraRef = useRef<CameraRef>(null);
+  const wantedZoom = useRef(1);
+  wantedZoom.current = pickedLens?.zoom ?? 1;
   // The photo taker. Speed matters more than the last bit of quality: about 5 megapixels (4:3, like the
   // live picture) is plenty for the small print (see PHOTO_TARGET), and the quick mode and a little more JPEG
   // squeezing make each photo come back much sooner than a full-size, best-quality one.
@@ -641,10 +646,34 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
     setHint('That lens could not be used, so the camera went back to the one before.');
   }
 
-  // A lens button was tapped. Auto scan and the torch are switched off first (the new lens may have no torch, and nothing
-  // should be taking photos while the camera is being set up again). The Camera below is rebuilt for the new lens (see its "key").
+  // Set the camera's zoom level (the phone swaps lens by itself as the level changes). Anything that goes wrong only shows
+  // a short message: the camera carries on as it was.
+  function applyZoom(zoom: number) {
+    try {
+      const controller = cameraRef.current?.controller;
+      if (!controller) return;
+      mark(`zoom to ${zoom}`);
+      controller.setZoom(zoom).catch((err: Error) => {
+        mark(`zoom failed: ${err.message}`);
+        setHint('The camera could not change to that zoom level.');
+      });
+    } catch (err) {
+      mark(`zoom failed: ${(err as Error).message}`);
+    }
+  }
+
+  // A lens button was tapped. A button on the camera already in use only changes the zoom level (it can be tapped again
+  // after pinching, to go back to its level). A button for a different camera: Auto scan and the torch are switched off
+  // first (the new camera may have no torch, and nothing should be taking photos while the camera is being set up again),
+  // then the Camera below is rebuilt for it (see its "key").
   function chooseLens(lens: LensChoice) {
-    if (lens.id === litLens || pendingRef.current) return;
+    if (pendingRef.current) return;
+    if (lens.deviceId === device?.id) {
+      setLensId(lens.id);
+      setHint('');
+      applyZoom(lens.zoom);
+      return;
+    }
     try {
       mark(`lens switch to ${lens.label}`);
       lensBefore.current = lensId;
@@ -668,6 +697,7 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
           "key" makes a brand-new camera session for each lens (switching lens on the same session crashed the app on a
           phone), and the torch is only asked for on a lens that has one (the ultra-wide usually hasn't). */}
       <Camera
+        ref={cameraRef}
         key={device.id}
         style={StyleSheet.absoluteFill}
         device={device}
@@ -679,7 +709,13 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         enableNativeTapToFocusGesture
         onConfigured={() => mark('camera set up')}
         onPreviewStarted={() => mark('camera preview showing')}
-        onStarted={() => { markCameraRunning(); endSwitch(null); }}
+        onStarted={() => {
+          markCameraRunning();
+          endSwitch(null);
+          // A camera that has just started is at 1x: put back the zoom level of the lit button if it is a different one.
+          // (A moment later, so the camera's controls are in place.)
+          if (wantedZoom.current !== 1) setTimeout(() => applyZoom(wantedZoom.current), 150);
+        }}
         onError={(error) => {
           mark(`camera error: ${error.message}`);
           // A flash (torch) error is not a camera failure: the camera itself is fine. Switch the flash off, say so in a

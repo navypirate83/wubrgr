@@ -5,41 +5,55 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findLens, lensChoices, type LensCandidate } from './lenses.ts';
+import { findCamera, lensChoices, mainCamera, type LensCandidate } from './lenses.ts';
 
-const lens = (id: string, type: string, position = 'back'): LensCandidate => ({ id, type, position, isVirtualDevice: false, physicalDevices: [] });
-const blended = (id: string, inner: LensCandidate[]): LensCandidate => ({ id, type: 'triple', position: 'back', isVirtualDevice: true, physicalDevices: inner });
+// A camera for the checks: a single lens zooms from 1x to 8x unless told otherwise
+const camera = (id: string, type: string, minZoom = 1, maxZoom = 8, position = 'back'): LensCandidate => ({ id, type, position, minZoom, maxZoom });
+// A lens that is only listed as a part of a blended camera: the camera library gives it no kind and no zoom
+const part = (id: string): LensCandidate => camera(id, 'unknown', 0, 0);
 
-test('three separate back lenses are offered widest first', () => {
-  const choices = lensChoices([lens('2', 'telephoto'), lens('0', 'wide-angle'), lens('3', 'ultra-wide-angle')]);
-  assert.deepEqual(choices.map((c) => c.label), ['Ultra-wide', 'Main', 'Zoom']);
-  assert.deepEqual(choices.map((c) => c.id), ['3', '0', '2']);
+test('a blended back camera gets zoom buttons on itself: widest, 1x, 2x', () => {
+  const choices = lensChoices([camera('0', 'triple', 0.6, 10), camera('1', 'wide-angle', 1, 4, 'front')], '0');
+  assert.deepEqual(choices.map((c) => c.label), ['0.6x', '1x', '2x']);
+  assert.deepEqual(choices.map((c) => c.deviceId), ['0', '0', '0']);
+  assert.deepEqual(choices.map((c) => c.zoom), [0.6, 1, 2]);
 });
 
-test('lenses inside a blended camera are found too', () => {
-  const choices = lensChoices([blended('0', [lens('1', 'ultra-wide-angle'), lens('2', 'wide-angle')])]);
-  assert.deepEqual(choices.map((c) => c.id), ['1', '2']);
+test('a blended camera is used even when the phone calls a single lens its usual camera', () => {
+  const devices = [camera('0', 'wide-angle'), camera('5', 'triple', 0.5, 10)];
+  assert.equal(mainCamera(devices, '0')?.id, '5');
+  assert.deepEqual(lensChoices(devices, '0').map((c) => c.label), ['0.5x', '1x', '2x']);
+});
+
+test('separate back cameras: the ultra-wide and zoom cameras get their own buttons', () => {
+  const choices = lensChoices([camera('2', 'telephoto'), camera('0', 'wide-angle'), camera('3', 'ultra-wide-angle')], '0');
+  assert.deepEqual(choices.map((c) => c.label), ['Ultra-wide', '1x', '2x', 'Tele']);
+  assert.deepEqual(choices.map((c) => c.deviceId), ['3', '0', '0', '2']);
+});
+
+test('lenses that are only parts of another camera are never offered', () => {
+  const choices = lensChoices([camera('0', 'wide-angle'), part('2'), part('3')], '0');
+  assert.deepEqual(choices.map((c) => c.deviceId), ['0', '0']);
 });
 
 test('the front camera is never offered', () => {
-  const choices = lensChoices([lens('1', 'wide-angle', 'front'), lens('0', 'wide-angle'), lens('2', 'ultra-wide-angle')]);
-  assert.deepEqual(choices.map((c) => c.id), ['2', '0']);
+  const choices = lensChoices([camera('1', 'triple', 0.5, 8, 'front'), camera('0', 'wide-angle')], '0');
+  assert.deepEqual(choices.map((c) => c.deviceId), ['0', '0']);
 });
 
-test('a phone with one lens has no choice to show', () => {
-  assert.deepEqual(lensChoices([lens('0', 'wide-angle')]), []);
-  assert.deepEqual(lensChoices([]), []);
+test('nothing to show when there is no back camera, or one that cannot zoom', () => {
+  assert.deepEqual(lensChoices([], null), []);
+  assert.deepEqual(lensChoices([camera('0', 'wide-angle', 1, 1)], '0'), []);
 });
 
-test('the same kind of lens is only offered once', () => {
-  const choices = lensChoices([lens('0', 'wide-angle'), lens('5', 'wide-angle'), lens('3', 'telephoto')]);
-  assert.deepEqual(choices.map((c) => c.id), ['0', '3']);
+test('every button has its own id', () => {
+  const choices = lensChoices([camera('2', 'telephoto'), camera('0', 'triple', 0.6, 10), camera('3', 'ultra-wide-angle')], '0');
+  assert.equal(new Set(choices.map((c) => c.id)).size, choices.length);
 });
 
-test('findLens finds a lens by id, even inside a blended camera, and gives nothing for an unknown one', () => {
-  const devices = [blended('0', [lens('1', 'ultra-wide-angle'), lens('2', 'wide-angle')]), lens('7', 'telephoto')];
-  assert.equal(findLens(devices, '2')?.id, '2');
-  assert.equal(findLens(devices, '7')?.id, '7');
-  assert.equal(findLens(devices, '99'), null);
-  assert.equal(findLens(devices, null), null);
+test('findCamera finds a camera by id and gives nothing for an unknown one', () => {
+  const devices = [camera('0', 'triple', 0.6, 10), camera('7', 'telephoto')];
+  assert.equal(findCamera(devices, '7')?.id, '7');
+  assert.equal(findCamera(devices, '99'), null);
+  assert.equal(findCamera(devices, null), null);
 });
