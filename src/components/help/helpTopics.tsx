@@ -587,6 +587,9 @@ export const helpTopics: HelpTopic[] = [
               without the files it does nothing and the scanner works as usual. Once the catalogue is on the device, and you've opened the
               scanner once with a connection, it works with no internet. On the website's Track card mode, while a card holds still the scanner keeps up to
               three small pictures of it, and when the AI isn't sure it blends them (sharper, surer pictures count more) so one blurry moment can't mislead it.
+              When a card's name can't be read at all (a stylised title, an old faded frame, a full-art land), the AI looks for the card by its artwork
+              across every card in the catalogue and offers a short list to pick from, with the most likely printing first; it only picks one for you
+              when it is clearly sure and no other printing wears the same picture.
               If the app closed by itself while the camera was starting, the Scan screen opens next time with the camera switched off and a <Strong>Start camera</Strong> button (the picture button still works, so you can scan from a photo). A message offers to copy the last steps to send to the developer; in the phone app, Settings, About also shows a <Strong>Last crash report</Strong> row with the same details when the phone recorded one.
             </Bullet>
             <Bullet>
