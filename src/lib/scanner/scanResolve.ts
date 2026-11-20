@@ -173,6 +173,7 @@ export async function resolveReading(reading: ScanReading, options: ResolveOptio
   } finally {
     reading.moreClues = undefined;
     reading.aiPictures = undefined;
+    reading.aiEarlierLooks = undefined;
   }
 }
 

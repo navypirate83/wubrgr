@@ -42,6 +42,7 @@
 import { eraOf } from '../core/scannerTypes.ts';
 import { ART_BOXES, artTensor, standardCard, type Picture, type Turn } from '../core/modelInput.ts';
 import type { AiIndex } from './aiIndex.ts';
+import { blendedScores, type EarlierLook } from './aiBlend.ts';
 
 // What is needed to know about each printing
 export type AiPrinting = { id: string; illus?: string | null; illusBack?: string | null; frame: string };
@@ -76,6 +77,9 @@ export type AiClueOptions = {
   stopAt?: number;                                                       // stop at the first cut-out this alike (Infinity: try everything)
   window?: number;                                                       // after the first look, only dig further into pictures/turns whose first look was within this of the best first look (Infinity: all)
   onTry?: (tried: { picture: number; turn: Turn; box: string; top: number }) => void;   // told about every cut-out looked at
+  // Earlier looks at the SAME card (Track mode sees it several times while it holds still). When no cut-out is clearly
+  // strong, the same cut-out of each earlier look is blended in (see aiBlend.ts), so one blurry look can't mislead.
+  earlierLooks?: EarlierLook[];
 };
 
 // The order the pictures are tried in: the outline finder's best one first, then the camera's own crop
@@ -108,7 +112,8 @@ export async function aiScoresFor(pictures: Picture[], printings: AiPrinting[], 
   // The straightened card for each picture and turn, made only when a box needs it and then shared
   const uprights = new Map<string, ReturnType<typeof standardCard>>();
 
-  let best: { score: number; scores: Map<string, number> } | null = null;
+  // The closest cut-out so far: how alike it was, the score of each printing, and what it was made from
+  let best: { score: number; scores: Map<string, number>; photo: Int8Array; pictureAt: number; turn: Turn; box: string } | null = null;
   // Look at one cut-out: run the model if this one hasn't been done, compare with every printing, and
   // remember it if it is the closest so far. Gives back how alike its best printing was.
   const tryOne = async (pictureAt: number, turn: Turn, boxName: string): Promise<number> => {
@@ -134,8 +139,18 @@ export async function aiScoresFor(pictures: Picture[], printings: AiPrinting[], 
     }
     if (scores.size === 0) return -Infinity;
     options.onTry?.({ picture: pictureAt, turn, box: boxName, top });
-    if (!best || top > best.score) best = { score: top, scores };
+    if (!best || top > best.score) best = { score: top, scores, photo, pictureAt, turn, box: boxName };
     return top;
+  };
+
+  // What to give back once the search is over: the closest cut-out's scores, or (when nothing was clearly strong and
+  // there are earlier looks at this card) the scores from the blend of all the looks at that same cut-out
+  const finish = async (): Promise<Map<string, number> | null> => {
+    const chosen = best as { score: number; scores: Map<string, number>; photo: Int8Array; pictureAt: number; turn: Turn; box: string } | null;
+    if (!chosen) return null;
+    if (chosen.score >= stopAt || !options.earlierLooks?.length) return chosen.scores;
+    const blended = await blendedScores({ photo: chosen.photo, picture: pictures[chosen.pictureAt], turn: chosen.turn, box: chosen.box }, options.earlierLooks, printings, tools);
+    return blended ?? chosen.scores;
   };
 
   // A. The first look: only the most likely box, for each picture and turn
@@ -143,7 +158,7 @@ export async function aiScoresFor(pictures: Picture[], printings: AiPrinting[], 
   for (const pictureAt of pictureOrder(pictures.length)) {
     for (const turn of TURNS_TRIED) {
       const top = await tryOne(pictureAt, turn, boxNames[0]);
-      if (top >= stopAt) return best!.scores;
+      if (top >= stopAt) return finish();
       looked.push({ pictureAt, turn, top });
     }
   }
@@ -151,8 +166,8 @@ export async function aiScoresFor(pictures: Picture[], printings: AiPrinting[], 
   const promising = [...looked].sort((a, b) => b.top - a.top).filter((l) => l.top >= looked.reduce((m, x) => Math.max(m, x.top), -Infinity) - window);
   for (const { pictureAt, turn } of promising) {
     for (const boxName of boxNames.slice(1)) {
-      if ((await tryOne(pictureAt, turn, boxName)) >= stopAt) return best!.scores;
+      if ((await tryOne(pictureAt, turn, boxName)) >= stopAt) return finish();
     }
   }
-  return best ? (best as { scores: Map<string, number> }).scores : null;
+  return finish();
 }

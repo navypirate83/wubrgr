@@ -40,9 +40,13 @@ import { readCard, cardOcr } from '@/lib/scanner/ocr/ocr.web';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { blendQuads, findCard, quadCentre, quadShift } from '@/lib/scanner/core/cardFinder';
 import { longestSide, warpCard, type Point, type Quad } from '@/lib/scanner/core/perspective';
+import { snapCorners } from '@/lib/scanner/core/cornerSnap';
+import { Tracker } from '@/lib/scanner/core/tracker';
+import { sharpnessOf } from '@/lib/scanner/core/viewBlend';
 import { changedFrame, signatureDifference, tinyFromRgba } from '@/lib/scanner/core/frameChange';
 import { aiCardPictures } from '@/lib/scanner/ai/aiPhoto.web';
 import { getScanOptions } from '@/lib/scanner/scanSettings';
+import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
@@ -59,6 +63,15 @@ const LOOK_EVERY_MS = 140;
 const HOLD_STILL_MS = 700;
 const STILL_DRIFT = 0.015;
 const GONE_LOOKS = 8;
+// How many pixels of room are kept around a card when it is cut out, so its corners can be snapped onto its edges
+const SNAP_ROOM = 24;
+// "AI art matching": while a card holds still, a small flat picture of it is kept every so often (up to this many, the
+// newest), so the AI can blend several looks instead of trusting one (see ai/aiBlend.ts). They are made 630 x 880, the
+// size the AI works at. A look is only kept once the card has held still for this share of the hold-still wait.
+const EARLIER_LOOKS = 3;
+const EARLIER_LOOK_EVERY_MS = 250;
+const EARLIER_LOOK_AFTER_HOLD = 0.3;
+type EarlierLook = NonNullable<ScanReading['aiEarlierLooks']>[number];
 // A different card put down in the same place: its look must have clearly changed (see core/frameChange.ts) and held
 // steady for this many looks in a row (a hand passing over the card moves too much to count), before it can be scanned
 const CHANGE_LOOKS = 4;
@@ -172,7 +185,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   }
 
   // "frameMs" is how long it took to copy the picture out of the video (for the timings shown after the scan)
-  async function scan(source: HTMLCanvasElement, card: Rect, frameMs?: number) {
+  // "earlier" are the pictures kept of this same card while it held still (Track mode with AI art matching only)
+  async function scan(source: HTMLCanvasElement, card: Rect, frameMs?: number, earlier?: EarlierLook[]) {
     setBusy(true);
     setHint('');
     try {
@@ -181,7 +195,10 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       if (frameMs !== undefined) reading.timings = { frame: frameMs, ...reading.timings };
       // With "AI art matching" on, also leave a way to make the flat card pictures the AI looks at. It does its
       // slow work only if the scan turns out to need it, and the photo is let go with the reading afterwards.
-      if (getScanOptions().aiArt) reading.aiPictures = () => aiCardPictures(source, card);
+      if (getScanOptions().aiArt) {
+        reading.aiPictures = () => aiCardPictures(source, card);
+        if (earlier?.length) reading.aiEarlierLooks = earlier;
+      }
       if (dark) setHint('It is dark. Light the card better (or use the torch) and scan again.');
       onReading(reading);
     } catch (err) {
@@ -201,7 +218,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       if (!seen) { setHint('Can\'t see the whole card. Put it on a plain, different-coloured surface, or switch to Guide.'); return; }
       // (a scan from the button has no saved signature, so a changed card isn't judged against an older one)
       live.current.scannedSig = null;
-      await scanTracked(seen.quad);
+      await scanTracked(seen.quad, []);
       return;
     }
     const grabStart = Date.now();
@@ -218,17 +235,19 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   // fractions of the picture; only the box around the card is copied, so a big camera picture isn't copied whole.
   function straighten(source: CanvasImageSource, sourceWidth: number, sourceHeight: number, quad: Quad): HTMLCanvasElement {
     const corners = quad.map((p) => ({ x: p.x * sourceWidth, y: p.y * sourceHeight })) as Quad;
-    const left = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.x))) - 2);
-    const top = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.y))) - 2);
-    const right = Math.min(sourceWidth, Math.ceil(Math.max(...corners.map((p) => p.x))) + 2);
-    const bottom = Math.min(sourceHeight, Math.ceil(Math.max(...corners.map((p) => p.y))) + 2);
+    // (a little room is kept around the card so the corner snap below can look just outside its edges)
+    const left = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.x))) - SNAP_ROOM);
+    const top = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.y))) - SNAP_ROOM);
+    const right = Math.min(sourceWidth, Math.ceil(Math.max(...corners.map((p) => p.x))) + SNAP_ROOM);
+    const bottom = Math.min(sourceHeight, Math.ceil(Math.max(...corners.map((p) => p.y))) + SNAP_ROOM);
     const crop = document.createElement('canvas');
     crop.width = right - left;
     crop.height = bottom - top;
     const cropContext = crop.getContext('2d', { willReadFrequently: true })!;
     cropContext.drawImage(source, left, top, crop.width, crop.height, 0, 0, crop.width, crop.height);
     const picture = cropContext.getImageData(0, 0, crop.width, crop.height);
-    const shifted = corners.map((p) => ({ x: p.x - left, y: p.y - top })) as Quad;
+    // The corners from the finder are close but not exact; snap them onto the card's real edges in the full-size crop
+    const shifted = snapCorners(picture, corners.map((p) => ({ x: p.x - left, y: p.y - top })) as Quad);
     // The flat picture is about as tall as the card looked, but never tiny or enormous
     const flatHeight = Math.max(700, Math.min(1500, Math.round(longestSide(shifted))));
     const flatWidth = Math.round(flatHeight * CARD_ASPECT);
@@ -240,7 +259,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   }
 
   // Scan the card the tracker found, in the live picture
-  async function scanTracked(quad: Quad) {
+  async function scanTracked(quad: Quad, earlier: EarlierLook[]) {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
     // Until the card leaves or moves, don't scan it again
@@ -248,7 +267,24 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     live.current.scannedAt = quadCentre(quad);
     const grabStart = Date.now();
     const flat = straighten(video, video.videoWidth, video.videoHeight, quad);
-    await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height }, Date.now() - grabStart);
+    await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height }, Date.now() - grabStart, earlier);
+  }
+
+  // A small flat picture of the tracked card for the AI to blend later: the card straightened, shrunk to 630 x 880,
+  // with how sharp it is. Null if the picture could not be made.
+  function keepLook(video: HTMLVideoElement, quad: Quad): EarlierLook | null {
+    try {
+      const flat = straighten(video, video.videoWidth, video.videoHeight, quad);
+      const small = document.createElement('canvas');
+      small.width = 630;
+      small.height = 880;
+      const context = small.getContext('2d', { willReadFrequently: true })!;
+      context.drawImage(flat, 0, 0, small.width, small.height);
+      const picture = context.getImageData(0, 0, small.width, small.height);
+      return { picture, sharpness: sharpnessOf(picture) };
+    } catch {
+      return null;
+    }
   }
 
   // The newest version of scanTracked (the timer below lives on past renders, and the scan screen
@@ -266,6 +302,12 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     let missing = 0;                    // how many looks in a row found no card
     let changedLooks = 0;               // how many looks in a row the scanned card's picture has clearly changed and held steady
     let lastSig: Uint8Array | null = null;   // the card's tiny signature on the look before this one
+    // Gives the card a number that stays with it from look to look (see core/tracker.ts): it is only trusted after
+    // two sightings, and is kept through up to 3 missed looks in a row, so one bad frame can't make it blink out
+    const tracker = new Tracker();
+    // Pictures kept of the card while it holds still (newest last), and when the last one was kept
+    let looks: EarlierLook[] = [];
+    let lastLookAt = 0;
     const timer = setInterval(() => {
       const video = videoRef.current;
       const state = live.current;
@@ -275,15 +317,19 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       if (small.width !== LOOK_WIDTH || small.height !== lookHeight) { small.width = LOOK_WIDTH; small.height = lookHeight; }
       context.drawImage(video, 0, 0, LOOK_WIDTH, lookHeight);
       const look = context.getImageData(0, 0, LOOK_WIDTH, lookHeight);
-      const quad = findCard(look);
+      const looked = findCard(look);
+      tracker.update(looked ? [{ quad: looked, score: 1 }] : []);
+      // The card being followed (null while it is only seen once, or was missed this look)
+      const quad = tracker.activeTrack()?.quad ?? null;
       const now = Date.now();
       if (!quad) {
-        // No card: only believe it after a second look (one bad frame shouldn't make the outline blink)
+        // No card: the tracker forgets it only after 4 missed looks in a row, so the outline holds through one bad frame
         missing++;
-        if (missing >= 2) { last = null; stillSince = 0; setFound(null); }
+        if (!tracker.tracks.length) { last = null; stillSince = 0; setFound(null); }
         if (missing >= GONE_LOOKS) state.armed = true;
         lastSig = null;
         changedLooks = 0;
+        looks = [];
         return;
       }
       missing = 0;
@@ -311,10 +357,19 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       }
       lastSig = sig;
       setFound({ quad: smooth, hold, armed: state.armed });
+      // While the card holds still and is waiting to be scanned, keep a few pictures of it for the AI to blend
+      if (!state.armed || moved > STILL_DRIFT) looks = [];
+      else if (getScanOptions().aiArt && hold >= EARLIER_LOOK_AFTER_HOLD && hold < 1 && now - lastLookAt >= EARLIER_LOOK_EVERY_MS) {
+        const kept = keepLook(video, smooth);
+        if (kept) looks = [...looks, kept].slice(-EARLIER_LOOKS);
+        lastLookAt = now;
+      }
       if (hold >= 1 && state.armed) {
         // Remember what this card looked like when it was scanned
         state.scannedSig = sig;
-        scanTrackedNow.current(smooth);
+        const earlier = looks;
+        looks = [];
+        scanTrackedNow.current(smooth, earlier);
       }
     }, LOOK_EVERY_MS);
     return () => clearInterval(timer);

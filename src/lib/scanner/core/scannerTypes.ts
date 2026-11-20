@@ -36,6 +36,10 @@ export type ScanReading = {
   // the card is: red, green, blue, alpha for every pixel) for the AI to look at. It does the slow work only when called,
   // and is dropped with the photo once the reading has been worked out, like moreClues.
   aiPictures?: () => Promise<{ data: ArrayLike<number>; width: number; height: number }[]>;
+  // Only Track mode on the website sets this: the last few earlier looks at the SAME card while it held still (flat upright
+  // pictures, with how sharp each was, 0 to 1). The AI blends them with the look it chose (ai/aiBlend.ts) when no
+  // single look is clearly strong. Dropped with the photo once the reading has been worked out.
+  aiEarlierLooks?: { picture: { data: ArrayLike<number>; width: number; height: number }; sharpness: number }[];
   // How long each step took, in milliseconds (the camera adds "photo", the reader adds "text" and so on).
   // Shown briefly after a scan so it's easy to see what is slow.
   timings?: Record<string, number>;

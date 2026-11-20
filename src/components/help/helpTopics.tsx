@@ -560,7 +560,7 @@ export const helpTopics: HelpTopic[] = [
               camera with a card-shaped guide: line a card up in the corners and tap the round button (or tap the picture button
               to choose a photo of a card). The <Strong>Track card</Strong> button at the top switches to a mode with no lining up:
               hold the card at any angle on a plain surface that isn't the same colour as the card, an outline appears around it,
-              and when it holds still for a moment it is straightened and scanned by itself (the round button scans it at once).
+              and when it holds still for a moment it is straightened and scanned by itself (the round button scans it at once). The scanner follows the card from picture to picture, so one bad moment doesn't make the outline blink away, and it snaps the corners onto the card's real edges before straightening it.
               Move the card away, or to a new spot, or put a different card down in its place, to scan another. Tap Track card again to go back to the guide. It reads the card's name and the small print at the bottom left, finds the exact
               printing in the <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, and
               slides up a sheet with the card's picture, set and number, how many (− 1 +), the finish button (foil, like in the Card
@@ -585,7 +585,8 @@ export const helpTopics: HelpTopic[] = [
               from the WUBRG'r server (the line under the switch says
               <Strong>AI files not downloaded</Strong> and has a <Strong>Download AI files</Strong> button, then <Strong>AI files: ready</Strong>);
               without the files it does nothing and the scanner works as usual. Once the catalogue is on the device, and you've opened the
-              scanner once with a connection, it works with no internet.
+              scanner once with a connection, it works with no internet. On the website's Track card mode, while a card holds still the scanner keeps up to
+              three small pictures of it, and when the AI isn't sure it blends them (sharper, surer pictures count more) so one blurry moment can't mislead it.
               If the app closed by itself while the camera was starting, the Scan screen opens next time with the camera switched off and a <Strong>Start camera</Strong> button (the picture button still works, so you can scan from a photo). A message offers to copy the last steps to send to the developer; in the phone app, Settings, About also shows a <Strong>Last crash report</Strong> row with the same details when the phone recorded one.
             </Bullet>
             <Bullet>

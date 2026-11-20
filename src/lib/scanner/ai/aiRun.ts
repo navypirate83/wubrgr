@@ -48,7 +48,7 @@ export async function aiScoresForReading(reading: ScanReading, printings: Printi
   if (!reading.aiPictures || !aiModel.available || !(await aiReady())) return null;
   const pictures = await reading.aiPictures();
   if (pictures.length === 0) return null;
-  return aiScoresFor(pictures, printings.map((p) => ({ id: p.id, illus: p.illus, illusBack: p.illusBack, frame: p.frame })), { embed: aiModel.embed, index: await loadAiIndex() });
+  return aiScoresFor(pictures, printings.map((p) => ({ id: p.id, illus: p.illus, illusBack: p.illusBack, frame: p.frame })), { embed: aiModel.embed, index: await loadAiIndex() }, { earlierLooks: reading.aiEarlierLooks });
 }
 
 // Get the AI ready before the first scan that needs it: load the saved fingerprints into memory, make the model's
