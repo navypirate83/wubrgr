@@ -602,6 +602,13 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         onStarted={() => { markCameraRunning(); endSwitch(null); }}
         onError={(error) => {
           mark(`camera error: ${error.message}`);
+          // A flash (torch) error is not a camera failure: the camera itself is fine. Switch the flash off, say so in a
+          // few words, and change nothing else (no retry with other settings, no lens change).
+          if (/torch/i.test(error.message)) {
+            setTorchOn(false);
+            setHint('The flash could not be turned on.');
+            return;
+          }
           // An error while switching lens: go back to the lens before (and nothing else is tried)
           if (pendingRef.current) { endSwitch(error.message); return; }
           // The first error with the chosen photo settings: remake the photo taker with plain defaults and try again once
@@ -613,7 +620,8 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
             framesNow.current.giveUp();
             return;
           }
-          setHint(error.message);
+          // Only the first line, kept short: the full text (with its long list of code lines) is in the crash trail
+          setHint(error.message.split('\n')[0].slice(0, 120));
         }}
       />
 
