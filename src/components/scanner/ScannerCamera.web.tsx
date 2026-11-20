@@ -91,9 +91,9 @@ type EarlierLook = NonNullable<ScanReading['aiEarlierLooks']>[number];
 // steady for this many looks in a row (a hand passing over the card moves too much to count), before it can be scanned
 const CHANGE_LOOKS = 3;
 const STEADY_BELOW = 0.06;
-// Whether the person left Track on, remembered on this device (the browser may not allow saving; then it starts off)
+// Whether Track is on. It starts ON (so the card never has to be lined up) and stays on unless the person switched it off on this device, which is remembered (the browser may not allow saving; then it simply starts on each time)
 const TRACK_KEY = 'wubrgr.scanner.track';
-const savedTrack = () => { try { return globalThis.localStorage?.getItem(TRACK_KEY) === '1'; } catch { return false; } };
+const savedTrack = () => { try { return globalThis.localStorage?.getItem(TRACK_KEY) !== '0'; } catch { return true; } };
 
 // Finding the card in a small look at the camera picture: first by its EDGES and SHAPE (core/shapeFinder.ts, from the
 // legacy scanner: it doesn't care what colour the card is, so black-bordered, foil and full-art cards work), and if that

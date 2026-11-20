@@ -439,7 +439,9 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         if (READ_CARDS_FROM_FRAMES && look.key === 'photo' && needsCheck(trust.current)) {
           await checkFrames({ area, guide }, await cardSignature(look.path, look.card));
         }
-        await scanPhoto(look.path, look.card, true, look.ms, look.key);
+        // 'always': unless the guide's box gave a full read (name, set and number), the card is looked for in the whole photo too,
+        // so a card that was not lined up in the corners is still found
+        await scanPhoto(look.path, look.card, true, look.ms, look.key, 'always');
       } catch (err) {
         await finishPhoto(look.path, true);
         throw err;
