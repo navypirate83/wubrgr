@@ -6,6 +6,8 @@
    swapped back, and the real code is what's used. A code that is already
    real is used as it is. If swapping gives more than one real code, the scan
    is flagged as ambiguous and the caller should not trust it alone.
+   The bullet between the set code and the language ("ONE • EN") is sometimes read as a LETTER and ends up on the
+   end of the code ("ONEX"), so if that isn't a real set either, the code without its last character is tried too.
    ===================================================================== */
 
 export type CheckedSetCode = {
@@ -14,15 +16,19 @@ export type CheckedSetCode = {
   ambiguous: boolean;    // more than one real code could be meant (the first is given)
 };
 
-// The characters OCR mixes up (both ways round)
-const SWAPS: Record<string, string> = { '0': 'o', o: '0', '1': 'i', i: '1', '5': 's', s: '5', '8': 'b', b: '8' };
+// The characters OCR mixes up (each one can be read as any of the others in its list)
+const SWAPS: Record<string, string[]> = {
+  '0': ['o', 'd'], o: ['0', 'd'], d: ['o', '0'],   // a D read as an O ("SLD" as "SLO") is common
+  '1': ['i', 'l'], i: ['1', 'l'], l: ['1', 'i'],
+  '5': ['s'], s: ['5'], '8': ['b'], b: ['8'], '2': ['z'], z: ['2'],
+};
 
-// Every spelling of a code with its look-alikes swapped (up to 2^letters of them)
+// Every spelling of a code with its look-alikes swapped (up to 3^letters of them)
 function variants(code: string): string[] {
   let all = [''];
   for (const letter of code) {
-    const other = SWAPS[letter];
-    all = all.flatMap((start) => (other ? [start + letter, start + other] : [start + letter]));
+    const others = SWAPS[letter] ?? [];
+    all = all.flatMap((start) => [start + letter, ...others.map((other) => start + other)]);
   }
   return all;
 }
@@ -33,6 +39,12 @@ export function checkSetCode(read: string | null, known: ReadonlySet<string>): C
   const code = read.toLowerCase();
   if (known.has(code)) return { code, corrected: false, ambiguous: false };
   const real = [...new Set(variants(code).filter((v) => v !== code && known.has(v)))];
-  if (real.length === 0) return null;
-  return { code: real[0], corrected: true, ambiguous: real.length > 1 };
+  if (real.length > 0) return { code: real[0], corrected: true, ambiguous: real.length > 1 };
+  // The bullet read as a letter on the end ("ONEX" for "ONE"): try without the last character (a real 3 or 4 character code only)
+  if (code.length >= 4) {
+    const shorter = code.slice(0, -1);
+    const withoutLast = [...new Set(variants(shorter).filter((v) => known.has(v)))];
+    if (withoutLast.length > 0) return { code: withoutLast[0], corrected: true, ambiguous: withoutLast.length > 1 };
+  }
+  return null;
 }

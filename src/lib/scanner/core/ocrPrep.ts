@@ -49,3 +49,43 @@ export function binarizeForOcr(gray: ArrayLike<number>, flip = false): Uint8Arra
   }
   return out;
 }
+
+// Wipe out black blobs that touch the edge of the crop (turn them white), leaving the characters inside it alone.
+// A crop of the small print also catches a strip of whatever is next to it (the bottom edge of the text box, the card's
+// frame): that comes out as a big black bar or smear joined to the crop's edge, and it can throw off the text reader's
+// finding of the lines. Real characters sit inside the crop with a margin round them, so they don't touch the edge.
+// If this would wipe out most of the black (the text itself touches the edge), nothing is changed.
+// The picture is a list of 0 (black) and 255 (white), row after row, changed in place. Returns true if it changed anything.
+export function removeEdgeBlobs(binary: Uint8Array, width: number, height: number): boolean {
+  const seen = new Uint8Array(binary.length);
+  const stack: number[] = [];
+  const wiped: number[] = [];
+  const start = (x: number, y: number) => {
+    const k = y * width + x;
+    if (binary[k] === 0 && !seen[k]) { seen[k] = 1; stack.push(k); }
+  };
+  for (let x = 0; x < width; x++) { start(x, 0); start(x, height - 1); }
+  for (let y = 0; y < height; y++) { start(0, y); start(width - 1, y); }
+  while (stack.length) {
+    const k = stack.pop()!;
+    wiped.push(k);
+    const x = k % width;
+    const y = (k / width) | 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const nk = ny * width + nx;
+        if (binary[nk] === 0 && !seen[nk]) { seen[nk] = 1; stack.push(nk); }
+      }
+    }
+  }
+  if (wiped.length === 0) return false;
+  let black = 0;
+  for (let i = 0; i < binary.length; i++) if (binary[i] === 0) black++;
+  // More than 60% of the black is attached to the edge: the text is probably touching it, so leave the picture as it was
+  if (wiped.length > 0.6 * black) return false;
+  for (const k of wiped) binary[k] = 255;
+  return true;
+}

@@ -22,7 +22,8 @@
    ===================================================================== */
 
 import { rgbaToGray } from '../core/phash';
-import { binarizeForOcr } from '../core/ocrPrep';
+import { binarizeForOcr, removeEdgeBlobs } from '../core/ocrPrep';
+import { parseInfoLine } from '../core/infoLine';
 import { borderFromBrightness } from '../core/borderColor';
 import { readCardStaged, readNameBothWays, type PartReader } from '../core/readPlan';
 import { ART_BOX, ART_REGION, BORDER_STRIP, CARD_PARTS, NAME_BAND, SYMBOL_REGION, type Box, type GrayPicture, type ScanExtras, type ScanReading } from '../core/scannerTypes';
@@ -146,9 +147,9 @@ const KINDS = {
 type Kind = keyof typeof KINDS;
 
 // The part of the photo as a clean black-on-white picture, made bigger
-function prepare(source: CanvasImageSource, from: { x: number; y: number; w: number; h: number }, flip: boolean): HTMLCanvasElement {
+function prepare(source: CanvasImageSource, from: { x: number; y: number; w: number; h: number }, flip: boolean, clearEdges = false, biggest = 3.5): HTMLCanvasElement {
   // About 3 times bigger, but not enormous
-  const scale = Math.max(1, Math.min(3.5, 1600 / from.w));
+  const scale = Math.max(1, Math.min(biggest, 1600 / from.w));
   const crop = document.createElement('canvas');
   crop.width = Math.max(1, Math.round(from.w * scale));
   crop.height = Math.max(1, Math.round(from.h * scale));
@@ -158,6 +159,8 @@ function prepare(source: CanvasImageSource, from: { x: number; y: number; w: num
   context.drawImage(source, from.x, from.y, from.w, from.h, 0, 0, crop.width, crop.height);
   const picture = context.getImageData(0, 0, crop.width, crop.height);
   const clean = binarizeForOcr(rgbaToGray(picture.data, crop.width, crop.height), flip);
+  // The info line's crop also catches the edge of the text box above it and of the frame: wipe what is joined to the crop's edge
+  if (clearEdges) removeEdgeBlobs(clean, crop.width, crop.height);
   for (let i = 0; i < clean.length; i++) {
     picture.data[i * 4] = clean[i];
     picture.data[i * 4 + 1] = clean[i];
@@ -193,8 +196,21 @@ async function readPart(source: CanvasImageSource, card: { x: number; y: number;
       tessedit_char_whitelist: KINDS[kind].whitelist,
       preserve_interword_spaces: 1,
     });
-    const once = async (flip: boolean) => (await reader.recognize(prepare(source, part, flip))).data.text.trim();
+    const once = async (flip: boolean) => (await reader.recognize(prepare(source, part, flip, kind === 'info'))).data.text.trim();
     const first = await once(false);
+    // The info line is the one that tells printings apart, so when its collector number didn't come out, read it again two other
+    // ways before giving up: as scattered text (the number and the rarity letter sit far apart, and the reader's line-finding
+    // can fuse them into noise like "SS"), and from a smaller picture (the same line read at a different size often reads
+    // differently). On a test photo the normal read gave "SS" where both of these gave "398 R".
+    if (kind === 'info') {
+      if (parseInfoLine(first).collectorNumber !== null) return first;
+      for (const variant of [{ psm: 11, biggest: 3.5 }, { psm: 6, biggest: 2 }]) {
+        await reader.setParameters({ tessedit_pageseg_mode: String(variant.psm), tessedit_char_whitelist: KINDS.info.whitelist, preserve_interword_spaces: 1 });
+        const again = (await reader.recognize(prepare(source, part, false, true, variant.biggest))).data.text.trim();
+        if (parseInfoLine(again).collectorNumber !== null) return again;
+      }
+      return first;
+    }
     // The title band is read both ways round, whatever the first way gave
     if (kind === 'band') return `${first}\n${await once(true)}`;
     // A title bar on a dark or coloured frame can come out the wrong way round (text taken
