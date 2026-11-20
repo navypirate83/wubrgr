@@ -87,6 +87,8 @@
           for (let i = 0; i < 40; i++) { const s = state(); if (!s.none && !s.added && !s.sheet && !s.picker && !s.reading) break; await sleep(250); }
           window.__scannerDebug = null;
           window.__scannerOutcome = null;
+          // (what each cut-out of the card read and how it scored: the lab hook in ScannerCamera.web.tsx)
+          window.__scannerCuts = [];
           const started = performance.now();
           await sendPhoto(`${SERVER}/${options.folder || 'cache/photos'}/${photo.file}`);
           for (let i = 0; i < 20; i++) { await sleep(200); if (state().reading) break; }
@@ -114,6 +116,7 @@
             background: photo.background, glare: photo.glare, landscape: photo.landscape,
             status: worked ? worked.status : '', reason: worked ? String(worked.reason || '').slice(0, 170) : '', truthRank, candidateCount: worked ? (worked.candidates || []).length : 0,
             outcome, shown, seconds: +((performance.now() - started) / 1000).toFixed(1),
+            cuts: (window.__scannerCuts || []).map((c) => ({ cut: c.cut, group: c.group, score: c.score, name: (c.name || '').slice(0, 50), info: (c.info || '').slice(0, 40) })),
             nameText: debug ? (debug.reading.nameText || '').slice(0, 60) : '', infoText: debug ? (debug.reading.infoText || '').slice(0, 60) : '',
           });
           // Save progress every 10 photos

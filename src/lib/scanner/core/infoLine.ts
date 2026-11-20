@@ -71,18 +71,24 @@ export function parseInfoLine(raw: string): InfoLine {
   type Candidate = { number: string; setTotal: string | null; rarity: string | null; layout: 'older' | 'newer' | null; digits: number };
   const realDigits = (text: string) => (text.match(/[0-9]/g) ?? []).length;
   const candidates: Candidate[] = [];
+  // A set code can have digits of its own ("C20", "2X2", "M21"), and they must not be taken for the collector number
+  // ("C20 • EN" was once read as rarity C, number 20). So the set code just found is blanked out before the number is looked for.
+  // (Only a code with a letter in it: one that is all digits is more likely the collector number itself, misplaced.)
+  const numberText = bulleted && /[A-Z]/.test(bulleted[1])
+    ? text.slice(0, bulleted.index) + bulleted[0].replace(bulleted[1], '•'.repeat(bulleted[1].length)) + text.slice(bulleted.index + bulleted[0].length)
+    : text;
   // Older layout: "123/280" then the rarity: "123/280 R"
-  for (const match of text.matchAll(new RegExp(`${NUMBER} ?[/|\\\\] ?([0-9OQDILSBZ]{1,4})(?: ?([CURMSLTP])(?![A-Z]))?`, 'g'))) {
+  for (const match of numberText.matchAll(new RegExp(`${NUMBER} ?[/|\\\\] ?([0-9OQDILSBZ]{1,4})(?: ?([CURMSLTP])(?![A-Z]))?`, 'g'))) {
     const cleaned = cleanNumber(match[1]);
     if (cleaned !== null) candidates.push({ number: cleaned + (match[2] ?? ''), setTotal: cleanNumber(match[3]), rarity: match[4] ?? null, layout: 'older', digits: realDigits(match[1]) + 2 });
   }
   // Newer layout: the rarity then the number: "R 0123" (a promo or foil star can follow)
-  for (const match of text.matchAll(new RegExp(`(?:^|[^A-Z0-9])([CURMSLTP]) ?${NUMBER}(?![A-Z0-9])`, 'g'))) {
+  for (const match of numberText.matchAll(new RegExp(`(?:^|[^A-Z0-9])([CURMSLTP]) ?${NUMBER}(?![A-Z0-9])`, 'g'))) {
     const cleaned = cleanNumber(match[2]);
     if (cleaned !== null) candidates.push({ number: cleaned + (match[3] ?? ''), setTotal: null, rarity: match[1], layout: 'newer', digits: realDigits(match[2]) });
   }
   // Only a number on its own (the rarity or the slash was lost): a run of 3 or 4 digits that isn't part of a longer one
-  for (const match of text.matchAll(/(?<![0-9])([0-9]{3,4})(?![0-9])/g)) {
+  for (const match of numberText.matchAll(/(?<![0-9])([0-9]{3,4})(?![0-9])/g)) {
     candidates.push({ number: cleanNumber(match[1]) as string, setTotal: null, rarity: null, layout: null, digits: realDigits(match[1]) });
   }
   let best: Candidate | null = null;

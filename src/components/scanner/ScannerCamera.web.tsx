@@ -29,6 +29,12 @@
    re-read while a scanned card sits there. The live video is where each scan's picture comes from
    (a frame is copied out of the video, there is no separate "take a photo" wait on the website);
    how long that copy took is shown in the scan timings as "frame".
+   CHECKING THE CUT-OUT (Track mode and "Choose a photo"): the card finder is sometimes a little wrong. It can stop at the
+   coloured frame just inside a black border (a dark sleeve or a dark mat hides the border's edge), which loses the bottom
+   strip where the collector number is; or it can take the text box or the artwork for the card. So the cut-out is READ and
+   judged (core/cardCuts.ts): if no real card name and real set and collector number came out, a wider cut-out (the border put back) is
+   read too, and for a photo also the card upside down and the slower outline finder's finds. The read that makes the most
+   sense is the one that is used.
    Nothing native is imported here (Android's is ScannerCamera.native.tsx).
    ===================================================================== */
 
@@ -42,6 +48,8 @@ import { blendQuads, findCard, quadCentre, quadShift } from '@/lib/scanner/core/
 import { longestSide, warpCard, type Point, type Quad } from '@/lib/scanner/core/perspective';
 import { snapCorners } from '@/lib/scanner/core/cornerSnap';
 import { findCardByShape } from '@/lib/scanner/core/shapeFinder';
+import { FOUND_SCORE, FULL_SCORE, readingScore, widenToWholeCard } from '@/lib/scanner/core/cardCuts';
+import { parseInfoLine } from '@/lib/scanner/core/infoLine';
 import { Tracker } from '@/lib/scanner/core/tracker';
 import { sharpnessOf } from '@/lib/scanner/core/viewBlend';
 import { changedFrame, signatureDifference, tinyFromRgba } from '@/lib/scanner/core/frameChange';
@@ -98,6 +106,22 @@ function findCardInLook(look: ImageData): Quad | null {
   return findCard(look);
 }
 
+// For a PHOTO: the quick finders' guesses at where the card is, best guess first (none, one or two). The first is the same
+// find the live camera uses. The second is the edge-and-shape finder run again with more detail: for an upright photo (taller
+// than wide) the first run works on a copy only about half as detailed, and the finer run sometimes sees a card the first
+// missed (and sometimes takes a box inside the card instead, which is why it is only the second guess). A second guess that
+// is nearly the same as the first is dropped.
+function quickFinds(look: ImageData): Quad[] {
+  const finds: Quad[] = [];
+  const first = findCardInLook(look);
+  if (first) finds.push(first);
+  try {
+    const finer = findCardByShape(look, Math.max(look.width, look.height));
+    if (finer && (!first || quadShift(first, finer) > 0.02)) finds.push(finer);
+  } catch { /* no second guess */ }
+  return finds;
+}
+
 // The third way to find a card, for a PHOTO (it is slower, so it is only tried when the edge-and-shape finder and the colour
 // finder both found nothing, for example a card held in a hand against a busy background): the "outline" finder
 // (core/outlineFinder.ts) tries thousands of card-shaped rectangles and keeps the one with a firm edge all the way round. Gives the
@@ -151,7 +175,7 @@ type Rect = { x: number; y: number; w: number; h: number };
 // through the hold-still wait it is (0 to 1), and whether it will scan when the wait is over
 type Found = { quad: Quad; hold: number; armed: boolean };
 
-export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName }: ScannerCameraProps) {
+export default function ScannerCamera({ onReading, message, bar, paused, looksLikeName, readingSense }: ScannerCameraProps) {
   const colors = useColors();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -256,12 +280,13 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   // "frameMs" is how long it took to copy the picture out of the video (for the timings shown after the scan)
   // "earlier" are the pictures kept of this same card while it held still (Track mode with AI art matching only)
   // Gives back (after the card is worked out) whether it was read: true, false, or nothing when that isn't known
-  async function scan(source: HTMLCanvasElement, card: Rect, frameMs?: number, earlier?: EarlierLook[]): Promise<boolean | void> {
+  // "ready" is a reading already made from this same picture (when several cut-outs were read to choose the best), so it isn't read twice
+  async function scan(source: HTMLCanvasElement, card: Rect, frameMs?: number, earlier?: EarlierLook[], ready?: ScanReading): Promise<boolean | void> {
     setBusy(true);
     setHint('');
     try {
       const dark = brightness(source, card) < 45;
-      const reading = await readCard(source, card, looksLikeName);
+      const reading = ready ?? await readCard(source, card, looksLikeName);
       if (frameMs !== undefined) reading.timings = { frame: frameMs, ...reading.timings };
       // With "AI art matching" on, also leave a way to make the flat card pictures the AI looks at. It does its
       // slow work only if the scan turns out to need it, and the photo is let go with the reading afterwards.
@@ -316,13 +341,17 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
 
   // The card cut out of the picture and made flat and upright. "quad" is the card's corners as
   // fractions of the picture; only the box around the card is copied, so a big camera picture isn't copied whole.
-  function straighten(source: CanvasImageSource, sourceWidth: number, sourceHeight: number, quad: Quad): HTMLCanvasElement {
+  // "whole" is for a find that stopped at the frame inside the card's border: after the corners are snapped, they are moved out
+  // to where the whole card's corners should be (core/cardCuts.ts), so the bottom strip with the collector number is in the picture.
+  function straighten(source: CanvasImageSource, sourceWidth: number, sourceHeight: number, quad: Quad, whole = false): HTMLCanvasElement {
     const corners = quad.map((p) => ({ x: p.x * sourceWidth, y: p.y * sourceHeight })) as Quad;
-    // (a little room is kept around the card so the corner snap below can look just outside its edges)
-    const left = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.x))) - SNAP_ROOM);
-    const top = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.y))) - SNAP_ROOM);
-    const right = Math.min(sourceWidth, Math.ceil(Math.max(...corners.map((p) => p.x))) + SNAP_ROOM);
-    const bottom = Math.min(sourceHeight, Math.ceil(Math.max(...corners.map((p) => p.y))) + SNAP_ROOM);
+    // (a little room is kept around the card so the corner snap below can look just outside its edges; more when the
+    // cut-out is going to be widened, since the border being put back lies outside the corners that were found)
+    const room = SNAP_ROOM + (whole ? Math.ceil(longestSide(corners) * 0.12) : 0);
+    const left = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.x))) - room);
+    const top = Math.max(0, Math.floor(Math.min(...corners.map((p) => p.y))) - room);
+    const right = Math.min(sourceWidth, Math.ceil(Math.max(...corners.map((p) => p.x))) + room);
+    const bottom = Math.min(sourceHeight, Math.ceil(Math.max(...corners.map((p) => p.y))) + room);
     const crop = document.createElement('canvas');
     crop.width = right - left;
     crop.height = bottom - top;
@@ -330,7 +359,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     cropContext.drawImage(source, left, top, crop.width, crop.height, 0, 0, crop.width, crop.height);
     const picture = cropContext.getImageData(0, 0, crop.width, crop.height);
     // The corners from the finder are close but not exact; snap them onto the card's real edges in the full-size crop
-    const shifted = snapCorners(picture, corners.map((p) => ({ x: p.x - left, y: p.y - top })) as Quad);
+    const snapped = snapCorners(picture, corners.map((p) => ({ x: p.x - left, y: p.y - top })) as Quad);
+    const shifted = whole ? widenToWholeCard(snapped) : snapped;
     // The flat picture is about as tall as the card looked, but never tiny or enormous
     const flatHeight = Math.max(700, Math.min(1500, Math.round(longestSide(shifted))));
     const flatWidth = Math.round(flatHeight * CARD_ASPECT);
@@ -349,8 +379,70 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     live.current.armed = false;
     live.current.scannedAt = quadCentre(quad);
     const grabStart = Date.now();
-    const flat = straighten(video, video.videoWidth, video.videoHeight, quad);
-    await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height }, Date.now() - grabStart, earlier);
+    // (the frame is copied out of the video first, so the two cut-outs below are of the very same moment)
+    const frame = document.createElement('canvas');
+    frame.width = video.videoWidth;
+    frame.height = video.videoHeight;
+    frame.getContext('2d')!.drawImage(video, 0, 0);
+    setBusy(true);
+    try {
+      const best = await bestCut([
+        () => straighten(frame, frame.width, frame.height, quad),
+        () => straighten(frame, frame.width, frame.height, quad, true),
+      ], 2);
+      if (best) await scan(best.flat, { x: 0, y: 0, w: best.flat.width, h: best.flat.height }, Date.now() - grabStart, earlier, best.reading);
+    } catch (err) {
+      setHint((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  // How much sense a reading makes (core/cardCuts.ts). The scan screen answers this by asking the catalogue (is the title a real
+  // card's name? are the set and number a real printing?). If it gave no way to ask, or asking fails, a rougher answer is used:
+  // any name-like title, and any collector number.
+  async function scoreOf(reading: ScanReading): Promise<number> {
+    if (readingSense) { try { return await readingSense(reading); } catch { /* the rougher answer below */ } }
+    const nameLike = looksLikeName ? looksLikeName(reading.nameText) : reading.nameText.trim().length >= 3;
+    return readingScore({ name: nameLike ? 'real' : 'no', printingExists: false, setIsReal: false, numberWasRead: parseInfoLine(reading.infoText).collectorNumber !== null });
+  }
+
+  // Read several cut-outs of the same card, in the order given, and give back the one whose text makes the most sense (the
+  // earlier one when two are as good), with its score. Each cut-out is only MADE when its turn comes. The trying stops as soon as
+  // one has both a real name and a real printing. The cut-outs come in groups of "group" (the plain and the widened cut-out of
+  // one find are a group of 2): once a whole group has been read, the trying also stops if any read has one of those strong
+  // signs, because the cut-outs after it are other guesses at WHERE the card is, and the card has been found.
+  async function bestCut(makers: (() => HTMLCanvasElement)[], group: number): Promise<{ flat: HTMLCanvasElement; reading: ScanReading; score: number } | null> {
+    let best: { flat: HTMLCanvasElement; reading: ScanReading; score: number } | null = null;
+    // The cut-out read just before this one (the other half of a pair)
+    let previous: { flat: HTMLCanvasElement; reading: ScanReading } | null = null;
+    for (let i = 0; i < makers.length; i++) {
+      let flat: HTMLCanvasElement;
+      if (i % group === 0) previous = null;
+      try { flat = makers[i](); } catch { continue; }
+      const reading = await readCard(flat, { x: 0, y: 0, w: flat.width, h: flat.height }, looksLikeName);
+      const score = await scoreOf(reading);
+      // For the developer-only scanner lab: note what each cut-out read and how it scored. Nothing is kept in a production build.
+      if (process.env.NODE_ENV !== 'production') {
+        const lab = globalThis as { __scannerCuts?: unknown[] };
+        (lab.__scannerCuts ??= []).push({ cut: i, group, score, name: reading.nameText, info: reading.infoText });
+      }
+      if (!best || score > best.score) best = { flat, reading, score };
+      // The plain and the widened cut-out of one find are the same card: often one of them has the title in the right place
+      // and the other the info line. So the info line of each is also tried with the title of the other. The mix keeps the
+      // cut-out whose INFO LINE it uses (the info line is small and only reads when the cut-out's edges are right, so that
+      // is the better-fitting cut-out for the artwork and symbol clues read later).
+      if (group === 2 && i % 2 === 1 && previous) {
+        for (const [infoCut, nameCut] of [[{ flat, reading }, previous], [previous, { flat, reading }]] as const) {
+          const mix: ScanReading = { ...infoCut.reading, nameText: nameCut.reading.nameText };
+          const mixScore = await scoreOf(mix);
+          if (mixScore > best.score) best = { flat: infoCut.flat, reading: mix, score: mixScore };
+        }
+      }
+      previous = { flat, reading };
+      if (best.score >= FULL_SCORE) break;
+      if (i % group === group - 1 && best.score >= FOUND_SCORE) break;
+    }
+    return best;
   }
 
   // A small flat picture of the tracked card for the AI to blend later: the card straightened, shrunk to 630 x 880,
@@ -482,24 +574,35 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         small.height = Math.max(1, Math.round((LOOK_WIDTH * bitmap.height) / bitmap.width));
         const smallContext = small.getContext('2d', { willReadFrequently: true })!;
         smallContext.drawImage(bitmap, 0, 0, small.width, small.height);
-        const quad = findCardInLook(smallContext.getImageData(0, 0, small.width, small.height));
-        if (quad) {
-          const flat = straighten(bitmap, bitmap.width, bitmap.height, quad);
-          await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height });
+        const finds = quickFinds(smallContext.getImageData(0, 0, small.width, small.height));
+        // Each of the quick finders' guesses is cut out two ways, as found and widened (the border put back): first every guess
+        // the way up it was found, then every guess upside down (a photo can be taken with the card either way up).
+        // The cut-out that reads best is kept.
+        let best: { flat: HTMLCanvasElement; reading: ScanReading; score: number } | null = null;
+        if (finds.length) {
+          const upright = finds.flatMap((quad) => {
+            let plain: HTMLCanvasElement | null = null;
+            let wide: HTMLCanvasElement | null = null;
+            return [
+              () => (plain ??= straighten(bitmap, bitmap.width, bitmap.height, quad)),
+              () => (wide ??= straighten(bitmap, bitmap.width, bitmap.height, quad, true)),
+            ];
+          });
+          best = await bestCut([...upright, ...upright.map((cut) => () => turnedCanvas(cut(), 180))], 2);
+        }
+        // No card found by the quick finders, or nothing that makes sense could be read from what they found (they may have taken
+        // the text box or the artwork for the card): try the slower outline finder's finds, each upright, turned a quarter
+        // each way, and upside down
+        if (!best || best.score < FOUND_SCORE) {
+          const flats = await outlineFlatCanvases(bitmap);
+          const turns = flats.flatMap((flat) => ([0, 90, 270, 180] as const).map((turn) => () => (turn === 0 ? flat : turnedCanvas(flat, turn))));
+          const other = await bestCut(turns, 1);
+          if (other && (!best || other.score > best.score)) best = other;
+        }
+        if (best) {
+          await scan(best.flat, { x: 0, y: 0, w: best.flat.width, h: best.flat.height }, undefined, undefined, best.reading);
           return;
         }
-        // Neither quick finder found a card: try the slower outline finder before falling back to the middle of the picture
-        const flats = await outlineFlatCanvases(bitmap);
-        for (const flat of flats) {
-          // Try each find upright first, then turned a quarter each way, then upside down, and stop at the first that reads
-          // (a false means nothing could be read from it)
-          for (const turn of [0, 90, 270, 180] as const) {
-            const candidate = turn === 0 ? flat : turnedCanvas(flat, turn);
-            const read = await scan(candidate, { x: 0, y: 0, w: candidate.width, h: candidate.height });
-            if (read !== false) return;
-          }
-        }
-        if (flats.length) return;
       }
       const still = document.createElement('canvas');
       still.width = bitmap.width;

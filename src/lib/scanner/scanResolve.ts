@@ -34,8 +34,9 @@ import { bestNameMatch, similarity } from './core/fuzzy';
 import { bestNameMatchIndexed } from './core/nameIndex';
 import { parseCopyrightYears, parseInfoLine, type InfoLine } from './core/infoLine';
 import { rankCandidates, type Candidate } from './core/rank';
-import { numberBonus } from './core/numberClue';
+import { numberBonus, SET_MATCH_BONUS } from './core/numberClue';
 import { checkSetCode } from './core/setCode';
+import { readingScore } from './core/cardCuts';
 import { decideScan } from './core/decide';
 import { aiIsNeeded } from './core/aiNeeded';
 import { loadMoreClues } from './core/readPlan';
@@ -74,6 +75,8 @@ const groupOf = (p: Printing): string => `${p.setCode}|${p.illus ?? p.id}`;
 const LIKELY_MIN_NAME = 0.8;
 // A title read this well is taken as a different card than the one the set and number found (see the main path below)
 const NAME_CONVINCING = 0.85;
+// A long name matched at least this well counts as "partly read" when cut-outs of a card are compared (see readingSense below)
+const PARTLY_NAME = 0.7;
 // The closest printing's artwork is "far off" from the photo's at this many bits (of 256; see rank.ts): when even the best printing's art is
 // this far, nothing resembles the photo (the right printing may be missing from the catalogue, or has no stored art), so "likely" is not said
 const ART_FAR_BITS = 70;
@@ -198,7 +201,9 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   const weakName = nameSimilarity < LIKELY_MIN_NAME;
   // Nothing looks like the photo: the artwork of even the best printing is far off, and the collector number did not vouch for it
   const bestArt = bestOne ? clues.artDistances.get(bestOne.id) : undefined;
-  const artFar = bestArt !== undefined && bestArt >= ART_FAR_BITS && (numberScores.get(bestOne!.id) ?? 0) < 2;
+  // (the info line vouches when the set code matched, or the number matched exactly, with a stray letter, or with only its first digit lost:
+  // each of those is worth at least SET_MATCH_BONUS. A number merely one digit off is not enough.)
+  const artFar = bestArt !== undefined && bestArt >= ART_FAR_BITS && (numberScores.get(bestOne!.id) ?? 0) < SET_MATCH_BONUS;
   if (ranked.likely && !openChoice && !weakName && !artFar) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `${note}Likely (${ranked.why})` };
   const doubt = openChoice ? '; printings of one set share this picture and the collector number did not tell them apart'
     : weakName ? '; the name was only partly read' : artFar ? '; the artwork is not close to any printing' : '';
@@ -258,14 +263,22 @@ export async function resolveReading(reading: ScanReading, options: ResolveOptio
   }
 }
 
-async function resolveInner(reading: ScanReading, lockedSet: string | null, aiArt: boolean): Promise<ScanOutcome> {
-  const info = parseInfoLine(reading.infoText);
-  // The name text may be several lines (the title band's scattered text): the line that matches a real card name best
+// The real card name the title text matches best, and the line of the text that matched it.
+// The text may be several lines (the title band's scattered text): the line that matches a real card name best wins.
+async function matchTitle(nameText: string): Promise<{ nameMatch: ReturnType<typeof bestNameMatch>; readName: string }> {
   const names = await allFrontNames();
   // The quick-lookup index over the names gives exactly the same answer as looking at every name, only sooner.
   // If it can't be had for any reason, every name is looked at, as before.
   const nameIndex = await allFrontNameIndex().catch(() => null);
-  const lines = reading.nameText.split('\n').map(normalizeName).filter((line) => line.length >= 4);
+  const single = nameText.split('\n').map(normalizeName).filter((line) => line.length >= 4);
+  // A long title is sometimes read as two lines ("zuri's Preda" and "tion"), so each line is also tried joined to the next one,
+  // with and without a space (the second half may be short, so it is taken from the unfiltered lines)
+  const every = nameText.split('\n').map(normalizeName).filter((line) => line.length >= 2);
+  const joined: string[] = [];
+  for (let i = 0; i + 1 < every.length && joined.length < 12; i++) {
+    if (every[i].length >= 4 && every[i].length + every[i + 1].length <= 40) joined.push(`${every[i]} ${every[i + 1]}`, `${every[i]}${every[i + 1]}`);
+  }
+  const lines = [...single, ...joined];
   let nameMatch = null as ReturnType<typeof bestNameMatch>;
   let readName = '';
   for (const line of lines) {
@@ -276,7 +289,30 @@ async function resolveInner(reading: ScanReading, lockedSet: string | null, aiAr
     // (each line is matched against about 30,000 names: let the camera and screen have a turn in between)
     await breathe();
   }
-  if (!readName && lines.length > 0) readName = lines[0];
+  if (!readName && single.length > 0) readName = single[0];
+  return { nameMatch, readName };
+}
+
+// HOW MUCH SENSE A READING MAKES, for the camera to compare several cut-outs of one card (see core/cardCuts.ts) before any
+// of them is worked out properly. Two strong signs that a cut-out really is the card, the right way up: its title matches a
+// real card's name closely, and its info line's set code and collector number are a printing that exists.
+export async function readingSense(reading: ScanReading): Promise<number> {
+  const info = parseInfoLine(reading.infoText);
+  const { nameMatch } = await matchTitle(reading.nameText);
+  // The title text can be many lines of junk, and with about 30,000 names to match against, a short junk line now and then
+  // looks a lot like some short name. So a short name (under 8 letters) only counts when it was read exactly.
+  const longName = !!nameMatch && normalizeName(nameMatch.name).length >= 8;
+  const nameIsReal = !!nameMatch && (nameMatch.similarity >= 1 || (nameMatch.similarity >= NAME_CONVINCING && longName));
+  // A long name with a few letters lost (the start cut off, say) still says which card it is, only less surely
+  const namePartly = !nameIsReal && !!nameMatch && longName && nameMatch.similarity >= PARTLY_NAME;
+  const set = checkSetCode(info.setCode, await knownSets());
+  const printingExists = !!set && !!info.collectorNumber && (await findPrintings(set.code, info.collectorNumber, info.lang ?? undefined)).length > 0;
+  return readingScore({ name: nameIsReal ? 'real' : namePartly ? 'partly' : 'no', printingExists, setIsReal: !!set, numberWasRead: !!info.collectorNumber });
+}
+
+async function resolveInner(reading: ScanReading, lockedSet: string | null, aiArt: boolean): Promise<ScanOutcome> {
+  const info = parseInfoLine(reading.infoText);
+  const { nameMatch, readName } = await matchTitle(reading.nameText);
   const name = nameMatch?.name ?? null;
 
   // 1. The main way: set code + collector number + language, with the name agreeing

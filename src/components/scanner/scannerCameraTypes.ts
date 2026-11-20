@@ -31,4 +31,8 @@ export type ScannerCameraProps = {
   // Says whether some text read from the title looks like a real card's name; the camera uses it to
   // decide whether to look harder for the name (older frames put it in a different place)
   looksLikeName?: (text: string) => boolean;
+  // Says how much sense a whole reading makes (a number: see core/cardCuts.ts), by asking the catalogue whether the title is
+  // a real card's name and whether the set and number are a real printing. The website's camera uses it to choose between
+  // several cut-outs of the same card when the card finder may have been a little wrong.
+  readingSense?: (reading: ScanReading) => Promise<number>;
 };

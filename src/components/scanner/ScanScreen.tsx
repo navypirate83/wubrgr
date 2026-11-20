@@ -49,7 +49,7 @@ import { hapticTap } from '@/lib/haptics';
 import type { Finish } from '@/lib/cards';
 import type { CatalogueInfo, Printing } from '@/lib/scanner/core/catalogueTypes';
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
-import { resolveReading, type ScanOutcome } from '@/lib/scanner/scanResolve';
+import { readingSense, resolveReading, type ScanOutcome } from '@/lib/scanner/scanResolve';
 import { startWarmUp } from '@/lib/scanner/scanWarmUp';
 import { beginRun, clearReport, endRun, mark, markCleanExit } from '@/lib/scanner/crashTrail';
 import type { Crumb } from '@/lib/scanner/core/crashTrailCore';
@@ -328,7 +328,7 @@ export default function ScanScreen() {
 
       <ScannerCamera
         onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding || settingsOpen}
-        queue={mode === 'stack'}
+        queue={mode === 'stack'} readingSense={readingSense}
         looksLikeName={(text) => text.split('\n').some((line) => { const plain = normalizeName(line); return plain.length >= 3 && (nameIndex.current ? looksLikeAnyNameIndexed(plain, nameIndex.current) : looksLikeAnyName(plain, names.current)); })}
       />
 

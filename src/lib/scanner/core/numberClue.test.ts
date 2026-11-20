@@ -20,6 +20,14 @@ test('a number one digit off is "near", two digits off is not', () => {
   assert.equal(numberFit('37', '375'), 'none');
 });
 
+test('a number that lost its first digit is a "tail" (but one digit alone is not)', () => {
+  assert.equal(numberFit('49', '249'), 'tail');
+  assert.equal(numberFit('049', '249'), 'tail');
+  assert.equal(numberFit('9', '49'), 'none');
+  assert.equal(numberFit('49', '1249'), 'none');
+  assert.equal(numberFit('49', '250'), 'none');
+});
+
 test('a short number one digit off is not "near" (too many cards share it)', () => {
   assert.equal(numberFit('5', '6'), 'none');
 });
