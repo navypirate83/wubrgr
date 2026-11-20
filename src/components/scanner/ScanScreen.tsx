@@ -186,19 +186,22 @@ export default function ScanScreen() {
   /* ----- a card was scanned ----- */
   // The camera hands over each reading here. The count of scans still being worked out goes up while this one
   // is, and the camera (in Stack mode) may already be taking the next photo meanwhile: the queue.
-  async function onReading(reading: ScanReading) {
+  // Returns true when the card was read, false when nothing could be read from it (so the camera can try again)
+  async function onReading(reading: ScanReading): Promise<boolean> {
     setPending((n) => n + 1);
     // The ticket is taken when the scan arrives, so the answers can be put to use in this order
     const ticket = ordered.current.ticket();
     try {
       // The work-out (slow, may overlap with other cards') gives back what to do with the answer...
-      const use = await handleReading(reading);
+      const { use, read } = await handleReading(reading);
       // ...and that is done in ticket order
-      if (use) ordered.current.finish(ticket, use); else ordered.current.skip(ticket);
+      ordered.current.finish(ticket, use);
+      return read;
     } catch (err) {
       // A card that couldn't be worked out must not hold up the cards after it
       ordered.current.skip(ticket);
       say((err as Error).message || 'That card could not be worked out.');
+      return false;
     } finally {
       setPending((n) => n - 1);
     }
@@ -206,15 +209,17 @@ export default function ScanScreen() {
 
   // Work out one reading (the options are read as they are right now). The slow part happens here; what to do
   // with the answer (the list, the sheet, the messages) is handed back as a small function, run in scan order.
-  async function handleReading(reading: ScanReading): Promise<(() => void) | null> {
-    if (!catalogue) return () => say('Get the card catalogue first (Settings → Card catalogue).');
+  // "read" is false when nothing could be read from the card (not when the catalogue is simply missing: trying again
+  // wouldn't help that).
+  async function handleReading(reading: ScanReading): Promise<{ use: () => void; read: boolean }> {
+    if (!catalogue) return { use: () => say('Get the card catalogue first (Settings → Card catalogue).'), read: true };
     const chosen = getScanOptions();
     const lookupStart = Date.now();
     mark('looking the card up');
     const outcome = await resolveReading(reading, { lockedSet: chosen.lockedSet?.code ?? null, aiArt: chosen.aiArt });
     const doneAt = Date.now();
     mark('card looked up');
-    return () => putOnScreen(reading, outcome, chosen, lookupStart, doneAt);
+    return { use: () => putOnScreen(reading, outcome, chosen, lookupStart, doneAt), read: outcome.status !== 'none' };
   }
 
   // Put one worked-out card where it goes (runs in the order the cards were scanned)

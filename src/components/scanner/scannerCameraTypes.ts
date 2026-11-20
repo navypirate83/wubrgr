@@ -14,7 +14,9 @@ export type ScannerCameraProps = {
   // Called with the text the camera read from a card each time one is scanned. It may take a moment (it works out
   // the printing). The photo is needed until it has finished, so the camera keeps the photo until then: it waits
   // for the answer before taking the next photo, unless "queue" is on (below)
-  onReading: (reading: ScanReading) => void | Promise<void>;
+  // It may answer true when the card was recognised and false when nothing could be read from it: the website's
+  // Track mode uses a false to look at the card again by itself (a fresh picture often reads fine).
+  onReading: (reading: ScanReading) => void | boolean | Promise<void | boolean>;
   // The scan queue. On: the camera doesn't wait for a card to be worked out before taking the next photo; a few
   // can be worked out at the same time (each photo is kept until its own answer is done), and the camera only
   // holds back when that many are already waiting. Off: one card at a time. (The website's camera never waits for

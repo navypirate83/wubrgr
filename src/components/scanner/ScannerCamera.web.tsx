@@ -69,13 +69,17 @@ const SNAP_ROOM = 24;
 // "AI art matching": while a card holds still, a small flat picture of it is kept every so often (up to this many, the
 // newest), so the AI can blend several looks instead of trusting one (see ai/aiBlend.ts). They are made 630 x 880, the
 // size the AI works at. A look is only kept once the card has held still for this share of the hold-still wait.
+// When a scan in Track mode reads nothing, the camera looks at the card again by itself after a short wait (a fresh picture
+// often reads fine), up to this many times for the same card; after that it waits for the card to be changed
+const MAX_RETRIES = 3;
+const RETRY_AFTER_MS = 1200;
 const EARLIER_LOOKS = 3;
 const EARLIER_LOOK_EVERY_MS = 250;
 const EARLIER_LOOK_AFTER_HOLD = 0.3;
 type EarlierLook = NonNullable<ScanReading['aiEarlierLooks']>[number];
 // A different card put down in the same place: its look must have clearly changed (see core/frameChange.ts) and held
 // steady for this many looks in a row (a hand passing over the card moves too much to count), before it can be scanned
-const CHANGE_LOOKS = 4;
+const CHANGE_LOOKS = 3;
 const STEADY_BELOW = 0.06;
 // Whether the person left Track on, remembered on this device (the browser may not allow saving; then it starts off)
 const TRACK_KEY = 'wubrgr.scanner.track';
@@ -111,9 +115,12 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
   const [hint, setHint] = useState('');
   // Track mode: on or off, and what it sees right now
   const [tracking, setTracking] = useState(savedTrack);
+  // The newest value of tracking, for the answers that come back after a scan (they outlive the render that made them)
+  const trackingRef = useRef(tracking);
+  trackingRef.current = tracking;
   const [found, setFound] = useState<Found | null>(null);
   // The tracking loop runs on a timer, so it reads the newest values through these notes-to-self
-  const live = useRef({ busy, paused: !!paused, found: null as Found | null, armed: true, scannedAt: null as Point | null, scannedSig: null as Uint8Array | null });
+  const live = useRef({ busy, paused: !!paused, found: null as Found | null, armed: true, scannedAt: null as Point | null, scannedSig: null as Uint8Array | null, retries: 0 });
   live.current.busy = busy;
   live.current.paused = !!paused;
   live.current.found = found;
@@ -212,7 +219,15 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         if (earlier?.length) reading.aiEarlierLooks = earlier;
       }
       if (dark) setHint('It is dark. Light the card better (or use the torch) and scan again.');
-      onReading(reading);
+      // The answer comes back later (the card is worked out meanwhile): a "nothing could be read" in Track mode means look again
+      Promise.resolve(onReading(reading)).then((read) => {
+        const state = live.current;
+        if (read === true) { state.retries = 0; return; }
+        if (read === false && trackingRef.current && state.retries < MAX_RETRIES) {
+          state.retries += 1;
+          setTimeout(() => { if (trackingRef.current) { state.armed = true; state.scannedSig = null; } }, RETRY_AFTER_MS);
+        }
+      }).catch(() => { /* a failed answer is the scan screen's to show */ });
     } catch (err) {
       setHint((err as Error).message);
     } finally {
@@ -338,7 +353,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         // No card: the tracker forgets it only after 4 missed looks in a row, so the outline holds through one bad frame
         missing++;
         if (!tracker.tracks.length) { last = null; stillSince = 0; setFound(null); }
-        if (missing >= GONE_LOOKS) state.armed = true;
+        if (missing >= GONE_LOOKS) { state.armed = true; state.retries = 0; }
         lastSig = null;
         changedLooks = 0;
         looks = [];
@@ -349,7 +364,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       const moved = last ? quadShift(last, quad) : 1;
       if (!stillSince || moved > STILL_DRIFT) stillSince = now;
       const centre = quadCentre(quad);
-      if (state.scannedAt && Math.hypot(centre.x - state.scannedAt.x, centre.y - state.scannedAt.y) > 0.2) state.armed = true;
+      if (state.scannedAt && Math.hypot(centre.x - state.scannedAt.x, centre.y - state.scannedAt.y) > 0.2) { state.armed = true; state.retries = 0; }
       const smooth = last ? blendQuads(last, quad, 0.4) : quad;
       last = smooth;
       const hold = Math.min(1, (now - stillSince) / HOLD_STILL_MS);
@@ -365,7 +380,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
         // Clearly different from the card that was scanned, and the same as a moment ago (so not mid-move): a new card
         const different = changedFrame(state.scannedSig, sig) && !!lastSig && signatureDifference(lastSig, sig) < STEADY_BELOW;
         changedLooks = different ? changedLooks + 1 : 0;
-        if (changedLooks >= CHANGE_LOOKS) { state.armed = true; changedLooks = 0; }
+        if (changedLooks >= CHANGE_LOOKS) { state.armed = true; state.retries = 0; changedLooks = 0; }
       }
       lastSig = sig;
       setFound({ quad: smooth, hold, armed: state.armed });
@@ -393,6 +408,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
     setTracking(next);
     setHint('');
     live.current.armed = true;
+    live.current.retries = 0;
     live.current.scannedAt = null;
     live.current.scannedSig = null;
     try { globalThis.localStorage?.setItem(TRACK_KEY, next ? '1' : '0'); } catch { /* not remembered, that's all */ }
@@ -475,7 +491,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       {/* One line of words: why there's no camera, what just happened, a hint, or how to start */}
       <Text style={[styles.hint, { color: '#ffffff' }]} pointerEvents="none">
         {busy ? 'Reading the card…' : problem || message || hint || (tracking
-          ? (found ? (found.armed ? 'Hold still…' : 'Move the card to scan another') : 'Show the whole card on a plain surface')
+          ? (found ? (found.armed ? 'Hold still…' : 'Show the next card') : 'Show the whole card on a plain surface')
           : 'Line the card up in the corners')}
       </Text>
 
