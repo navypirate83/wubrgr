@@ -10,6 +10,10 @@
    lib/scanner/ocr/ocr.native.ts). The reading goes to the scan screen exactly
    like the website's does, so everything after it (finding the card, the
    confirm sheet, the stack list) is shared.
+   TRACK CARD (the button at the top, on to begin with): no lining up. The card is found wherever it is in the live picture,
+   an outline is drawn round it, and once it has held still a photo is taken and the card is cut out of it flat and read
+   (see useCardTracking.native.ts for the looking, and scanTracked below for the reading). Switch it off to line the card
+   up in the corner guide instead. NEW, not yet tried on a phone.
    LENSES: a row of small buttons on the picture itself (like "0.6x  1x  2x") sets the zoom level, and the
    phone swaps to its ultra-wide or zoom lens by itself as the level changes, so the change is seen live.
    On a phone that lists its lenses as separate cameras, a button opens that camera instead (see core/lenses.ts).
@@ -65,6 +69,7 @@ import { ActivityIndicator, AppState, Linking, Pressable, StyleSheet, Text, View
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Camera, useCameraDevice, useCameraDevices, useCameraPermission, usePhotoOutput, type CameraRef } from 'react-native-vision-camera';
 import { useColors } from '@/hooks/useTheme';
 import { canCutOutCards, cardOcr, cardSignature, cutOutCard, finishPhoto, photoSize, readCardPhoto, readTitleOnly, wholePhotoGray } from '@/lib/scanner/ocr/ocr.native';
@@ -77,7 +82,8 @@ import { aiCardPicturesNative } from '@/lib/scanner/ai/aiPhoto.native';
 import { getScanOptions } from '@/lib/scanner/scanSettings';
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
-import { cardInPickedPhoto, guideInPhoto, type Fractions, type Rect } from '@/lib/scanner/core/cardInPhoto';
+import { cardInPickedPhoto, clampBox, guideInPhoto, viewQuadInPhoto, type Fractions, type Rect } from '@/lib/scanner/core/cardInPhoto';
+import type { Quad } from '@/lib/scanner/core/perspective';
 import {
   INFO_CAP_MM, NEW_TRUST, PHOTO_TARGET, TITLE_CAP_MM,
   bigEnoughFor, framesReady, judgeFrameTurn, needsCheck, sameShape, trustAfterCheck, trustAfterGrab, type FrameTrust,
@@ -88,6 +94,8 @@ import { findCamera, lensChoices, mainCamera, type LensChoice } from '@/lib/scan
 import { mark, markCameraRunning, markCleanExit } from '@/lib/scanner/crashTrail';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 import { READ_CARDS_FROM_FRAMES, useLiveFrames } from './useLiveFrames.native';
+import { useCardTracking } from './useCardTracking.native';
+import TrackOutline from './TrackOutline';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
 // These match the website's guide so the two look the same
@@ -110,6 +118,8 @@ type Look = { path: string; card: Fractions; ms: number; key: 'photo' | 'frame' 
 // Where the guide is on the screen: the camera area and the card-shaped box in it (in screen pixels)
 type GuideView = { area: { w: number; h: number }; guide: Rect };
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+// Where the phone remembers that Track card was switched off (the same name the website uses in the browser)
+const TRACK_KEY = 'wubrgr.scanner.track';
 
 // What this file's camera takes: what every camera takes, plus whether to start with the plain photo settings
 // (the front door says yes after the app closed by itself last time, as the quick settings are a suspect)
@@ -184,6 +194,12 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
   const [hint, setHint] = useState('');
   // Auto scan: on or off, and whether a card is being looked at right now (for the hint)
   const [auto, setAuto] = useState(false);
+  // Track card: on to begin with (so the card never has to be lined up), unless it was switched off on this phone before,
+  // which is remembered. After the app closed by itself last time it starts off, in case Track was the cause.
+  const [track, setTrack] = useState(!plainFromStart);
+  useEffect(() => {
+    AsyncStorage.getItem(TRACK_KEY).then((saved) => { if (saved === '0') setTrack(false); }).catch(() => { /* not remembered: it stays as it started */ });
+  }, []);
   const [seeing, setSeeing] = useState(false);
   // How many cards are waiting to be worked out in the scan queue right now (a note-to-self, not something
   // the screen draws, so changing it doesn't redraw anything)
@@ -337,28 +353,117 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
       if (!gray) return null;
       const quad = findCardByShape(grayToRgba(gray), Math.max(gray.width, gray.height));
       if (!quad) return null;
-      const [width, height] = await photoSize(path);
-      let best: { path: string; reading: ScanReading } | null = null;
-      const tries = cutOutTries(quad);
-      for (let i = 0; i < tries.length; i++) {
-        const flat = await cutOutCard(path, tries[i], flatHeight(tries[i], { w: width, h: height }));
-        if (!flat) continue;
-        let reading: ScanReading;
-        try { reading = await readCardPhoto(flat, [0, 0, 1, 1], looksLikeName); } catch { await finishPhoto(flat, true); continue; }
-        const score = await scoreOf(reading);
-        if (score > bestScore) {
-          if (best) await finishPhoto(best.path, true);
-          best = { path: flat, reading };
-          bestScore = score;
-        } else {
-          await finishPhoto(flat, true);
-        }
-        // Stop when this one is perfect, or (after each pair: as found + border put back) when one has a real name or printing
-        if (bestScore >= FULL_SCORE || (i % 2 === 1 && bestScore >= FOUND_SCORE)) break;
-      }
-      return best;
+      return (await readCutOuts(path, cutOutTries(quad), bestScore)).best;
     } catch {
       return null;
+    }
+  }
+
+  // Cut the card out of the photo flat at each of these sets of corners in turn (shares of the photo), read each cut-out, and give
+  // back the one whose text makes the most sense, if it beats "bestScore" (the score to beat), with the best score so far. The
+  // cut-out that is given back is a new picture file, the caller's to delete; the others are deleted here.
+  async function readCutOuts(path: string, tries: Quad[], bestScore: number): Promise<{ best: { path: string; reading: ScanReading } | null; score: number }> {
+    const [width, height] = await photoSize(path);
+    let best: { path: string; reading: ScanReading } | null = null;
+    for (let i = 0; i < tries.length; i++) {
+      const flat = await cutOutCard(path, tries[i], flatHeight(tries[i], { w: width, h: height }));
+      if (!flat) continue;
+      let reading: ScanReading;
+      try { reading = await readCardPhoto(flat, [0, 0, 1, 1], looksLikeName); } catch { await finishPhoto(flat, true); continue; }
+      const score = await scoreOf(reading);
+      if (score > bestScore) {
+        if (best) await finishPhoto(best.path, true);
+        best = { path: flat, reading };
+        bestScore = score;
+      } else {
+        await finishPhoto(flat, true);
+      }
+      // Stop when this one is perfect, or (after each pair: as found + border put back) when one has a real name or printing
+      if (bestScore >= FULL_SCORE || (i % 2 === 1 && bestScore >= FOUND_SCORE)) break;
+    }
+    return { best, score: bestScore };
+  }
+
+  // Give a finished reading to the scan screen, with its picture file. "card" is where the card is in that file and "flat" says the
+  // file IS the card (a cut-out). The file is deleted once the reading has been worked out (the extra clues are read from it then).
+  // Gives back a promise of the screen's answer (true: read, false: nothing could be read). With the queue on, the caller should
+  // NOT wait for it: the camera is free for the next card meanwhile.
+  function handOver(reading: ScanReading, path: string, card: Fractions, fresh: boolean, flat: boolean, shotMs: number | undefined, key: 'photo' | 'frame'): Promise<boolean | void> {
+    // With "AI art matching" on (and the AI files and model here), leave a way to make the colour card pictures the AI looks at. It does its
+    // slow work only if the scan turns out to need it.
+    if (getScanOptions().aiArt && aiModel.available) {
+      reading.aiPictures = () => aiCardPicturesNative(path, card, flat);
+    }
+    if (shotMs !== undefined) reading.timings = { [key]: shotMs, ...reading.timings };
+    // The queue: the screen works the card out in the background
+    if (queue) return startInQueue(onReading, reading, path, fresh);
+    // No queue: the answer is the screen's, and the file goes when it has answered (or failed)
+    return Promise.resolve()
+      .then(() => onReading(reading))
+      .finally(() => finishPhoto(path, fresh).catch(() => { /* the photo is only a temporary file */ }));
+  }
+
+  // TRACK CARD: scan the card Track is following. "viewQuad" is its corners on the screen (shares of the camera area). A full photo
+  // is taken, the same corners are worked out in the photo, and the card is cut out flat there and read (as found, with the border
+  // put back, and both upside down: the read that makes the most sense wins, as everywhere else). If none of those reads a real
+  // card, the card is looked for again in the photo itself (finer than the small live picture), and as a last resort the plain box
+  // round the corners is read. The answer is passed back to Track, which looks again by itself if nothing could be read.
+  async function scanTracked(viewQuad: Quad) {
+    const now = live.current;
+    // Not now (something is being read, or is open over the camera, or the queue is full): Track tries again in a moment
+    if (now.busy || now.paused || pendingRef.current || now.area.w === 0 || (now.queue && waiting.current >= MAX_WAITING)) {
+      trackingNow.current?.noteAnswer(false);
+      return;
+    }
+    setBusy(true);
+    setHint('');
+    // The photo, until it has been handed over or deleted
+    let photo = '';
+    try {
+      const still = await takeStill({ area: now.area, guide: now.guide });
+      photo = still.path;
+      const [width, height] = await photoSize(photo);
+      const inPhoto = viewQuadInPhoto(now.area, viewQuad, { w: width, h: height });
+      let best: { path: string; reading: ScanReading } | null = null;
+      if (canCutOutCards()) {
+        mark('track card: cutting the card out');
+        const first = await readCutOuts(photo, cutOutTries(inPhoto), -1);
+        best = first.best;
+        if (first.score < FOUND_SCORE) {
+          try {
+            const gray = await wholePhotoGray(photo, 640);
+            const found = gray ? findCardByShape(grayToRgba(gray), Math.max(gray.width, gray.height)) : null;
+            const second = found ? await readCutOuts(photo, cutOutTries(found), first.score) : null;
+            if (second?.best) {
+              if (best) await finishPhoto(best.path, true);
+              best = second.best;
+            }
+          } catch { /* the first cut-out is used */ }
+        }
+      }
+      let answer: Promise<boolean | void>;
+      if (best) {
+        // The cut-out is the card now; the photo is let go
+        await finishPhoto(photo, true);
+        photo = '';
+        answer = handOver(best.reading, best.path, [0, 0, 1, 1], true, true, still.ms, 'photo');
+      } else {
+        // No cut-out could be made: read the upright box round the corners
+        const xs = inPhoto.map((p) => p.x);
+        const ys = inPhoto.map((p) => p.y);
+        const box = clampBox([Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)]);
+        const reading = await readCardPhoto(photo, box, looksLikeName);
+        const path = photo;
+        photo = '';
+        answer = handOver(reading, path, box, true, false, still.ms, 'photo');
+      }
+      answer.then((read) => trackingNow.current?.noteAnswer(read), () => { /* shown below, or the screen's to show */ });
+      if (!now.queue) await answer;
+    } catch (err) {
+      setHint((err as Error).message || 'The card could not be read.');
+    } finally {
+      if (photo) await finishPhoto(photo, true).catch(() => undefined);
+      setBusy(false);
     }
   }
 
@@ -390,21 +495,11 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         fresh = true;
         reading = found.reading;
       }
-      // With "AI art matching" on (and the AI files and model here), leave a way to make the colour card pictures the AI looks at. It does its
-      // slow work only if the scan turns out to need it, and the file is kept until the reading has been worked out (like the other clues).
-      if (getScanOptions().aiArt && aiModel.available) {
-        const aiPath = usePath, aiCard = useCard, aiFlat = !!found;
-        reading.aiPictures = () => aiCardPicturesNative(aiPath, aiCard, aiFlat);
-      }
-      if (shotMs !== undefined) reading.timings = { [key]: shotMs, ...reading.timings };
-      if (queue) {
-        // The queue: the screen works the card out in the background and this camera is free for the next one
-        handedOver = true;
-        startInQueue(onReading, reading, usePath, fresh);
-      } else {
-        // Wait until the reading has been worked out, because the extra clues are read from the photo then
-        await onReading(reading);
-      }
+      // Hand the reading over (see handOver): from here the file is deleted for us when the reading has been worked out. With the
+      // queue the camera is free for the next card at once; without it, wait for the answer.
+      const answer = handOver(reading, usePath, useCard, fresh, !!found, shotMs, key);
+      handedOver = true;
+      if (!queue) await answer;
     } finally {
       if (!handedOver) await finishPhoto(usePath, fresh);
     }
@@ -413,9 +508,10 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
   // Give a reading to the screen to work out without waiting for the answer. The photo is kept until
   // the screen has finished (its extra clues are read from it), then deleted. While it's being worked
   // out it counts as waiting (see MAX_WAITING).
-  function startInQueue(handler: ScannerCameraProps['onReading'], reading: Parameters<ScannerCameraProps['onReading']>[0], path: string, fresh: boolean) {
+  // Gives back a promise of the screen's answer (true: read, false: nothing could be read, nothing: not known), which never fails.
+  function startInQueue(handler: ScannerCameraProps['onReading'], reading: Parameters<ScannerCameraProps['onReading']>[0], path: string, fresh: boolean): Promise<boolean | void> {
     waiting.current += 1;
-    Promise.resolve()
+    return Promise.resolve()
       .then(() => handler(reading))
       .catch(() => { /* the screen tells the person about its own problems */ })
       .finally(() => {
@@ -429,6 +525,13 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
     if (busy || paused || !device || auto || pendingLens) return;
     // The queue is full: wait for one of the waiting cards to be finished
     if (queue && waiting.current >= MAX_WAITING) { setHint('Still reading the earlier cards. One moment.'); return; }
+    // Track card is following a card: scan that one now, without waiting for it to hold still. (When Track sees no card, the
+    // button carries on below: a photo is taken and the card is looked for in it.)
+    if (track && tracking.seen) {
+      tracking.noteScanned(tracking.seen.quad);
+      await scanTracked(tracking.seen.quad);
+      return;
+    }
     setBusy(true);
     setHint('');
     try {
@@ -595,6 +698,33 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto, running, photoOutput]);
 
+  /* ----- Track card ----- */
+
+  // The looking is done by useCardTracking (see that file). It runs while Track is on, the camera is running, Auto scan is off
+  // and no lens is being switched to. It calls scanTracked (above) when a card has held still.
+  const scanTrackedNow = useRef(scanTracked);
+  scanTrackedNow.current = scanTracked;
+  const tracking = useCardTracking({
+    on: track && !auto && running && !pendingLens,
+    camera: cameraRef,
+    isBlocked: () => live.current.busy || live.current.paused || live.current.area.w === 0 || (live.current.queue && waiting.current >= MAX_WAITING),
+    onHeldStill: (quad) => { scanTrackedNow.current(quad).catch(() => { /* scanTracked shows its own problems */ }); },
+    // The live picture cannot be looked at on this phone: switch Track off (for now, not for good) and say so
+    onBroken: () => { setTrack(false); setHint('Track card could not look at the camera picture, so it was switched off.'); },
+  });
+  const trackingNow = useRef(tracking);
+  trackingNow.current = tracking;
+
+  // The Track card button: switch, and remember the choice on this phone. Switching it on switches Auto scan off (they are
+  // two different ways of scanning by itself).
+  function toggleTrack() {
+    const next = !track;
+    setTrack(next);
+    setHint('');
+    if (next) { setAuto(false); tracking.reset(); }
+    AsyncStorage.setItem(TRACK_KEY, next ? '1' : '0').catch(() => { /* not remembered, that's all */ });
+  }
+
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     setArea({ w: event.nativeEvent.layout.width, h: event.nativeEvent.layout.height });
   }, []);
@@ -743,8 +873,14 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         }}
       />
 
-      {/* The card-shaped guide, with its four corners */}
-      {area.w > 0 && (
+      {/* Track card: an outline round the card being followed (white while it settles, the accent colour when it is about to
+          be scanned, faint once it has been scanned) */}
+      {track && !auto && tracking.seen && area.w > 0 && (
+        <TrackOutline quad={tracking.seen.quad} area={area} hold={tracking.seen.hold} armed={tracking.seen.armed} accent={colors.accent} />
+      )}
+
+      {/* The card-shaped guide, with its four corners (not in Track mode, where the card can be anywhere) */}
+      {area.w > 0 && (!track || auto) && (
         <View pointerEvents="none" style={{ position: 'absolute', left: guide.x, top: guide.y, width: guide.w, height: guide.h }}>
           <View style={[styles.corner, styles.topLeft]} />
           <View style={[styles.corner, styles.topRight]} />
@@ -757,7 +893,9 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
       <Text style={[styles.hint, { color: '#ffffff' }]} pointerEvents="none">
         {busy ? 'Reading the card…' : message || hint || (auto
           ? (seeing ? 'Got it. Take the card away for the next one' : 'Slide a card into the corners')
-          : 'Line the card up in the corners')}
+          : track
+            ? (tracking.seen ? (tracking.seen.armed ? 'Hold still…' : 'Show the next card') : 'Show the whole card on a plain surface')
+            : 'Line the card up in the corners')}
       </Text>
 
       {/* The lens buttons: only on a phone with more than one lens on the back. They sit on the picture just
@@ -780,11 +918,19 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         </View>
       )}
 
-      {/* The button that switches Auto scan on and off */}
+      {/* The buttons that switch Track card and Auto scan on and off (only one of the two is on at a time) */}
       <View pointerEvents="box-none" style={styles.topMiddle}>
         <Pressable
+          accessibilityRole="switch" accessibilityLabel="Track card" accessibilityState={{ checked: track && !auto }}
+          onPress={toggleTrack}
+          style={[styles.autoButton, { backgroundColor: track && !auto ? colors.accent : 'rgba(0,0,0,0.45)', borderColor: track && !auto ? colors.accent : 'rgba(255,255,255,0.45)' }]}
+        >
+          <Ionicons name="locate-outline" size={18} color={track && !auto ? colors.accentText : '#ffffff'} />
+          <Text style={[styles.autoText, { color: track && !auto ? colors.accentText : '#ffffff' }]}>Track card</Text>
+        </Pressable>
+        <Pressable
           accessibilityRole="switch" accessibilityLabel="Auto scan" accessibilityState={{ checked: auto }}
-          onPress={() => { setAuto(!auto); setHint(''); }}
+          onPress={() => { if (!auto) setTrack(false); setAuto(!auto); setHint(''); }}
           style={[styles.autoButton, { backgroundColor: auto ? colors.accent : 'rgba(0,0,0,0.45)', borderColor: auto ? colors.accent : 'rgba(255,255,255,0.45)' }]}
         >
           <Ionicons name="scan-outline" size={18} color={auto ? colors.accentText : '#ffffff'} />
@@ -840,9 +986,9 @@ const styles = StyleSheet.create({
   side: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' },
   topLeftButton: { position: 'absolute', top: 10, left: 12 },
   topRightButton: { position: 'absolute', top: 10, right: 12 },
-  // The Auto scan button sits in the middle of the top edge, between the photo and torch buttons
-  topMiddle: { position: 'absolute', top: 10, left: 64, right: 64, height: 44, alignItems: 'center', justifyContent: 'center' },
-  autoButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, borderWidth: 1.5 },
+  // The Track card and Auto scan buttons sit side by side in the middle of the top edge, between the photo and torch buttons
+  topMiddle: { position: 'absolute', top: 10, left: 60, right: 60, height: 44, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
+  autoButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, height: 36, borderRadius: 18, borderWidth: 1.5 },
   autoText: { fontSize: 13, fontWeight: '700' },
   // The row of lens buttons, centred just above the hint line
   lensRow: { position: 'absolute', left: 16, right: 16, bottom: 136, flexDirection: 'row', justifyContent: 'center', gap: 8 },

@@ -48,3 +48,13 @@ test('a picked wide photo uses a card-shaped box in the middle', () => {
   near(box[2] * 2000, (1000 * 63) / 88);
   near(box[0] + box[2] / 2, 0.5);
 });
+
+test('corners seen on the screen are found in a photo that is cut off at the sides', async () => {
+  const { viewQuadInPhoto } = await import('./cardInPhoto.ts');
+  // A 100 x 200 screen area showing a 200 x 200 photo: the photo fills the height, and a quarter of it hangs off each side
+  const quad = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0.5, y: 0.5 }];
+  const inPhoto = viewQuadInPhoto({ w: 100, h: 200 }, quad, { w: 200, h: 200 });
+  near(inPhoto[0].x, 0.25); near(inPhoto[0].y, 0);
+  near(inPhoto[1].x, 0.75); near(inPhoto[2].y, 1);
+  near(inPhoto[3].x, 0.5); near(inPhoto[3].y, 0.5);
+});

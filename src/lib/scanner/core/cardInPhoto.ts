@@ -50,3 +50,20 @@ export function clampBox(box: Fractions): Fractions {
   const bottom = Math.max(0, Math.min(1, box[1] + box[3]));
   return [left, top, right - left, bottom - top];
 }
+
+// A point as shares of a picture (0 to 1 across and down)
+export type SharePoint = { x: number; y: number };
+
+// Four corners seen on the SCREEN (as shares of the camera area) worked out as shares of the PHOTO: the same sum as guideInPhoto,
+// for each corner. Used by Track card in the phone app, which follows the card in the live picture on the screen and then has to
+// find those same corners in the full photo. A corner a little outside the photo is kept at its edge.
+export function viewQuadInPhoto<Q extends readonly SharePoint[]>(area: { w: number; h: number }, quad: Q, photo: { w: number; h: number }): Q {
+  const scale = Math.max(area.w / photo.w, area.h / photo.h);
+  const offsetX = (area.w - photo.w * scale) / 2;
+  const offsetY = (area.h - photo.h * scale) / 2;
+  const inside = (share: number) => Math.max(0, Math.min(1, share));
+  return quad.map((p) => ({
+    x: inside((p.x * area.w - offsetX) / scale / photo.w),
+    y: inside((p.y * area.h - offsetY) / scale / photo.h),
+  })) as unknown as Q;
+}
