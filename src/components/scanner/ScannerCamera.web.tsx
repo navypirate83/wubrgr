@@ -46,6 +46,8 @@ import { Tracker } from '@/lib/scanner/core/tracker';
 import { sharpnessOf } from '@/lib/scanner/core/viewBlend';
 import { changedFrame, signatureDifference, tinyFromRgba } from '@/lib/scanner/core/frameChange';
 import { aiCardPictures } from '@/lib/scanner/ai/aiPhoto.web';
+import { outlinePicturesInWorker } from '@/lib/scanner/ai/aiWorker.web';
+import { findOutlines, flatCard } from '@/lib/scanner/core/outlineFinder';
 import { getScanOptions } from '@/lib/scanner/scanSettings';
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import type { ScannerCameraProps } from './scannerCameraTypes';
@@ -94,6 +96,54 @@ function findCardInLook(look: ImageData): Quad | null {
     if (byShape) return byShape;
   } catch { /* the shape finder failing only means the colour finder is used */ }
   return findCard(look);
+}
+
+// The third way to find a card, for a PHOTO (it is slower, so it is only tried when the edge-and-shape finder and the colour
+// finder both found nothing, for example a card held in a hand against a busy background): the "outline" finder
+// (core/outlineFinder.ts) tries thousands of card-shaped rectangles and keeps the one with a firm edge all the way round. Gives the
+// best finds straightened into flat upright pictures (as canvases): up to two, best first.
+async function outlineFlatCanvases(bitmap: ImageBitmap): Promise<HTMLCanvasElement[]> {
+  try {
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const work = document.createElement('canvas');
+    work.width = Math.max(1, Math.round(bitmap.width * scale));
+    work.height = Math.max(1, Math.round(bitmap.height * scale));
+    const workContext = work.getContext('2d', { willReadFrequently: true })!;
+    workContext.imageSmoothingQuality = 'high';
+    workContext.drawImage(bitmap, 0, 0, work.width, work.height);
+    const photo = workContext.getImageData(0, 0, work.width, work.height);
+    // A background worker does the number-crunching so the page stays smooth; without one it runs right here
+    let pictures = await outlinePicturesInWorker(photo.data.buffer as ArrayBuffer, photo.width, photo.height);
+    if (!pictures) {
+      const again = photo.data.buffer.byteLength > 0 ? photo : workContext.getImageData(0, 0, work.width, work.height);
+      pictures = findOutlines(again).map((found) => flatCard(again, found));
+    }
+    // The best find, and (if there is one) the best clearly LARGER find: a card's inner boxes also have edges, so the best
+    // find is sometimes too small and the larger one is the whole card
+    return pictures.slice(0, 2).map((picture) => {
+      const flat = document.createElement('canvas');
+      flat.width = picture.width;
+      flat.height = picture.height;
+      flat.getContext('2d')!.putImageData(new ImageData(picture.data as unknown as ImageDataArray, picture.width, picture.height), 0, 0);
+      return flat;
+    });
+  } catch {
+    return [];
+  }
+}
+
+// A copy of a picture turned by 90, 180 or 270 degrees (clockwise). The outline finder's flat picture can come out sideways or
+// upside down, and the text reader only reads upright text, so a failed read is tried again turned.
+function turnedCanvas(source: HTMLCanvasElement, degrees: 90 | 180 | 270): HTMLCanvasElement {
+  const sideways = degrees !== 180;
+  const out = document.createElement('canvas');
+  out.width = sideways ? source.height : source.width;
+  out.height = sideways ? source.width : source.height;
+  const context = out.getContext('2d')!;
+  context.translate(out.width / 2, out.height / 2);
+  context.rotate((degrees * Math.PI) / 180);
+  context.drawImage(source, -source.width / 2, -source.height / 2);
+  return out;
 }
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -205,7 +255,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
 
   // "frameMs" is how long it took to copy the picture out of the video (for the timings shown after the scan)
   // "earlier" are the pictures kept of this same card while it held still (Track mode with AI art matching only)
-  async function scan(source: HTMLCanvasElement, card: Rect, frameMs?: number, earlier?: EarlierLook[]) {
+  // Gives back (after the card is worked out) whether it was read: true, false, or nothing when that isn't known
+  async function scan(source: HTMLCanvasElement, card: Rect, frameMs?: number, earlier?: EarlierLook[]): Promise<boolean | void> {
     setBusy(true);
     setHint('');
     try {
@@ -220,7 +271,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       }
       if (dark) setHint('It is dark. Light the card better (or use the torch) and scan again.');
       // The answer comes back later (the card is worked out meanwhile): a "nothing could be read" in Track mode means look again
-      Promise.resolve(onReading(reading)).then((read) => {
+      const answer = Promise.resolve(onReading(reading));
+      answer.then((read) => {
         const state = live.current;
         if (read === true) { state.retries = 0; return; }
         if (read === false && trackingRef.current && state.retries < MAX_RETRIES) {
@@ -228,6 +280,7 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
           setTimeout(() => { if (trackingRef.current) { state.armed = true; state.scannedSig = null; } }, RETRY_AFTER_MS);
         }
       }).catch(() => { /* a failed answer is the scan screen's to show */ });
+      return answer.catch(() => undefined);
     } catch (err) {
       setHint((err as Error).message);
     } finally {
@@ -432,6 +485,18 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
           await scan(flat, { x: 0, y: 0, w: flat.width, h: flat.height });
           return;
         }
+        // Neither quick finder found a card: try the slower outline finder before falling back to the middle of the picture
+        const flats = await outlineFlatCanvases(bitmap);
+        for (const flat of flats) {
+          // Try each find upright first, then turned a quarter each way, then upside down, and stop at the first that reads
+          // (a false means nothing could be read from it)
+          for (const turn of [0, 90, 270, 180] as const) {
+            const candidate = turn === 0 ? flat : turnedCanvas(flat, turn);
+            const read = await scan(candidate, { x: 0, y: 0, w: candidate.width, h: candidate.height });
+            if (read !== false) return;
+          }
+        }
+        if (flats.length) return;
       }
       const still = document.createElement('canvas');
       still.width = bitmap.width;
