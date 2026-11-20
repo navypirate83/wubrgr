@@ -72,6 +72,11 @@ const groupOf = (p: Printing): string => `${p.setCode}|${p.illus ?? p.id}`;
 // strength of the artwork and other clues. A worse match (a few letters read, some junk) is only a guess at the card itself, so
 // the person is asked to pick. (The main path, where the info line names the printing, has its own check.)
 const LIKELY_MIN_NAME = 0.8;
+// A title read this well is taken as a different card than the one the set and number found (see the main path below)
+const NAME_CONVINCING = 0.85;
+// The closest printing's artwork is "far off" from the photo's at this many bits (of 256; see rank.ts): when even the best printing's art is
+// this far, nothing resembles the photo (the right printing may be missing from the catalogue, or has no stored art), so "likely" is not said
+const ART_FAR_BITS = 70;
 
 // Working out a card is a lot of plain calculation on the app's one line of work, which the camera and the
 // screen share. "breathe" is called now and then inside the long stretches: it pauses for a moment once
@@ -191,8 +196,12 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   const lookAlikes = bestOne ? ranked.ordered.filter((c) => c.group === bestOne.group && Math.abs(ranked.scores.get(c.id)! - ranked.scores.get(bestOne.id)!) < 0.05) : [];
   const openChoice = lookAlikes.length > 1;
   const weakName = nameSimilarity < LIKELY_MIN_NAME;
-  if (ranked.likely && !openChoice && !weakName) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `${note}Likely (${ranked.why})` };
-  const doubt = openChoice ? '; printings of one set share this picture and the collector number did not tell them apart' : weakName ? '; the name was only partly read' : '';
+  // Nothing looks like the photo: the artwork of even the best printing is far off, and the collector number did not vouch for it
+  const bestArt = bestOne ? clues.artDistances.get(bestOne.id) : undefined;
+  const artFar = bestArt !== undefined && bestArt >= ART_FAR_BITS && (numberScores.get(bestOne!.id) ?? 0) < 2;
+  if (ranked.likely && !openChoice && !weakName && !artFar) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `${note}Likely (${ranked.why})` };
+  const doubt = openChoice ? '; printings of one set share this picture and the collector number did not tell them apart'
+    : weakName ? '; the name was only partly read' : artFar ? '; the artwork is not close to any printing' : '';
   return { ...base, status: 'pick', printing: null, candidates: ordered, matched: Math.max(ranked.fits, lookAlikes.length), reason: `${note}${ranked.fits} printings fit best (${ranked.why}${doubt})` };
 }
 
@@ -246,6 +255,12 @@ async function resolveInner(reading: ScanReading, lockedSet: string | null, aiAr
     }
     // The set and number found a printing but the name couldn't be checked: still the best guess
     if (found.length >= 1 && nameAgrees !== false) return { ...base, status: 'likely', printing: found[0], candidates: found, reason: verdict.reason };
+    // The set and number found exactly one printing, and the title could not be read well enough to be another card's name (a
+    // junk read that happened to look a little like some name): the info line is the better witness, so it is the answer, but only
+    // "likely" since the name could not check it
+    if (found.length === 1 && nameAgrees === false && (nameMatch?.similarity ?? 0) < NAME_CONVINCING) {
+      return { ...base, name: found[0].name, status: 'likely', printing: found[0], candidates: found, reason: 'The set and number found one printing; the title was too unclear to check it' };
+    }
     // The name disagrees with the set and number (or nothing was found): trust the name and try the clues
     if (name) {
       const fallback = await fromName(reading, name, info, info.lang, nameMatch?.similarity ?? 0, lockedSet, aiArt);

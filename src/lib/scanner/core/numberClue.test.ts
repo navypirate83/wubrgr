@@ -38,3 +38,12 @@ test('the exact number plus the right set adds up, and the wrong set adds nothin
   assert.equal(numberBonus('375', 'mh2', { collectorNumber: '375', setCode: 'who' }), NUMBER_EXACT_BONUS);
   assert.equal(numberBonus('378', null, { collectorNumber: '375', setCode: 'who' }), NUMBER_NEAR_BONUS);
 });
+
+import { NUMBER_LETTER_BONUS } from './numberClue.ts';
+
+test('the right digits with a stray letter on the end ("320f" for 320) are a strong match, but not a full one', () => {
+  assert.equal(numberFit('320f', '320'), 'letter');
+  assert.equal(numberBonus('320f', null, { collectorNumber: '320', setCode: 'fin' }), NUMBER_LETTER_BONUS);
+  assert.ok(NUMBER_LETTER_BONUS < NUMBER_EXACT_BONUS);
+  assert.equal(numberFit('320f', '320a'), 'none');
+});

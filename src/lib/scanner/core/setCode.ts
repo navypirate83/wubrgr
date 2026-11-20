@@ -40,11 +40,15 @@ export function checkSetCode(read: string | null, known: ReadonlySet<string>): C
   if (known.has(code)) return { code, corrected: false, ambiguous: false };
   const real = [...new Set(variants(code).filter((v) => v !== code && known.has(v)))];
   if (real.length > 0) return { code: real[0], corrected: true, ambiguous: real.length > 1 };
-  // The bullet read as a letter on the end ("ONEX" for "ONE"): try without the last character (a real 3 or 4 character code only)
+  // One extra character read: the bullet read as a letter on the end ("ONEX" for "ONE"), or a stray mark inside ("CI19" for "C19").
+  // Try the code with each one character taken out (a real 3 or 4 character code only), look-alike swaps allowed.
   if (code.length >= 4) {
-    const shorter = code.slice(0, -1);
-    const withoutLast = [...new Set(variants(shorter).filter((v) => known.has(v)))];
-    if (withoutLast.length > 0) return { code: withoutLast[0], corrected: true, ambiguous: withoutLast.length > 1 };
+    const found: string[] = [];
+    for (let skip = code.length - 1; skip >= 0; skip--) {
+      const shorter = code.slice(0, skip) + code.slice(skip + 1);
+      for (const v of variants(shorter)) if (known.has(v) && !found.includes(v)) found.push(v);
+    }
+    if (found.length > 0) return { code: found[0], corrected: true, ambiguous: found.length > 1 };
   }
   return null;
 }

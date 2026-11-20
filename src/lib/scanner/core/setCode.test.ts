@@ -34,3 +34,8 @@ test('something that is no set at all gives nothing', () => {
   assert.equal(checkSetCode('zzzz', known), null);
   assert.equal(checkSetCode(null, known), null);
 });
+
+test('a stray extra character inside the code ("CI19" for "C19") is taken out', () => {
+  const real = new Set(['c19', 'one', 'sld']);
+  assert.deepEqual(checkSetCode('ci19', real), { code: 'c19', corrected: true, ambiguous: false });
+});

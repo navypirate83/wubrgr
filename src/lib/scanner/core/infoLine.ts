@@ -65,23 +65,33 @@ export function parseInfoLine(raw: string): InfoLine {
   }
 
   // ----- The collector number -----
+  // The text may hold several things that look like a number (junk before the real line, letters read for digits), so every
+  // candidate is collected and the one with the MOST REAL DIGITS wins; a tie goes to the layout that also tells the rarity
+  // (older "123/280 R" first, then newer "R 0123", then a bare run of digits).
+  type Candidate = { number: string; setTotal: string | null; rarity: string | null; layout: 'older' | 'newer' | null; digits: number };
+  const realDigits = (text: string) => (text.match(/[0-9]/g) ?? []).length;
+  const candidates: Candidate[] = [];
   // Older layout: "123/280" then the rarity: "123/280 R"
-  const older = new RegExp(`${NUMBER} ?[/|\\\\] ?([0-9OQDILSBZ]{1,4})(?: ?([CURMSLTP])(?![A-Z]))?`).exec(text);
+  for (const match of text.matchAll(new RegExp(`${NUMBER} ?[/|\\\\] ?([0-9OQDILSBZ]{1,4})(?: ?([CURMSLTP])(?![A-Z]))?`, 'g'))) {
+    const cleaned = cleanNumber(match[1]);
+    if (cleaned !== null) candidates.push({ number: cleaned + (match[2] ?? ''), setTotal: cleanNumber(match[3]), rarity: match[4] ?? null, layout: 'older', digits: realDigits(match[1]) + 2 });
+  }
   // Newer layout: the rarity then the number: "R 0123" (a promo or foil star can follow)
-  const newer = new RegExp(`(?:^|[^A-Z0-9])([CURMSLTP]) ?${NUMBER}(?![A-Z0-9])`).exec(text);
-  if (older && cleanNumber(older[1]) !== null) {
-    result.collectorNumber = cleanNumber(older[1]) + (older[2] ?? '');
-    result.setTotal = cleanNumber(older[3]);
-    result.rarity = older[4] ?? null;
-    result.layout = 'older';
-  } else if (newer && cleanNumber(newer[2]) !== null) {
-    result.collectorNumber = cleanNumber(newer[2]) + (newer[3] ?? '');
-    result.rarity = newer[1];
-    result.layout = 'newer';
-  } else if (result.setCode) {
-    // Only a number on its own (the rarity or the slash was lost): take a 3 or 4 digit one
-    const alone = /(?:^|[^A-Z0-9])([0-9]{3,4})([A-Z★†☆*])?(?![A-Z0-9])/.exec(text);
-    if (alone) result.collectorNumber = cleanNumber(alone[1]) + (alone[2] ?? '');
+  for (const match of text.matchAll(new RegExp(`(?:^|[^A-Z0-9])([CURMSLTP]) ?${NUMBER}(?![A-Z0-9])`, 'g'))) {
+    const cleaned = cleanNumber(match[2]);
+    if (cleaned !== null) candidates.push({ number: cleaned + (match[3] ?? ''), setTotal: null, rarity: match[1], layout: 'newer', digits: realDigits(match[2]) });
+  }
+  // Only a number on its own (the rarity or the slash was lost): a run of 3 or 4 digits that isn't part of a longer one
+  for (const match of text.matchAll(/(?<![0-9])([0-9]{3,4})(?![0-9])/g)) {
+    candidates.push({ number: cleanNumber(match[1]) as string, setTotal: null, rarity: null, layout: null, digits: realDigits(match[1]) });
+  }
+  let best: Candidate | null = null;
+  for (const candidate of candidates) if (!best || candidate.digits > best.digits) best = candidate;
+  if (best) {
+    result.collectorNumber = best.number;
+    result.setTotal = best.setTotal;
+    result.rarity = best.rarity;
+    result.layout = best.layout;
   }
 
   // A letter after the number is lowercase on Scryfall ("123a"); a symbol stays as it is
