@@ -27,4 +27,7 @@ android {
 dependencies {
   // Google's on-device text reader (the newest release of the Latin script one)
   implementation 'com.google.mlkit:text-recognition:16.0.1'
+  // Microsoft's ONNX runtime for Android: runs the AI art model (model.onnx, the same file the website uses) on the phone.
+  // (Same family as the website's onnxruntime-web 1.31.1.) NEW, not yet tried on a phone.
+  implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.31.1'
 }

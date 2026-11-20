@@ -72,6 +72,9 @@ import { FOUND_SCORE, FULL_SCORE, readingScore } from '@/lib/scanner/core/cardCu
 import { findCardByShape } from '@/lib/scanner/core/shapeFinder';
 import { cutOutTries, flatHeight, grayToRgba } from '@/lib/scanner/core/photoCard';
 import { parseInfoLine } from '@/lib/scanner/core/infoLine';
+import { aiModel } from '@/lib/scanner/ai/aiModel';
+import { aiCardPicturesNative } from '@/lib/scanner/ai/aiPhoto.native';
+import { getScanOptions } from '@/lib/scanner/scanSettings';
 import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
 import { CARD_ASPECT } from '@/lib/scanner/core/scannerTypes';
 import { cardInPickedPhoto, guideInPhoto, type Fractions, type Rect } from '@/lib/scanner/core/cardInPhoto';
@@ -357,14 +360,16 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
   async function scanPhoto(path: string, card: Fractions, fresh: boolean, shotMs?: number, key: 'photo' | 'frame' = 'photo', find: 'weak' | 'always' = 'weak') {
     // True once the photo has been given to the queue, which then deletes it when it's finished with it
     let handedOver = false;
-    // The file the reading finally comes from (a photo taken instead, if the frame was no good)
+    // The file the reading finally comes from (a photo taken instead, if the frame was no good), and where the card is in it
     let usePath = path;
+    let useCard = card;
     try {
       let reading = await readCardPhoto(path, card, looksLikeName);
       if (key === 'frame' && looksLikeName && !looksLikeName(reading.nameText)) {
         const now = live.current;
         const still = await takeStill({ area: now.area, guide: now.guide });
         usePath = still.path;
+        useCard = still.card;
         await finishPhoto(path, fresh);
         reading = await readCardPhoto(still.path, still.card, looksLikeName);
         shotMs = still.ms;
@@ -376,8 +381,15 @@ export default function ScannerCameraLive({ onReading, message, bar, paused, loo
         // The picture file that was cut out is ours to delete when the scan is done; the original photo is let go now
         await finishPhoto(usePath, fresh);
         usePath = found.path;
+        useCard = [0, 0, 1, 1];
         fresh = true;
         reading = found.reading;
+      }
+      // With "AI art matching" on (and the AI files and model here), leave a way to make the colour card pictures the AI looks at. It does its
+      // slow work only if the scan turns out to need it, and the file is kept until the reading has been worked out (like the other clues).
+      if (getScanOptions().aiArt && aiModel.available) {
+        const aiPath = usePath, aiCard = useCard, aiFlat = !!found;
+        reading.aiPictures = () => aiCardPicturesNative(aiPath, aiCard, aiFlat);
       }
       if (shotMs !== undefined) reading.timings = { [key]: shotMs, ...reading.timings };
       if (queue) {

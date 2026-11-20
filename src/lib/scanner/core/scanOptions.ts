@@ -15,7 +15,7 @@
    - startFinish: which finish a scanned card starts with, "nonfoil" or
      "foil" (a card that doesn't come in foil is still non-foil).
    - showTimings: show how long each scan took, after the scan.
-   - aiArt: "AI art matching" (website only for now): also compare the photo's
+   - aiArt: "AI art matching" (website, and Android in builds that have the model runner): also compare the photo's
      artwork with the saved artworks using an AI model, which needs extra files
      downloaded once (see ai/). On by default (only for accounts with AI scanner access); with it off, or with the files
      missing, the scanner works exactly as before.

@@ -10,7 +10,7 @@
      printing and carries on; you can still change a card in the list.
    - START CARDS AS: non-foil or foil, so a pile of foils isn't fixed one by one.
    - SHOW SCAN TIMES: the "Read in 1.2 s" line after each scan.
-   - AI ART MATCHING (website only for now): an optional extra way of telling printings apart by their
+   - AI ART MATCHING (website, and Android from build with the model runner): an optional extra way of telling printings apart by their
      artwork, using an AI model. It needs some files downloaded once; the sheet says whether they are here
      and has the Download button. With it off, or the files missing, nothing changes.
      It is only shown to accounts with AI scanner access (the AIScan right, or an admin); for everyone

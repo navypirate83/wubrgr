@@ -1,10 +1,9 @@
 /* =====================================================================
    THE AI FILES ON THIS DEVICE: CHECKING, DOWNLOADING, KEEPING
-   The website keeps the four AI files (see aiConfig.ts) in the browser's own
-   storage ("IndexedDB"), in a store of their own that is separate from the
-   card catalogue's. This file:
-   - aiReady(): are all four files saved here? (false in the Android app, which
-     has no browser storage and, for now, no AI)
+   The four AI files (see aiConfig.ts) are kept in a store of their own that is separate from the
+   card catalogue's: the browser's storage on the website, ordinary files in the app's folder on Android
+   (aiStore.ts, aiStore.web.ts, aiStore.native.ts). This file:
+   - aiReady(): are all four files saved here? (false on a device that cannot keep them)
    - checkAiRemote(): reads the server's ai.json (null if it can't be reached or this account may not)
    - downloadAiFiles(): downloads every file, with progress, checks each one's
      size (and its checksum when the browser can work one out) and saves it
@@ -18,38 +17,17 @@
 
 import { ApiError, apiDownload } from '../../api';
 import { AI_FILE_NAMES, AI_PATH, SUPPORTED_AI_VERSION, type AiFileName, type AiManifest } from './aiConfig';
+import { aiStore } from './aiStore';
 
-// The browser's saved-file store: one database with one "shelf" of files, each kept under its name
-const DATABASE = 'wubrgr-ai';
-const STORE = 'files';
-
-// Whether this device has browser storage at all (the Android app does not)
-const haveStorage = (): boolean => typeof indexedDB !== 'undefined';
-
-// Open the database (making the shelf the first time)
-function openIndexedDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
+// Where the files are kept on this device (the browser's storage on the website, ordinary files on Android: see aiStore.ts)
+const haveStorage = (): boolean => aiStore.available;
 
 // Read, write or delete one saved file by name
-async function saved(action: 'get' | 'put' | 'delete', name: string, bytes?: Uint8Array): Promise<Uint8Array | null> {
-  const idb = await openIndexedDb();
-  try {
-    return await new Promise<Uint8Array | null>((resolve, reject) => {
-      const tx = idb.transaction(STORE, action === 'get' ? 'readonly' : 'readwrite');
-      const store = tx.objectStore(STORE);
-      const request = action === 'get' ? store.get(name) : action === 'put' ? store.put(bytes, name) : store.delete(name);
-      request.onsuccess = () => resolve(action === 'get' ? (request.result as Uint8Array | undefined) ?? null : null);
-      request.onerror = () => reject(request.error);
-    });
-  } finally {
-    idb.close();
-  }
+async function saved(action: 'get' | 'put' | 'delete', name: AiFileName, bytes?: Uint8Array): Promise<Uint8Array | null> {
+  if (action === 'get') return aiStore.get(name);
+  if (action === 'put') { await aiStore.put(name, bytes!); return null; }
+  await aiStore.delete(name);
+  return null;
 }
 
 // What we already worked out about whether the files are there (so asking again is quick).
@@ -61,7 +39,7 @@ export async function aiReady(): Promise<boolean> {
   if (!haveStorage()) return false;
   if (readyKnown !== null) return readyKnown;
   try {
-    for (const name of AI_FILE_NAMES) if (!(await saved('get', name))) return (readyKnown = false);
+    for (const name of AI_FILE_NAMES) if (!(await aiStore.has(name))) return (readyKnown = false);
     return (readyKnown = true);
   } catch {
     return false;

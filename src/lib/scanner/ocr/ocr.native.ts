@@ -36,6 +36,9 @@ type CardTextReaderModule = {
   jpegCrop(path: string, card: Fractions, part: Fractions, width: number): Promise<string>;
   // Let go of a photo (and remove its file if the camera took it)
   deletePhoto(path: string, deleteFile: boolean): Promise<void>;
+  // Parts of the card as COLOUR pictures, each exactly its own width x height (red, green, blue per pixel, as base64 text). For the AI.
+  // Only in builds made after this was added (NEW NATIVE CODE, not yet tried on a phone): older builds don't have it.
+  rgbCrops?(path: string, card: Fractions, parts: Fractions[], widths: number[], heights: number[]): Promise<{ width: number; height: number; data: string }[]>;
   // A card found in the photo, cut out flat and upright as a new picture file (its path comes back). "quad" is eight numbers (x, y of
   // each corner: top-left, top-right, bottom-right, bottom-left) as shares of the upright photo. Only in builds made after this was
   // added (NEW NATIVE CODE, not yet tried on a phone): older builds don't have it, so it is only called if it exists.
@@ -112,6 +115,29 @@ export async function wholePhotoGray(path: string, width: number): Promise<GrayP
   try {
     const [picture] = await reader().grayCrops(path, [0, 0, 1, 1], [[0, 0, 1, 1]], [width]);
     return decodeGray(picture);
+  } catch {
+    return null;
+  }
+}
+
+// A part of the card as a colour picture exactly "width" x "height", as the red, green, blue, alpha pixels the AI code takes
+// (null if this build cannot, or anything goes wrong). "card" is where the card is in the photo (shares of the photo); [0, 0, 1, 1] for
+// a picture that is the card (a cut-out card file).
+export async function colourPicture(path: string, card: Fractions, width: number, height: number): Promise<{ data: Uint8ClampedArray; width: number; height: number } | null> {
+  try {
+    const add = reader();
+    if (typeof add.rgbCrops !== 'function') return null;
+    mark('cutting a colour picture');
+    const [packed] = await add.rgbCrops(path, card, [[0, 0, 1, 1]], [width], [height]);
+    const binary = atob(packed.data);
+    const data = new Uint8ClampedArray(packed.width * packed.height * 4);
+    for (let i = 0; i < packed.width * packed.height; i++) {
+      data[i * 4] = binary.charCodeAt(i * 3);
+      data[i * 4 + 1] = binary.charCodeAt(i * 3 + 1);
+      data[i * 4 + 2] = binary.charCodeAt(i * 3 + 2);
+      data[i * 4 + 3] = 255;
+    }
+    return { data, width: packed.width, height: packed.height };
   } catch {
     return null;
   }

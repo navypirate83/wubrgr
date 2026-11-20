@@ -5,6 +5,9 @@
 //   readParts(...)         -> the text in each requested part of the card
 //   grayCrops(...)         -> parts of the card as grey pictures (for telling older printings apart)
 //   jpegCrop(...)          -> one part of the card as a small JPEG picture (to show on screen)
+//   rgbCrops(...)          -> a part of the card as a COLOUR picture of a chosen size (red, green, blue bytes), for the AI
+//   runModel(...)          -> run the AI model file (model.onnx) on one picture's numbers, with Microsoft's ONNX runtime
+//                             (NEW, not yet tried on a phone: the app only calls it if it exists)
 //   flattenCard(...)       -> a card found in the photo (four corners, can be tilted) cut out flat and upright as a new picture file
 //                             (NEW, not yet tried on a phone: the app only calls it if it exists, so an older build is unaffected)
 //   deletePhoto(path)      -> tidy up a photo the camera took
@@ -30,6 +33,11 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
+import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import android.media.ExifInterface
 import android.util.Base64
 import com.google.android.gms.tasks.Tasks
@@ -74,6 +82,14 @@ class CardTextReaderModule : Module() {
 
   // A third one for rescuing saved values (reading a huge value can take a moment)
   private val storedWorker = Executors.newSingleThreadExecutor()
+
+  // A helper thread for the AI model, so a picture being worked out never holds up the text reading
+  private val modelWorker = Executors.newSingleThreadExecutor()
+
+  // The AI model's runtime and the model opened from the file, made the first time they are needed and kept after that
+  private var ortEnvironment: OrtEnvironment? = null
+  private var ortSession: OrtSession? = null
+  private var ortPath: String? = null
 
   // The photo most recently opened, kept for the next request
   private var open: OpenPhoto? = null
@@ -226,6 +242,25 @@ class CardTextReaderModule : Module() {
     return mapOf("width" to width, "height" to height, "data" to Base64.encodeToString(gray, Base64.NO_WRAP))
   }
 
+  // One box as a COLOUR picture exactly "width" x "height": the size and the pixels (red, green, blue, one byte each, row by row),
+  // packed as text. (The AI needs colour; grayBox above is for the clues that do not.)
+  private fun rgbBox(photo: OpenPhoto, box: List<Double>, width: Int, height: Int): Map<String, Any> {
+    val piece = cut(photo, box)
+    val small = Bitmap.createScaledBitmap(piece, width, height, true)
+    if (small !== piece) piece.recycle()
+    val pixels = IntArray(width * height)
+    small.getPixels(pixels, 0, width, 0, 0, width, height)
+    small.recycle()
+    val rgb = ByteArray(pixels.size * 3)
+    for (i in pixels.indices) {
+      val p = pixels[i]
+      rgb[i * 3] = ((p shr 16) and 0xff).toByte()
+      rgb[i * 3 + 1] = ((p shr 8) and 0xff).toByte()
+      rgb[i * 3 + 2] = (p and 0xff).toByte()
+    }
+    return mapOf("width" to width, "height" to height, "data" to Base64.encodeToString(rgb, Base64.NO_WRAP))
+  }
+
   // Answer the app with an error for the catalogue and saved-value requests (any failure, even running out of memory)
   private fun reject(promise: Promise, code: String, fallback: String, error: Throwable) {
     val message = if (error is OutOfMemoryError) "The phone ran out of memory" else (error.message ?: fallback)
@@ -315,6 +350,65 @@ class CardTextReaderModule : Module() {
           promise.resolve(Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP))
         } catch (error: Throwable) {
           fail(promise, "ERR_CARD_CROP", "The card could not be cropped", error)
+        }
+      }
+    }
+
+    // Parts of the card as COLOUR pictures (same box shape as readParts), each exactly its own width x height. Each answer has the
+    // width, the height and the pixels (red, green, blue per pixel) packed as text. Used by the AI art matching.
+    // (NEW, not yet tried on a phone: the app only calls it if it exists.)
+    AsyncFunction("rgbCrops") { path: String, card: List<Double>, parts: List<List<Double>>, widths: List<Int>, heights: List<Int>, promise: Promise ->
+      worker.execute {
+        try {
+          val photo = openFor(path, card)
+          promise.resolve(parts.mapIndexed { index, part -> rgbBox(photo, inPhoto(card, part), widths[index], heights[index]) })
+        } catch (error: Throwable) {
+          fail(promise, "ERR_CARD_CROP", "The card could not be cropped", error)
+        }
+      }
+    }
+
+    // Run the AI model (the ONNX file at "modelPath") on one picture's numbers: "tensorBase64" is 3 x 224 x 224 decimals (4 bytes each,
+    // little-endian) as base64 text. Gives back the model's raw answer: its shape (like [1, 257, 768]) and its decimals as base64 text.
+    // The model is opened the first time and kept for the next picture.
+    // (NEW, not yet tried on a phone: the app's JavaScript only calls it if it exists, so an older build is unaffected.)
+    AsyncFunction("runModel") { modelPath: String, tensorBase64: String, promise: Promise ->
+      modelWorker.execute {
+        try {
+          val environment = ortEnvironment ?: OrtEnvironment.getEnvironment().also { ortEnvironment = it }
+          var session = ortSession
+          if (session == null || ortPath != modelPath) {
+            session?.close()
+            val options = OrtSession.SessionOptions()
+            options.setIntraOpNumThreads(4)
+            session = environment.createSession(modelPath, options)
+            ortSession = session
+            ortPath = modelPath
+          }
+          // The input as a direct buffer of decimals (what the runtime wants)
+          val inputBytes = Base64.decode(tensorBase64, Base64.NO_WRAP)
+          val direct = ByteBuffer.allocateDirect(inputBytes.size).order(ByteOrder.LITTLE_ENDIAN)
+          direct.put(inputBytes)
+          direct.rewind()
+          val input = OnnxTensor.createTensor(environment, direct.asFloatBuffer(), longArrayOf(1, 3, 224, 224))
+          try {
+            val model: OrtSession = session ?: throw IllegalStateException("The AI model is not open")
+            val result = model.run(mapOf("pixel_values" to input))
+            try {
+              val output = result.get(0) as OnnxTensor
+              val shape = output.info.shape
+              val decimals = output.floatBuffer
+              val answer = ByteBuffer.allocate(decimals.remaining() * 4).order(ByteOrder.LITTLE_ENDIAN)
+              answer.asFloatBuffer().put(decimals)
+              promise.resolve(mapOf("dims" to shape.map { it.toInt() }, "data" to Base64.encodeToString(answer.array(), Base64.NO_WRAP)))
+            } finally {
+              result.close()
+            }
+          } finally {
+            input.close()
+          }
+        } catch (error: Throwable) {
+          fail(promise, "ERR_AI_MODEL", "The AI model could not be run", error)
         }
       }
     }

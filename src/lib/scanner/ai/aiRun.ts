@@ -20,6 +20,7 @@ import { STRONG_MATCH, aiScoresFor, pictureOrder } from './aiClue';
 import { aiReady, readAiFile } from './aiFiles';
 import { createAiIndex, type AiIndex } from './aiIndex';
 import { aiModel } from './aiModel';
+import { bytesToText } from '../core/floatBytes';
 
 // The index, loaded once (a promise, so two scans asking at the same time share one load)
 let index: Promise<AiIndex> | null = null;
@@ -29,7 +30,7 @@ export function loadAiIndex(): Promise<AiIndex> {
     index = (async () => {
       const [vectors, ids, projection] = await Promise.all([readAiFile('art-vectors.bin'), readAiFile('art-ids.txt'), readAiFile('projection.bin')]);
       if (!vectors || !ids || !projection) throw new Error('The AI files are not all on this device');
-      return createAiIndex(vectors, new TextDecoder().decode(ids), projection);
+      return createAiIndex(vectors, bytesToText(ids), projection);
     })();
     index.catch(() => { index = null; });
   }
