@@ -579,7 +579,7 @@ export const helpTopics: HelpTopic[] = [
               this device: <Strong>Lock to a set</Strong> (pick the set you're sorting through, like Dominaria, and the scanner only looks for
               printings from it, which is quicker and surer; the gear turns orange and shows the set's code, and a card that has no printing in that set is
               still found but is never added without you checking it), <Strong>When it isn't sure</Strong> (<Strong>Ask me</Strong> shows the printing
-              choices, <Strong>Best guess</Strong> takes the most likely printing and carries on, and you can still change a card in the list),
+              choices, <Strong>Best guess</Strong> takes the most likely printing and carries on, and you can still change a card in the list; a card whose own set code names a set the catalogue has no printing of that card in, usually a card newer than the catalogue, is never guessed: the scanner says so and shows the closest printings for you to choose from),
               <Strong>Start cards as</Strong> (non-foil or foil), <Strong>Show how long each scan took</Strong> and, on the website and (in builds that have the AI model runner) in the Android app,
               <Strong>AI art matching (experimental)</Strong>: an extra way of telling printings of the same card apart by comparing their artwork
               with an AI model. It only shows for accounts with the <Strong>AIScan</Strong> right (and Admins), given on the Admin page; everyone

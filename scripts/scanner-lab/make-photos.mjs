@@ -15,7 +15,7 @@
         (the same maths as straightening a card, run the other way) and copy that colour,
      4. darken a soft shadow just below and to one side of the card,
      5. blur a little, add grain, sometimes add a bright glare patch, and save as a JPEG.
-   Run:  node scripts/scanner-lab/make-photos.mjs [photos per card] [folder name, default photos] [most blur, default 1.5]
+   Run:  node scripts/scanner-lab/make-photos.mjs [photos per card] [folder name, default photos] [most blur, default 1.5] [card list in cache/, default cards.json]
    (a typical phone photo is sharp, about 0.3 to 0.9; the harder 1.5 is for stress tests)
    ===================================================================== */
 
@@ -32,7 +32,8 @@ const PER_CARD = Number(process.argv[2] || 2);
 const PHOTOS = join(here, 'cache', process.argv[3] || 'photos');
 const MOST_BLUR = Number(process.argv[4] || 1.5);
 await mkdir(PHOTOS, { recursive: true });
-const cards = JSON.parse(await readFile(join(here, 'cache', 'cards.json'), 'utf8'));
+// The list of cards to make photos of: the lab's main list, or another list in cache/ named as the 4th option (for a small special test set)
+const cards = JSON.parse(await readFile(join(here, 'cache', process.argv[5] || 'cards.json'), 'utf8'));
 
 // A small repeatable random number maker (the same seed always gives the same numbers)
 function randomMaker(seed) {

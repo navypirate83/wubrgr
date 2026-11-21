@@ -283,7 +283,8 @@ export default function ScanScreen() {
     hapticTap();
     const art = reading.extras?.artPreview;
     // "Best guess": a card that could be several printings is taken as its most likely one, without asking
-    const guess = chosen.unsure === 'guess';
+    // (never for a card whose own set code says its printing is not in the catalogue: every guess would be the wrong set)
+    const guess = chosen.unsure === 'guess' && !outcome.notInCatalogue;
     if (mode === 'one') {
       if (outcome.status === 'sure' || outcome.status === 'likely' || (guess && outcome.candidates.length > 0)) {
         const printing = outcome.printing ?? outcome.candidates[0];

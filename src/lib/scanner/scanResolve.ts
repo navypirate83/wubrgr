@@ -41,11 +41,12 @@ import { decideScan } from './core/decide';
 import { aiIsNeeded } from './core/aiNeeded';
 import { loadMoreClues } from './core/readPlan';
 import { applySetLock } from './core/setLock';
+import { missingFromReadSet } from './core/setFamily';
 import { normalizeName } from './core/text';
 import { makeBreather } from './core/timeSlice';
 import type { Printing } from './core/catalogueTypes';
 import { eraOf, type ScanReading } from './core/scannerTypes';
-import { allFrontNameIndex, allFrontNames, artHashFor, findPrintings, printingsNamed, printingsWithArt, setCodes, setSymbol } from './catalogue/catalogue';
+import { allFrontNameIndex, allFrontNames, artHashFor, findPrintings, frontNamesInSet, printingsNamed, printingsWithArt, setCodes, setParents, setSymbol } from './catalogue/catalogue';
 import { aiArtGuesses, aiScoresForReading } from './ai/aiRun';
 
 export type ScanOutcome = {
@@ -55,6 +56,7 @@ export type ScanOutcome = {
   candidates: Printing[];         // the ones to choose from ("pick"), or every printing of the card (to fix a wrong one)
   matched?: number;               // when the list came from the name: how many of the first candidates fit the clues (the rest are "other printings")
   reason: string;                 // in plain words
+  notInCatalogue?: boolean;       // the card's own set code says it is from a set the catalogue has no printing of this card in (so even "best guess" must not take one)
   info: InfoLine;
   lang: string | null;            // the language read from the card (Scryfall's code), if any
   name: string | null;            // the card's name as found in the catalogue, if the title bar could be matched
@@ -80,6 +82,12 @@ const PARTLY_NAME = 0.7;
 // The closest printing's artwork is "far off" from the photo's at this many bits (of 256; see rank.ts): when even the best printing's art is
 // this far, nothing resembles the photo (the right printing may be missing from the catalogue, or has no stored art), so "likely" is not said
 const ART_FAR_BITS = 70;
+
+// A badly read title is compared with the names of just the cards in the set the info line named. It counts as one of them when it
+// is at least this alike (much lower than the usual bar, because there are only a few hundred names to mix it up with, not 30,000)...
+const SET_MATE_MIN = 0.6;
+// ...and this much more like that card than like the card the set and number found
+const SET_MATE_AHEAD = 0.15;
 
 // Working out a card is a lot of plain calculation on the app's one line of work, which the camera and the
 // screen share. "breathe" is called now and then inside the long stretches: it pauses for a moment once
@@ -113,6 +121,14 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   const base = { reading, info, lang, name };
   if (everyPrinting.length === 0) return { ...base, status: 'none', printing: null, candidates: [], reason: 'No printing of that card was found' };
 
+  // THE CARD'S OWN SET CODE. When the info line's set code is one real set (read exactly, or with a look-alike letter put right), the card in hand is from that set.
+  // If the catalogue has no printing of this card from that set (or its sister sets), the right printing is simply not in the
+  // catalogue (it may be newer than it), so the scanner must not settle on the closest-looking one from another set: the answer is
+  // never "sure" or "likely" then, the person is told why, and "best guess" does not take one either. (See core/setFamily.ts.)
+  const readCode = checkSetCode(info.setCode, await knownSets());
+  const notInCatalogue = missingFromReadSet(readCode, everyPrinting.map((p) => p.setCode), await setParents().catch(() => new Map<string, string | null>()));
+  const missingNote = notInCatalogue ? `The card says ${readCode!.code.toUpperCase()}, but the catalogue has no printing of this card from that set (it may be newer than the catalogue). ` : '';
+
   // The set lock: only that set's printings are worth considering (if the card has any there)
   const lock = applySetLock(everyPrinting, lockedSet);
   const printings = lock.printings;
@@ -122,13 +138,15 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
 
   // Locked, and what's left all looks the same: that's the answer, with no photo clues needed.
   // "Sure" only when the title bar matched the name well, since this path never has the info line to agree.
-  if (lock.locked && new Set(printings.map(groupOf)).size === 1) {
+  if (lock.locked && new Set(printings.map(groupOf)).size === 1 && !notInCatalogue) {
     return {
       ...base, status: nameSimilarity >= 0.9 ? 'sure' : 'likely', printing: printings[0], candidates: [...printings, ...others], matched: printings.length,
       reason: `Locked to ${lockCode}`,
     };
   }
   if (printings.length === 1) {
+    // The only printing the catalogue has, but the card itself says it is from another set: the person checks it
+    if (notInCatalogue) return { ...base, status: 'pick', printing: null, candidates: printings, matched: 1, notInCatalogue: true, reason: `${missingNote}This is the only printing in the catalogue.` };
     // (a name read badly enough to be a guess is checked by the person)
     return nameSimilarity >= LIKELY_MIN_NAME
       ? { ...base, status: 'likely', printing: printings[0], candidates: printings, reason: 'The only printing of that card' }
@@ -204,6 +222,8 @@ async function fromName(reading: ScanReading, name: string, info: InfoLine, lang
   // (the info line vouches when the set code matched, or the number matched exactly, with a stray letter, or with only its first digit lost:
   // each of those is worth at least SET_MATCH_BONUS. A number merely one digit off is not enough.)
   const artFar = bestArt !== undefined && bestArt >= ART_FAR_BITS && (numberScores.get(bestOne!.id) ?? 0) < SET_MATCH_BONUS;
+  // The card's own set code names a set the catalogue has no printing of this card in: the closest-looking ones are offered, never chosen
+  if (notInCatalogue) return { ...base, status: 'pick', printing: null, candidates: ordered, matched: Math.max(ranked.fits, lookAlikes.length), notInCatalogue: true, reason: `${note}${missingNote}Closest first (${ranked.why})` };
   if (ranked.likely && !openChoice && !weakName && !artFar) return { ...base, status: 'likely', printing: ordered[0], candidates: ordered, matched: ranked.fits, reason: `${note}Likely (${ranked.why})` };
   const doubt = openChoice ? '; printings of one set share this picture and the collector number did not tell them apart'
     : weakName ? '; the name was only partly read' : artFar ? '; the artwork is not close to any printing' : '';
@@ -293,6 +313,20 @@ async function matchTitle(nameText: string): Promise<{ nameMatch: ReturnType<typ
   return { nameMatch, readName };
 }
 
+// A BADLY READ TITLE, CHECKED AGAINST ONE SET. The info line named a real set, so the card is one of that set's few hundred cards.
+// A title too garbled to match any of the 30,000 names ("l Az0%2. Moria's Ruin") is often still clearly one of THOSE ("Azog,
+// Moria's Ruin"). Gives the set's card the title is most like (and how alike, 0 to 1), or null when none is alike enough or two tie.
+async function titleInSet(nameText: string, setCode: string): Promise<{ name: string; similarity: number } | null> {
+  const names = await frontNamesInSet(setCode).catch(() => [] as string[]);
+  if (names.length === 0) return null;
+  let best: { name: string; similarity: number } | null = null;
+  for (const line of nameText.split('\n').map(normalizeName).filter((text) => text.length >= 6)) {
+    const match = bestNameMatch(line, names, SET_MATE_MIN, 0.1);
+    if (match?.clear && (!best || match.similarity > best.similarity)) best = { name: match.name, similarity: match.similarity };
+  }
+  return best;
+}
+
 // HOW MUCH SENSE A READING MAKES, for the camera to compare several cut-outs of one card (see core/cardCuts.ts) before any
 // of them is worked out properly. Two strong signs that a cut-out really is the card, the right way up: its title matches a
 // real card's name closely, and its info line's set code and collector number are a printing that exists.
@@ -332,6 +366,18 @@ async function resolveInner(reading: ScanReading, lockedSet: string | null, aiAr
     }
     // The set and number found a printing but the name couldn't be checked: still the best guess
     if (found.length >= 1 && nameAgrees !== false) return { ...base, status: 'likely', printing: found[0], candidates: found, reason: verdict.reason };
+    // The set and number found a printing, but the title is not its name. Before trusting the info line over a title that looks
+    // like junk, compare the title with the names of just the cards in THAT set: if it is clearly one of them, and a different card
+    // than the number found, the collector number was misread (one digit lost or wrong picks a different card of the same set). The
+    // title wins then, and the number is used as a clue among that card's printings. (An Azog, Moria's Ruin, HOB #61, whose number
+    // was read as 6, was once offered as HOB #6, a different card.)
+    if (found.length >= 1 && nameAgrees === false) {
+      const foundName = normalizeName(found[0].name.split(' // ')[0]);
+      const mate = await titleInSet(reading.nameText, checked.code);
+      if (mate && mate.name !== foundName && mate.similarity >= similarity(readName, foundName) + SET_MATE_AHEAD) {
+        return fromName(reading, mate.name, info, info.lang, mate.similarity, lockedSet, aiArt);
+      }
+    }
     // The set and number found exactly one printing, and the title could not be read well enough to be another card's name (a
     // junk read that happened to look a little like some name): the info line is the better witness, so it is the answer, but only
     // "likely" since the name could not check it

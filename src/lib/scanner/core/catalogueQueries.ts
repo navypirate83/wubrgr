@@ -26,6 +26,10 @@ export const SQL = {
   // Every printing wearing one artwork (by the artwork id, front or back), oldest first: used when the AI finds a card from its picture alone
   byIllustration: `${PRINTING_SELECT} WHERE p.illus = ? OR p.illus_back = ? ORDER BY p.released`,
   setCodes: 'SELECT code FROM sets ORDER BY code',
+  // Which set each set hangs off (a commander deck, promo or token set points at its main set; a main set has none)
+  setParents: 'SELECT code, parent_code FROM sets',
+  // The (plain-form) front names of every card in one set, for checking a badly read title against just that set
+  frontNamesInSet: 'SELECT DISTINCT front_norm FROM printings WHERE set_code = ?',
   // Every set with its name, release date and symbol picture address, newest first (for choosing a set to lock to)
   allSets: 'SELECT code, name, released, icon_url FROM sets ORDER BY released DESC, name',
   frontNames: 'SELECT DISTINCT front_norm FROM printings',

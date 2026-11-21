@@ -176,6 +176,26 @@ export async function setCodes(): Promise<string[]> {
   return (await catalogueDb.all(SQL.setCodes)).map((r) => String(r.code));
 }
 
+// Which set each set hangs off, by lowercase code (null: a main set). Read once and kept.
+let parents: Map<string, string | null> | null = null;
+export async function setParents(): Promise<Map<string, string | null>> {
+  if (!parents) {
+    parents = new Map((await catalogueDb.all(SQL.setParents)).map((r) => [
+      String(r.code).toLowerCase(),
+      typeof r.parent_code === 'string' && r.parent_code !== '' ? r.parent_code.toLowerCase() : null,
+    ]));
+  }
+  return parents;
+}
+
+// The plain-form front names of every card in one set (a few hundred), kept for each set once asked for
+const namesBySet = new Map<string, string[]>();
+export async function frontNamesInSet(code: string): Promise<string[]> {
+  const key = code.toLowerCase();
+  if (!namesBySet.has(key)) namesBySet.set(key, (await catalogueDb.all(SQL.frontNamesInSet, [key])).map((r) => String(r.front_norm)));
+  return namesBySet.get(key)!;
+}
+
 // Every set, newest first, for the scanner's "lock to a set" choice
 export async function allSets(): Promise<SetInfo[]> {
   return (await catalogueDb.all(SQL.allSets)).map((r) => ({
