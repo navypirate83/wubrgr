@@ -59,3 +59,7 @@ scripts/catalogue/out-ai/
 
 # The scanner lab: downloaded card pictures, made-up phone photos and results
 scripts/scanner-lab/cache/
+
+# My own stripped-down copies of the code (kept on this computer only, never uploaded)
+code-only/
+server/code-only/
