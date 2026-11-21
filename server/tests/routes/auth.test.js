@@ -5,6 +5,7 @@
    ===================================================================== */
 
 import request from 'supertest';
+import { jest } from '@jest/globals';
 import jwt from 'jsonwebtoken';
 import app from '../../app.js';
 import User from '../../models/User.js';
@@ -99,6 +100,88 @@ describe('password storage', () => {
 });
 
 describe('login', () => {
+  // Send the same login several times, one after another, and give back the last answer
+  const tryLogin = async (user, password, times = 1) => {
+    let last;
+    for (let i = 0; i < times; i++) last = await request(app).post('/auth/login').send({ email: user.email, password });
+    return last;
+  };
+
+  test('5 wrong passwords pause the account for 30 minutes, even for the right password', async () => {
+    const user = await makeUser();
+    expect((await tryLogin(user, 'wrong-wrong-1', 5)).status).toBe(401);
+    const paused = await tryLogin(user, TEST_PASSWORD);
+    expect(paused.status).toBe(429);
+    expect(paused.body.error).toMatch(/Try again in 30 minutes/);
+    const saved = await User.findById(user._id);
+    expect(saved.failedLogins).toBe(5);
+    expect(saved.lockedUntil.getTime()).toBeGreaterThan(Date.now() + 29 * 60 * 1000);
+    // Guesses made during the pause are refused without being counted
+    await tryLogin(user, 'wrong-wrong-1', 3);
+    expect((await User.findById(user._id)).failedLogins).toBe(5);
+  });
+
+  test('once the pause is over the right password works and clears the count', async () => {
+    const user = await makeUser();
+    await tryLogin(user, 'wrong-wrong-1', 5);
+    await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
+    expect((await tryLogin(user, TEST_PASSWORD)).status).toBe(200);
+    const saved = await User.findById(user._id);
+    expect(saved.failedLogins).toBe(0);
+    expect(saved.lockedUntil).toBeUndefined();
+  });
+
+  test('4 wrong passwords then the right one: no pause, and the count starts again', async () => {
+    const user = await makeUser();
+    await tryLogin(user, 'wrong-wrong-1', 4);
+    expect((await tryLogin(user, TEST_PASSWORD)).status).toBe(200);
+    expect((await User.findById(user._id)).failedLogins).toBe(0);
+  });
+
+  test('5 more wrong passwords after the pause: the password must be reset, and a reset lets the person back in', async () => {
+    process.env.RESEND_API_KEY = 'fake';
+    process.env.MAIL_FROM = 'Test <test@example.com>';
+    const sent = [];
+    const spy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => { sent.push(JSON.parse(options.body)); return { ok: true, status: 200 }; });
+    try {
+      const user = await makeUser();
+      await tryLogin(user, 'wrong-wrong-1', 5);
+      await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
+      expect((await tryLogin(user, 'wrong-wrong-1', 5)).status).toBe(401);
+      const blocked = await tryLogin(user, TEST_PASSWORD);
+      expect(blocked.status).toBe(403);
+      expect(blocked.body.error).toMatch(/Reset your password/);
+
+      await request(app).post('/auth/forgot').send({ email: user.email });
+      const code = /code is: (\d{6})/.exec(sent[0].text)[1];
+      expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
+      expect((await tryLogin(user, 'brand-new-pass1')).status).toBe(200);
+      const saved = await User.findById(user._id);
+      expect(saved.failedLogins).toBe(0);
+      expect(saved.mustResetPassword).toBeUndefined();
+    } finally {
+      spy.mockRestore();
+      delete process.env.RESEND_API_KEY;
+      delete process.env.MAIL_FROM;
+    }
+  });
+
+  test('where email is not set up, the 10th wrong password pauses again instead of asking for a reset nobody could do', async () => {
+    delete process.env.RESEND_API_KEY;
+    const user = await makeUser();
+    await tryLogin(user, 'wrong-wrong-1', 5);
+    await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
+    await tryLogin(user, 'wrong-wrong-1', 5);
+    expect((await tryLogin(user, TEST_PASSWORD)).status).toBe(429);
+    expect((await User.findById(user._id)).mustResetPassword).toBeUndefined();
+  });
+
+  test('wrong passwords for an account that does not exist change nothing', async () => {
+    const user = await makeUser();
+    for (let i = 0; i < 6; i++) await request(app).post('/auth/login').send({ email: 'ghost@example.com', password: 'wrong-wrong-1' });
+    expect((await tryLogin(user, TEST_PASSWORD)).status).toBe(200);
+  });
+
   test('works with the username and with the email', async () => {
     const user = await makeUser({ username: 'login.user' });
     const byName = await request(app).post('/auth/login').send({ username: 'LOGIN.user', password: TEST_PASSWORD });

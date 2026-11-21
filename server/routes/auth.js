@@ -1,7 +1,8 @@
 /* =====================================================================
    SIGNING UP, SIGNING IN AND STAYING SIGNED IN (/auth/...)
    - POST /auth/signup       make an account (email + password)
-   - POST /auth/login        sign in with a username-or-email + password
+   - POST /auth/login        sign in with a username-or-email + password (5 wrong passwords in a row pause
+                             the account for 30 minutes; 5 more and the password must be reset by email)
    - POST /auth/google       sign in with Google
    - POST /auth/refresh      swap the long-lived token for a fresh pair (a token swapped in the last
                              14 days still works once more: see the note in the route)
@@ -42,6 +43,14 @@ const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 // How long after a refresh token was swapped it may still be used once more without it counting as theft
 // (see /auth/refresh). Long enough that "I opened the app, left, and came back later" never signs anyone out.
 const REUSE_GRACE_DAYS = 14;
+
+// Guarding one account against password guessing (on top of the limit per internet address in app.js):
+// after this many wrong passwords in a row the account is paused...
+const WRONG_BEFORE_LOCK = 5;
+// ...for this long...
+const LOCK_MINUTES = 30;
+// ...and after this many in a row (5 more) the password stops working until it is reset by email.
+const WRONG_BEFORE_RESET = 10;
 
 // A rough "looks like an email" check
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -115,9 +124,41 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ $or: [{ username: name }, { email: name }] }).select('+password');
     // Same amount of work whether or not the account exists (or has a password)
     const ok = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
+
+    // An account with a password can be paused or made to reset it after too many wrong
+    // passwords. While that holds, even the RIGHT password is refused (otherwise the pause
+    // would not slow a guesser down at all). Signing in with Google is not affected.
+    if (user?.password) {
+      // "Reset needed" only counts while email works: without it nobody could ever get back in
+      if (user.mustResetPassword && mailIsConfigured()) {
+        return res.status(403).json({ error: 'Too many wrong passwords. Reset your password to log in again: tap "Forgot username/password?".' });
+      }
+      if (user.lockedUntil && user.lockedUntil > new Date()) {
+        const minutes = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000));
+        return res.status(429).json({ error: `Too many wrong passwords. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}, or reset your password.` });
+      }
+    }
+
     if (!user || !user.password || !ok) {
+      // A wrong password for a real account: count it, in ONE step in the database so
+      // guesses sent at the same instant are all counted
+      if (user?.password) {
+        const counted = await User.findOneAndUpdate({ _id: user._id }, { $inc: { failedLogins: 1 } }, { returnDocument: 'after' }).select('failedLogins');
+        const wrong = counted?.failedLogins ?? 0;
+        if (wrong >= WRONG_BEFORE_RESET && mailIsConfigured()) {
+          // The 10th in a row: the password stops working until it is reset by email
+          await User.updateOne({ _id: user._id }, { $set: { mustResetPassword: true } });
+        } else if (wrong >= WRONG_BEFORE_LOCK && wrong % WRONG_BEFORE_LOCK === 0) {
+          // The 5th in a row (and, where email is not set up, every 5th after it): pause for 30 minutes
+          await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60 * 1000) } });
+        }
+      }
       // One answer for "no such account" and "wrong password"
       return res.status(401).json({ error: 'Invalid username or password' });
+    }
+    // The right password: the count of wrong ones starts again from nothing
+    if (user.failedLogins || user.lockedUntil || user.mustResetPassword) {
+      await User.updateOne({ _id: user._id }, { $set: { failedLogins: 0 }, $unset: { lockedUntil: '', mustResetPassword: '' } });
     }
     return res.status(200).json(await issueSession(user));
   } catch (err) {
@@ -288,6 +329,10 @@ router.post('/reset', async (req, res) => {
     const ownProblem = checkNewPassword(password, { email: user.email, username: user.username });
     if (ownProblem) return res.status(400).json({ error: ownProblem });
     user.password = password;   // scrambled by the model when saved
+    // A reset also lifts any pause or "reset needed" from too many wrong passwords
+    user.failedLogins = 0;
+    user.lockedUntil = undefined;
+    user.mustResetPassword = undefined;
     await user.save();
     await row.deleteOne();
     await RefreshToken.deleteMany({ user: user._id });

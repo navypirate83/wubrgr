@@ -714,6 +714,10 @@ export const helpTopics: HelpTopic[] = [
             <Bullet>
               <Strong>Forgot your username or password?</Strong> On the login screen, tap{' '}
               <Strong>Forgot username/password?</Strong>. It emails you your username and a 6-digit code to set a new password.
+              To stop anyone guessing a password, 5 wrong passwords in a row pause logging in to that account for 30 minutes
+              (even with the right password). After 5 more wrong ones the password stops working until you set a new one
+              with <Strong>Forgot username/password?</Strong>. Logging in with the right password, or setting a new one,
+              starts the count again. Signing in with Google is not affected.
             </Bullet>
             <Bullet>
               <Strong>Google Drive backup</Strong> (optional): a separate <Strong>Sign in with Google</Strong> button

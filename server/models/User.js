@@ -119,6 +119,13 @@ const userSchema = new mongoose.Schema(
         down: { type: Number, min: 1, max: 6 },
       },
     },
+    // Guarding against password guessing (see the login route in routes/auth.js):
+    // how many wrong passwords in a row, until when logging in is paused, and
+    // whether the password must be reset before it works again. A correct
+    // login or a password reset clears all three.
+    failedLogins: { type: Number, default: 0 },
+    lockedUntil: { type: Date },
+    mustResetPassword: { type: Boolean },
     // When the settings were last saved
     settingsSavedAt: { type: Date },
     // When the account was last used: set every time the person signs in or the
