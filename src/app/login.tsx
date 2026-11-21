@@ -145,10 +145,10 @@ export default function LoginScreen() {
                          keyboardType="email-address" autoComplete="email" textContentType="emailAddress" />
               <TextField label="Username (optional)" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false}
                          placeholder="Leave empty to use your email" maxLength={30} />
-              <TextField label="Password (at least 8 characters)" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
+              <TextField label="Password (12 or more characters, with a number or symbol)" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
                          autoComplete="new-password" textContentType="newPassword" returnKeyType="go" onSubmitEditing={create} />
               <Button label={busy ? 'Creating…' : 'Create account'} icon="person-add-outline"
-                      disabled={busy || !name.trim() || !email.trim() || password.length < 8} onPress={create} />
+                      disabled={busy || !name.trim() || !email.trim() || password.length < 12} onPress={create} />
               <Button label="I already have an account" kind="plain" onPress={() => go('login')} />
             </View>
           )}
@@ -166,10 +166,10 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <TextField label="6-digit code from the email" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} />
-                  <TextField label="New password (at least 8 characters)" value={password} onChangeText={setPassword} secureTextEntry
+                  <TextField label="New password (12 or more characters, with a number or symbol)" value={password} onChangeText={setPassword} secureTextEntry
                              autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" />
                   <Button label={busy ? 'Changing…' : 'Change password'} icon="key-outline"
-                          disabled={busy || code.trim().length !== 6 || password.length < 8} onPress={changePassword} />
+                          disabled={busy || code.trim().length !== 6 || password.length < 12} onPress={changePassword} />
                 </>
               )}
               <Button label="Back to log in" kind="plain" onPress={() => go('login')} />

@@ -78,8 +78,10 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>
               <Strong>Create account</Strong> (the link under Login): type your name, email, a
-              password of at least 8 characters, and optionally a username (left empty, your
-              email is your username). The binders and lists already on this device are
+              password, and optionally a username (left empty, your email is your username). A new
+              password needs 12 or more characters, with at least one letter and at least one number
+              or symbol; it can't contain an easy guess like "password" or "123456", or your own
+              username or email name. Passwords made before this rule keep working as they are. The binders and lists already on this device are
               saved to your new account.
             </Bullet>
             <Bullet>

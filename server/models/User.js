@@ -59,9 +59,13 @@ const userSchema = new mongoose.Schema(
     },
     // The scrambled password. "select: false" keeps it out of every query
     // unless asked for with .select('+password'). Google-only accounts have none.
+    // The length rule here is only a last safety net for a NEW password (the full
+    // rules are in utils/password.js). It never touches a password that already
+    // exists: a saved one is its 60-character scramble, and it is only checked
+    // again when it is changed.
     password: {
       type: String,
-      minlength: [8, 'Password must be at least 8 characters long'],
+      minlength: [12, 'Password must be at least 12 characters long'],
       maxlength: 72,
       select: false,
       required: [function () { return !this.googleId; }, 'Password is required'],

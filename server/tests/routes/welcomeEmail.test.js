@@ -35,7 +35,7 @@ function fakeMail(reply = { ok: true, status: 200 }) {
 }
 
 const signup = (body) => request(app).post('/auth/signup').send({
-  email: 'new.person@example.com', password: 'a-good-password-1', name: 'New Person', username: 'newperson', ...body,
+  email: 'new.person@example.com', password: 'a-good-secret-12', name: 'New Person', username: 'newperson', ...body,
 });
 
 test('a new person gets one welcome email with their username and no secrets', async () => {

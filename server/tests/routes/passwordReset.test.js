@@ -76,3 +76,26 @@ test('a short new password is refused', async () => {
   const user = await makeUser();
   expect((await request(app).post('/auth/reset').send({ email: user.email, code: '123456', password: 'short' })).status).toBe(400);
 });
+
+// The new rules are only for NEW passwords: an account whose password was made
+// under the old rule (8 characters) still logs in, and a reset must meet the new ones.
+test('an old 8-character password still logs in, but a reset needs 12 characters with a number or symbol', async () => {
+  const user = await makeUser();
+  // Put an old-style password straight into the database, scrambled the same way (the model would refuse to make one now)
+  const bcrypt = (await import('bcryptjs')).default;
+  const { default: User } = await import('../../models/User.js');
+  await User.updateOne({ _id: user._id }, { $set: { password: await bcrypt.hash('old8char', 10) } });
+  expect((await request(app).post('/auth/login').send({ email: user.email, password: 'old8char' })).status).toBe(200);
+
+  const sent = fakeMail();
+  await request(app).post('/auth/forgot').send({ email: user.email });
+  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
+  const weak = await request(app).post('/auth/reset').send({ email: user.email, code, password: 'elevenchar1' });
+  expect(weak.status).toBe(400);
+  expect(weak.body.error).toBe('Password must be at least 12 characters long');
+  const noNumber = await request(app).post('/auth/reset').send({ email: user.email, code, password: 'justletterslong' });
+  expect(noNumber.status).toBe(400);
+  // Refusing a weak new password does not use up the code, and the old password still works
+  expect((await request(app).post('/auth/login').send({ email: user.email, password: 'old8char' })).status).toBe(200);
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
+});

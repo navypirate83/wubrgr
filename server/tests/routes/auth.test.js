@@ -20,7 +20,7 @@ afterEach(clearTestDb);
 afterAll(disconnectTestDb);
 
 const signup = (body) => request(app).post('/auth/signup').send(body);
-const good = { email: 'Ann@Example.com', password: 'longenough1', name: 'Ann' };
+const good = { email: 'Ann@Example.com', password: 'long-enough-12', name: 'Ann' };
 
 describe('signup', () => {
   test('201 with exactly the right keys, nothing secret, email lowercased, username defaults to email', async () => {
@@ -43,9 +43,16 @@ describe('signup', () => {
 
   test.each([
     ['empty body', {}],
-    ['missing name', { email: 'a@b.com', password: 'longenough1' }],
+    ['missing name', { email: 'a@b.com', password: 'long-enough-12' }],
     ['bad email', { ...good, email: 'not-an-email' }],
     ['5-character password', { ...good, password: '12345' }],
+    ['11-character password', { ...good, password: 'only-11-ch1' }],
+    ['password with no number or symbol', { ...good, password: 'onlylettershere' }],
+    ['password with no letter', { ...good, password: '9081726354-+' }],
+    ['password of one repeated character', { ...good, password: 'aaaaaaaaaaaa1' }],
+    ['password with a well-known piece', { ...good, password: 'MyPassword-2026' }],
+    ['password holding the email name', { ...good, email: 'annabel@example.com', password: 'annabel-rocks-12' }],
+    ['password holding the username', { ...good, username: 'ann.one', password: 'x-ann.one-x-12' }],
     ['email as an object', { ...good, email: { $ne: null } }],
     ['username as an object', { ...good, username: { $ne: null } }],
     ['username with an @', { ...good, username: 'a@b.com' }],
@@ -60,14 +67,14 @@ describe('signup', () => {
 
   test('the short-password message says exactly what is needed', async () => {
     const res = await signup({ ...good, password: '1234' });
-    expect(res.body.error).toBe('Password must be at least 8 characters long');
+    expect(res.body.error).toBe('Password must be at least 12 characters long');
   });
 
   test('409 for a duplicate email in another capitalization, and a duplicate username', async () => {
     await signup({ ...good, username: 'ann.one' });
     const sameEmail = await signup({ ...good, email: 'ANN@example.com' });
     expect(sameEmail.status).toBe(409);
-    const sameName = await signup({ email: 'other@example.com', password: 'longenough1', name: 'B', username: 'ANN.ONE' });
+    const sameName = await signup({ email: 'other@example.com', password: 'long-enough-12', name: 'B', username: 'ANN.ONE' });
     expect(sameName.status).toBe(409);
   });
 

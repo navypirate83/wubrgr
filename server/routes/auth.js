@@ -24,6 +24,7 @@ import { mailIsConfigured, sendMail, sendWelcomeEmail } from '../utils/mail.js';
 import { requireAuth } from '../middleware/auth.js';
 import { handleDbError } from '../middleware/errorHandler.js';
 import { checkText } from '../utils/validate.js';
+import { checkNewPassword } from '../utils/password.js';
 import { deleteAccountAndData } from '../utils/deleteAccount.js';
 import { hashToken, issueSession } from '../utils/tokens.js';
 import { checkGoogleAccessToken, googleIsConfigured } from '../utils/google.js';
@@ -56,11 +57,6 @@ router.post('/signup', async (req, res) => {
   if (emailProblem) return res.status(400).json({ error: emailProblem });
   if (!EMAIL_SHAPE.test(email.trim())) return res.status(400).json({ error: 'Email must look like name@example.com' });
 
-  if (typeof password !== 'string') return res.status(400).json({ error: 'Password must be text' });
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters long' });
-  // bcrypt silently ignores everything after 72 bytes
-  if (Buffer.byteLength(password) > 72) return res.status(400).json({ error: 'Password must be at most 72 bytes long' });
-
   const nameProblem = checkText(name, 'Name', { max: 100 });
   if (nameProblem) return res.status(400).json({ error: nameProblem });
 
@@ -74,6 +70,12 @@ router.post('/signup', async (req, res) => {
     chosenUsername = username.trim().toLowerCase();
     if (RESERVED_USERNAMES.includes(chosenUsername)) return res.status(400).json({ error: 'That username is reserved' });
   }
+
+  // The rules for a NEW password (12 or more characters, a letter plus a number or symbol,
+  // nothing well known, not the person's own username or email name): see utils/password.js.
+  // Checked after the username so the password can be compared with it.
+  const passwordProblem = checkNewPassword(password, { email, username: chosenUsername });
+  if (passwordProblem) return res.status(400).json({ error: passwordProblem });
 
   try {
     // Duplicates (the model saves both trimmed and lowercase, so search the same way)
@@ -267,8 +269,10 @@ router.post('/reset', async (req, res) => {
   if (typeof email !== 'string' || typeof code !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'Email, code and new password are required' });
   }
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters long' });
-  if (Buffer.byteLength(password) > 72) return res.status(400).json({ error: 'Password must be at most 72 bytes long' });
+  // The same rules as a brand-new account's password (utils/password.js). The old password,
+  // whatever it was, kept working until now: only the NEW one has to meet them.
+  const shapeProblem = checkNewPassword(password, { email });
+  if (shapeProblem) return res.status(400).json({ error: shapeProblem });
   const WRONG = { error: 'That code is wrong or has run out. Ask for a new one.' };
   try {
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
@@ -280,6 +284,9 @@ router.post('/reset', async (req, res) => {
       if (row.attempts >= 5) await row.deleteOne(); else await row.save();
       return res.status(400).json(WRONG);
     }
+    // Now that we know who it is: the new password can't hold their username either
+    const ownProblem = checkNewPassword(password, { email: user.email, username: user.username });
+    if (ownProblem) return res.status(400).json({ error: ownProblem });
     user.password = password;   // scrambled by the model when saved
     await user.save();
     await row.deleteOne();
