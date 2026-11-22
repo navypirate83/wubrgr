@@ -110,26 +110,6 @@ app.use(express.json({ limit: '100kb' }));
 // Simple "is it alive" routes (no sign-in needed)
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/hello', (req, res) => res.json({ message: 'Hello from the WUBRG\'r server' }));
-
-// TEMPORARY (security audit finding 2, to be removed once measured): what address does the server think
-// the caller has, and which relays ("proxies") did the request come through? Every address is cut down to
-// its first half ("50.47.x.x"), so this shows the caller nothing but the shape of their own request.
-const half = (address) => {
-  const text = String(address ?? '').replace(/^::ffff:/, '');
-  return text.includes(':') ? `${text.split(':').slice(0, 2).join(':')}:x` : `${text.split('.').slice(0, 2).join('.')}.x.x`;
-};
-app.get('/api/address-check', (req, res) => {
-  const chain = String(req.headers['x-forwarded-for'] ?? '').split(',').map((part) => part.trim()).filter(Boolean);
-  res.json({
-    counted: half(req.ip),                       // the address the rate limits count by
-    connection: half(req.socket.remoteAddress),  // who actually connected to this server
-    chain: chain.map(half),                      // the relay chain, visitor first
-    countedIsChainEntry: chain.indexOf(req.ip),  // which chain entry is being counted (0 = the first)
-    cloudflare: req.headers['cf-connecting-ip'] ? half(req.headers['cf-connecting-ip']) : null,
-    trueClient: req.headers['true-client-ip'] ? half(req.headers['true-client-ip']) : null,
-  });
-});
-
 // The real routes
 app.use('/auth', authRouter);
 // requireAuth is mounted ONCE for each whole router, so no route can

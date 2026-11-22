@@ -28,6 +28,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.0.2',
+    date: '2026-11-21',
+    lines: ['Security fixes.'],
+  },
+  {
     version: '1.0.1',
     date: '2026-11-21',
     lines: ['Security fixes.'],
