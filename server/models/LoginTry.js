@@ -21,6 +21,7 @@ const loginTrySchema = new mongoose.Schema(
     // and whether it has reached "reset your password"
     failedLogins: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
+    // (No longer used: the "reset needed" step was taken out. Kept so old rows still read.)
     mustResetPassword: { type: Boolean, default: false },
     expiresAt: { type: Date, required: true },
   },

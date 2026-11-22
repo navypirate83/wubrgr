@@ -728,9 +728,10 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Forgot your username or password?</Strong> On the login screen, tap{' '}
               <Strong>Forgot username/password?</Strong>. It emails you your username and a code to set a new password: 10 letters and digits, shown as two halves with a dash. Type or paste it (capitals, the dash and spaces don't matter). It works for 90 minutes, asking again doesn't cancel an earlier code, and at most 5 emails are sent in an hour. A phone app from before version 1.0.15 only takes 6 digits in that box: reset the password on the website instead.
               To stop anyone guessing a password, 5 wrong passwords in a row pause logging in to that account for 30 minutes
-              (even with the right password). After 5 more wrong ones the password stops working until you set a new one
-              with <Strong>Forgot username/password?</Strong>. Logging in with the right password, or setting a new one,
-              starts the count again. Signing in with Google is not affected.
+              (even with the right password). Every 5 more wrong ones start another 30-minute pause. You are never
+              forced to change your password; if you don't want to wait, setting a new one
+              with <Strong>Forgot username/password?</Strong> lifts the pause at once. Logging in with the right
+              password, or setting a new one, starts the count again. Signing in with Google is not affected.
             </Bullet>
             <Bullet>
               <Strong>Google Drive backup</Strong> (optional): a separate <Strong>Sign in with Google</Strong> button

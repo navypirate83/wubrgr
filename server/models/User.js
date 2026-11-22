@@ -129,6 +129,8 @@ const userSchema = new mongoose.Schema(
     // Never sent to the app.
     cardSaves: { type: Number, default: 0, select: false },
     lockedUntil: { type: Date },
+    // NO LONGER USED. It once marked "10 wrong passwords: reset needed"; that step was taken out. Kept only
+    // so the mark on an old account can still be read and cleared.
     mustResetPassword: { type: Boolean },
     // "Forgot password" emails sent to this account in the current hour, and when
     // that hour began. Only so many are sent per hour (see /auth/forgot), so nobody

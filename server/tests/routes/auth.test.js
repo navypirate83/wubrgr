@@ -148,7 +148,7 @@ describe('login', () => {
     expect((await User.findById(user._id)).failedLogins).toBe(0);
   });
 
-  test('5 more wrong passwords after the pause: the password must be reset, and a reset lets the person back in', async () => {
+  test('5 more wrong passwords after the pause: another pause, never a forced reset, and a reset still lets the person in at once', async () => {
     process.env.RESEND_API_KEY = 'fake';
     process.env.MAIL_FROM = 'Test <test@example.com>';
     const sent = [];
@@ -158,9 +158,12 @@ describe('login', () => {
       await tryLogin(user, 'wrong-wrong-1', 5);
       await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
       expect((await tryLogin(user, 'wrong-wrong-1', 5)).status).toBe(401);
+      // Ten wrong in a row: paused again (429), NOT "you must reset" (403). Anyone who knew the username
+      // could otherwise force its owner into a reset again and again.
       const blocked = await tryLogin(user, TEST_PASSWORD);
-      expect(blocked.status).toBe(403);
-      expect(blocked.body.error).toMatch(/Reset your password/);
+      expect(blocked.status).toBe(429);
+      expect(blocked.body.error).toMatch(/Try again in 30 minutes/);
+      expect((await User.findById(user._id)).mustResetPassword).toBeFalsy();
 
       await forgot({ email: user.email });
       const code = /code is: ([A-Z0-9]{5}-[A-Z0-9]{5})/.exec(sent[0].text)[1];
@@ -176,7 +179,7 @@ describe('login', () => {
     }
   });
 
-  test('where email is not set up, the 10th wrong password pauses again instead of asking for a reset nobody could do', async () => {
+  test('where email is not set up it is the same: the 10th wrong password pauses again', async () => {
     delete process.env.RESEND_API_KEY;
     const user = await makeUser();
     await tryLogin(user, 'wrong-wrong-1', 5);
@@ -184,6 +187,19 @@ describe('login', () => {
     await tryLogin(user, 'wrong-wrong-1', 5);
     expect((await tryLogin(user, TEST_PASSWORD)).status).toBe(429);
     expect((await User.findById(user._id)).mustResetPassword).toBeFalsy();
+  });
+
+  test('once a pause is over, the right password works again, even after ten wrong ones (and an old "reset needed" mark is ignored)', async () => {
+    const user = await makeUser();
+    await tryLogin(user, 'wrong-wrong-1', 5);
+    await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
+    await tryLogin(user, 'wrong-wrong-1', 5);
+    // The second pause runs out. The account also carries the mark the old rule used to leave.
+    await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() - 1000), mustResetPassword: true } });
+    expect((await tryLogin(user, TEST_PASSWORD)).status).toBe(200);
+    const saved = await User.findById(user._id);
+    expect(saved.failedLogins).toBe(0);
+    expect(saved.mustResetPassword).toBeUndefined();
   });
 
   test('a burst of 20 wrong passwords at the same instant: only 5 are answered, the rest find the account paused', async () => {
@@ -202,7 +218,7 @@ describe('login', () => {
     expect(answers.filter((res) => res.status !== 429).length).toBeLessThanOrEqual(5);
   });
 
-  test('a name with no account is paused, and asked to reset, exactly like a real one', async () => {
+  test('a name with no account is paused, and paused again, exactly like a real one', async () => {
     process.env.RESEND_API_KEY = 'fake';
     process.env.MAIL_FROM = 'Test <test@example.com>';
     try {
@@ -220,7 +236,8 @@ describe('login', () => {
       await User.updateOne({ _id: real._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
       await LoginTry.updateMany({}, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
       for (let i = 0; i < 5; i += 1) expect((await both('wrong-wrong-1')).status).toBe(401);
-      expect((await both('wrong-wrong-1')).status).toBe(403);
+      // Ten wrong in a row: both are paused again (there is no forced reset any more)
+      expect((await both('wrong-wrong-1')).status).toBe(429);
       // Only a fingerprint of the made-up name is kept
       expect(JSON.stringify(await LoginTry.find().lean())).not.toContain('ghost');
     } finally {

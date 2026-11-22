@@ -58,10 +58,11 @@ const LOST_REPLY_DAYS = 14;
 // Guarding one account against password guessing (on top of the limit per internet address in app.js):
 // after this many wrong passwords in a row the account is paused...
 const WRONG_BEFORE_LOCK = 5;
-// ...for this long...
+// ...for this long. Every further 5 wrong in a row start another pause of the same length.
+// (There used to be a harder step: after 10 in a row the password stopped working until it was reset by
+// email. It was taken out, because anyone who knew a username could force its owner into a reset, again and
+// again. The pause alone already holds a guesser to 5 tries per half hour.)
 const LOCK_MINUTES = 30;
-// ...and after this many in a row (5 more) the password stops working until it is reset by email.
-const WRONG_BEFORE_RESET = 10;
 
 // A rough "looks like an email" check
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -123,20 +124,17 @@ router.post('/signup', async (req, res) => {
 /* ---------- log in ---------- */
 
 // COUNT ONE LOGIN TRY, in ONE step in the database, BEFORE the password's answer is given.
-// "Add one to the tries in a row, unless this name is paused or needs a reset. If that makes 5 (or 10, 15...),
-// start a 30-minute pause; if it makes 10 and email works, mark it as needing a password reset."
+// "Add one to the tries in a row, unless this name is paused. If that makes 5 (or 10, 15...), start a
+// 30-minute pause."
 // Doing the count AND the pause as one step is what stops a burst: guesses that arrive at the same instant
 // can't all read "not paused yet", so no more than 5 are ever answered between pauses.
 // "Model" and "who" say where the count lives: an account (User, by id) or a typed name with no account
 // (LoginTry, by the name's fingerprint, made the first time it is tried).
-// Gives null when the try may go ahead, 'reset' when a password reset is needed, or the minutes left of a pause.
+// Gives null when the try may go ahead, or the minutes left of a pause.
 async function countLoginTry(Model, who) {
   const now = new Date();
-  // "Reset needed" only counts while email works: without it nobody could ever get back in
-  const resetCounts = mailIsConfigured();
   const filter = {
     ...who,
-    ...(resetCounts ? { mustResetPassword: { $ne: true } } : {}),
     $or: [{ lockedUntil: null }, { lockedUntil: { $lte: now } }],
   };
   const update = [
@@ -144,8 +142,6 @@ async function countLoginTry(Model, who) {
     { $set: {
       // Every 5th try in a row starts a pause
       lockedUntil: { $cond: [{ $eq: [{ $mod: ['$failedLogins', WRONG_BEFORE_LOCK] }, 0] }, new Date(now.getTime() + LOCK_MINUTES * 60 * 1000), { $ifNull: ['$lockedUntil', null] }] },
-      // The 10th in a row: the password stops working until it is reset by email
-      mustResetPassword: { $cond: [{ $and: [resetCounts, { $gte: ['$failedLogins', WRONG_BEFORE_RESET] }] }, true, { $ifNull: ['$mustResetPassword', false] }] },
       // (a row for a name with no account deletes itself 30 days after its last try)
       ...(Model === LoginTry ? { expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) } : {}),
     } },
@@ -157,9 +153,8 @@ async function countLoginTry(Model, who) {
     // (11000: the row for this name exists but is paused, so "make a new one" was refused. That is a pause.)
     if (err?.code !== 11000) throw err;
   }
-  // Not counted, so it is paused or needs a reset: which?
-  const state = await Model.findOne(who).select('lockedUntil mustResetPassword').lean();
-  if (state?.mustResetPassword && resetCounts) return 'reset';
+  // Not counted, so it is paused: for how much longer?
+  const state = await Model.findOne(who).select('lockedUntil').lean();
   const left = state?.lockedUntil ? state.lockedUntil.getTime() - Date.now() : 0;
   return Math.max(1, Math.ceil(left / 60000));
 }
@@ -180,15 +175,12 @@ router.post('/login', async (req, res) => {
 
     // EVERY try is counted before the answer is given (see countLoginTry above): on the account itself when
     // the name belongs to one with a password, and otherwise on a row for the name that was typed, so a
-    // made-up name is paused and answered in exactly the same way as a real one. While a name is paused or
-    // needs a reset, even the RIGHT password is refused (otherwise the pause would not slow a guesser down).
+    // made-up name is paused and answered in exactly the same way as a real one. While a name is paused,
+    // even the RIGHT password is refused (otherwise the pause would not slow a guesser down).
     const real = !!user?.password;
     const refused = real
       ? await countLoginTry(User, { _id: user._id })
       : await countLoginTry(LoginTry, { key: hashToken(`login:${name}`) });
-    if (refused === 'reset') {
-      return res.status(403).json({ error: 'Too many wrong passwords. Reset your password to log in again: tap "Forgot username/password?".' });
-    }
     if (refused) {
       return res.status(429).json({ error: `Too many wrong passwords. Try again in ${refused} minute${refused === 1 ? '' : 's'}, or reset your password.` });
     }
@@ -475,7 +467,8 @@ router.post('/reset', async (req, res) => {
     const ownProblem = checkNewPassword(password, { email: user.email, username: user.username });
     if (ownProblem) return res.status(400).json({ error: ownProblem });
     user.password = password;   // scrambled by the model when saved
-    // A reset also lifts any pause or "reset needed" from too many wrong passwords
+    // A reset also lifts any pause from too many wrong passwords (and the old "reset needed" mark, on an
+    // account that still carries one from before that step was taken out)
     user.failedLogins = 0;
     user.lockedUntil = undefined;
     user.mustResetPassword = undefined;
@@ -542,11 +535,8 @@ router.delete('/account', requireAuth, async (req, res) => {
       }
       const ok = await bcrypt.compare(password, user.password);
       // Counted BEFORE the answer is given, the same way as a login try (see countLoginTry). While the
-      // account is paused or needs a reset, even the right password is refused here too.
+      // account is paused, even the right password is refused here too.
       const refused = await countLoginTry(User, { _id: user._id });
-      if (refused === 'reset') {
-        return res.status(403).json({ error: 'Too many wrong passwords. Reset your password first: log out and tap "Forgot username/password?".' });
-      }
       if (refused) {
         return res.status(429).json({ error: `Too many wrong passwords. Try again in ${refused} minute${refused === 1 ? '' : 's'}.` });
       }
