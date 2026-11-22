@@ -124,6 +124,10 @@ const userSchema = new mongoose.Schema(
     // whether the password must be reset before it works again. A correct
     // login or a password reset clears all three.
     failedLogins: { type: Number, default: 0 },
+    // How many times this account's cards have been saved. Every save of cards bumps it as its first step,
+    // which makes the database run one account's saves one at a time (see utils/accountLimits.js).
+    // Never sent to the app.
+    cardSaves: { type: Number, default: 0, select: false },
     lockedUntil: { type: Date },
     mustResetPassword: { type: Boolean },
     // "Forgot password" emails sent to this account in the current hour, and when

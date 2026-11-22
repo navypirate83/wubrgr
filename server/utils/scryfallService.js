@@ -10,7 +10,7 @@
    ===================================================================== */
 
 import ScryfallCache from '../models/ScryfallCache.js';
-import { cachedLookup } from './scryfallCache.js';
+import { cachedLookup, tidyNowAndThen } from './scryfallCache.js';
 import { slimCard } from './scryfallSlim.js';
 
 const HOUR = 60 * 60 * 1000;
@@ -159,11 +159,14 @@ export function createScryfallService(client) {
         });
         const cards = answer.data.map(slimCard);
         const when = now();
-        // Save every card under both of its names (set and number, and ID)
+        // A card has two names here (set and number, and ID). Each card is SAVED only under the name it
+        // was asked for by, not both: saving both kept two full copies of every card, which filled the
+        // notebook twice as fast. (Asked for by its other name later, it is simply looked up again.)
         const writes = [];
         for (const card of cards) {
           for (const key of [setKey(card.set, card.collector_number), idKey(card.id)]) {
             found.set(key, card);
+            if (!wanted.has(key)) continue;
             writes.push({ updateOne: {
               filter: { key },
               update: { $set: {
@@ -175,6 +178,8 @@ export function createScryfallService(client) {
           }
         }
         if (writes.length > 0) await ScryfallCache.bulkWrite(writes, { ordered: false });
+        // Now and then, check the notebook is still under its size limit (as every other lookup does)
+        tidyNowAndThen();
       } catch (err) {
         // Can't reach Scryfall (or it's busy): use any older saved copy
         const trouble = !err.status || err.status === 429 || err.status >= 500;

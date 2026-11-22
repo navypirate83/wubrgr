@@ -15,12 +15,13 @@ import List from '../../models/List.js';
 import Deck from '../../models/Deck.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
 import { makeUser, bearer, aCard } from '../helpers/users.js';
+import { saveWithinLimits } from '../../utils/accountLimits.js';
 
 beforeAll(connectTestDb);
 afterAll(disconnectTestDb);
 afterEach(async () => {
   await clearTestDb();
-  for (const name of ['MAX_BINDERS', 'MAX_LISTS', 'MAX_DECKS', 'MAX_ACCOUNT_CARDS', 'DB_LIMIT_MB']) delete process.env[name];
+  for (const name of ['MAX_BINDERS', 'MAX_LISTS', 'MAX_DECKS', 'MAX_ACCOUNT_CARDS', 'MAX_ACCOUNT_MB', 'DB_LIMIT_MB']) delete process.env[name];
 });
 
 // A signed-in person, with short ways to send requests as them
@@ -118,6 +119,81 @@ describe('how many cards across the whole account', () => {
     const over = await me.put(`/lists/${list}/cards`, { cards: [listCard, listCard, listCard] });
     expect(over.status).toBe(400);
     expect(over.body.error).toMatch(/That would be 6 cards/);
+  });
+});
+
+describe('how much room the cards take, and saves sent at the same instant', () => {
+  // A card carrying as many notes as the rules allow, each as long as allowed (about 2,500 bytes, where a
+  // real card is about 500)
+  const stuffed = (i) => aCard(Math.floor(i / 9) + 1, (i % 9) + 1, {
+    extra: Object.fromEntries(Array.from({ length: 20 }, (_, n) => [`Note ${n}`, 'x'.repeat(100)])),
+  });
+
+  test('cards that take more room than the account may use are refused, and what was saved stays', async () => {
+    process.env.MAX_ACCOUNT_MB = '1';
+    const me = await person();
+    const binder = (await me.post('/binders', newBinder('Mine'))).body;
+    expect((await me.put(`/binders/${binder._id}/cards`, { cards: cards(3) })).status).toBe(200);
+    // 600 stuffed cards are far under the card COUNT limit, but about 1.5 MB
+    const res = await me.put(`/binders/${binder._id}/cards`, { cards: Array.from({ length: 600 }, (_, i) => stuffed(i)) });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('That would take your account past the 1 MB it may keep across all your binders, lists and decks. Remove some cards, then try again.');
+    // The whole swap was undone: the three cards from before are still there
+    expect(await Card.countDocuments({ owner: me.user._id })).toBe(3);
+    // The same number of ordinary cards fits easily
+    expect((await me.put(`/binders/${binder._id}/cards`, { cards: cards(600) })).status).toBe(200);
+  });
+
+  test('a card may carry 20 notes of 100 characters, no more (the type line may be 200)', async () => {
+    const me = await person();
+    const binder = (await me.post('/binders', newBinder('Mine'))).body;
+    const withNotes = (extra) => me.put(`/binders/${binder._id}/cards`, { cards: [aCard(1, 1, { extra })] });
+    const notes = (howMany) => Object.fromEntries(Array.from({ length: howMany }, (_, n) => [`Note ${n}`, 'x']));
+    expect((await withNotes(notes(20))).status).toBe(200);
+    expect((await withNotes(notes(21))).status).toBe(400);
+    expect((await withNotes({ Rarity: 'x'.repeat(100) })).status).toBe(200);
+    expect((await withNotes({ Rarity: 'x'.repeat(101) })).status).toBe(400);
+    expect((await withNotes({ Type: 'x'.repeat(200), 'Printed name': 'y'.repeat(200) })).status).toBe(200);
+    expect((await withNotes({ Type: 'x'.repeat(201) })).status).toBe(400);
+    expect((await withNotes({ ['n'.repeat(41)]: 'x' })).status).toBe(400);
+  });
+
+  test('saves sent at the same instant cannot slip past the limit together', async () => {
+    process.env.MAX_ACCOUNT_CARDS = '10';
+    const me = await person();
+    const binders = [];
+    for (const name of ['A', 'B', 'C', 'D', 'E']) binders.push((await me.post('/binders', newBinder(name))).body);
+    // Five saves of 6 cards each, all at once: each alone is under the limit of 10, together they are 30
+    const answers = await Promise.all(binders.map((b) => me.put(`/binders/${b._id}/cards`, { cards: cards(6) })));
+    expect(answers.filter((a) => a.status === 200)).toHaveLength(1);
+    expect(answers.filter((a) => a.status === 400)).toHaveLength(4);
+    expect(await Card.countDocuments({ owner: me.user._id })).toBe(6);
+  });
+
+  test('the database itself makes one account\'s saves take turns (no waiting line in front)', async () => {
+    // The test above goes through the server's waiting line (utils/bigSaves.js). This one skips it and
+    // starts five saves side by side straight at the database, as several servers would: the re-count
+    // inside each save must still let only one through.
+    process.env.MAX_ACCOUNT_CARDS = '10';
+    const me = await person();
+    const binders = [];
+    for (const name of ['A', 'B', 'C', 'D', 'E']) binders.push((await me.post('/binders', newBinder(name))).body);
+    const answers = await Promise.all(binders.map((b) => saveWithinLimits(me.user._id, async (session) => {
+      await Card.insertMany(cards(6).map((card) => ({ ...card, owner: me.user._id, binder: b._id })), { session });
+    })));
+    expect(answers.filter((answer) => answer === null)).toHaveLength(1);
+    expect(answers.filter((answer) => typeof answer === 'string')).toHaveLength(4);
+    expect(await Card.countDocuments({ owner: me.user._id })).toBe(6);
+  });
+
+  test('lists and decks are measured the same way', async () => {
+    process.env.MAX_ACCOUNT_MB = '1';
+    const me = await person();
+    const list = (await me.post('/lists', { name: 'Wants' })).body;
+    const fat = Array.from({ length: 600 }, (_, i) => { const { page: _p, pocket: _k, ...card } = stuffed(i); return card; });
+    const res = await me.put(`/lists/${list._id}/cards`, { cards: fat });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/past the 1 MB/);
   });
 });
 

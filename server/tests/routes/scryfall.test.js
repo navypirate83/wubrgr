@@ -230,11 +230,10 @@ test('many cards at once: Scryfall is asked once, then the notebook answers', as
   expect(client.calls.post).toHaveLength(2);
   expect(client.calls.post[1].identifiers).toEqual([{ set: 'zzz', collector_number: '9' }]);
 
-  // And a card is also found by its Scryfall ID once it's been seen
-  const id = first.body.cards[0].id;
-  const byId = await me.post('/scryfall/cards/collection', { identifiers: [{ id }] });
-  expect(byId.body.cards[0].id).toBe(id);
-  expect(client.calls.post).toHaveLength(2);
+  // Each card is saved ONCE, under the name it was asked for by (set and number here), not a second full
+  // copy under its Scryfall ID as well: two copies filled the notebook twice as fast
+  const saved = await ScryfallCache.find({ kind: 'card' }).lean();
+  expect(saved.map((row) => row.key).sort()).toEqual(['card:lea/1', 'card:neo/5']);
 });
 
 test('big piles are sent to Scryfall 75 at a time', async () => {

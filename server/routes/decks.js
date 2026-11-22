@@ -14,14 +14,13 @@
    ===================================================================== */
 
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import Deck from '../models/Deck.js';
 import DeckCard from '../models/DeckCard.js';
 import { ownerFilter } from '../middleware/auth.js';
 import { handleDbError } from '../middleware/errorHandler.js';
 import { parsePaging } from '../utils/paging.js';
 import { validateDeck, validateDeckCard } from '../utils/validate.js';
-import { roomForCards, roomForOneMore } from '../utils/accountLimits.js';
+import { roomForCards, roomForOneMore, saveWithinLimits } from '../utils/accountLimits.js';
 
 const router = Router();
 
@@ -137,18 +136,16 @@ router.put('/:id/cards', async (req, res) => {
     // Not past the most cards one account may keep (this deck's present cards are about to be replaced)
     const full = await roomForCards(req.user.sub, checked.length, { Model: DeckCard, filter: { deck: deck._id } });
     if (full) return res.status(400).json({ error: full });
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        await DeckCard.deleteMany({ deck: deck._id }, { session });
-        for (let start = 0; start < checked.length; start += BATCH) {
-          const slice = checked.slice(start, start + BATCH).map((card) => ({ ...card, owner: req.user.sub, deck: deck._id }));
-          await DeckCard.insertMany(slice, { session });
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+    // The swap, all or nothing. The account is measured again once the cards are written, and the whole
+    // swap is undone if that puts it over a limit (see saveWithinLimits).
+    const over = await saveWithinLimits(req.user.sub, async (session) => {
+      await DeckCard.deleteMany({ deck: deck._id }, { session });
+      for (let start = 0; start < checked.length; start += BATCH) {
+        const slice = checked.slice(start, start + BATCH).map((card) => ({ ...card, owner: req.user.sub, deck: deck._id }));
+        await DeckCard.insertMany(slice, { session });
+      }
+    });
+    if (over) return res.status(400).json({ error: over });
     // Note the time on the deck itself, so other devices can tell its cards changed
     await Deck.updateOne({ _id: deck._id }, { $currentDate: { updatedAt: true } });
     return res.json({ saved: checked.length });

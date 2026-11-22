@@ -57,7 +57,8 @@ export async function trimCache({ maxBytes = MAX_CACHE_MB * 1024 * 1024 } = {}) 
 
 // After an answer is written: now and then (not every time), check the size in the background. A problem here
 // must never spoil the lookup that set it off, so it is only written in the log.
-function tidyNowAndThen(now) {
+// (Also called after the "many cards at once" lookup writes its answers: see scryfallService.js.)
+export function tidyNowAndThen(now = Date.now()) {
   if (now - lastCheck < CHECK_EVERY_MS) return;
   lastCheck = now;
   trimCache().catch((err) => console.error('Could not tidy the Scryfall notebook:', err.message));
@@ -112,3 +113,15 @@ export async function cachedLookup({ key, kind, ttlMs, load, now = () => Date.no
     running.delete(key);
   }
 }
+
+
+// Check the notebook's size on a clock as well, every ten minutes, whether or not anything was just written.
+// (The check after a write never runs if writing itself is failing, which is exactly when the database is
+// full and a tidy-up is needed most.) Started once by server.js; the tests don't start it.
+export function startTidyingOnAClock() {
+  const timer = setInterval(() => tidyNowAndThen(), CHECK_EVERY_MS);
+  // (Don't keep the server alive just for this)
+  timer.unref?.();
+  return timer;
+}
+

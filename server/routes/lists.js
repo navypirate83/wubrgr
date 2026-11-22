@@ -13,14 +13,13 @@
    ===================================================================== */
 
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import List from '../models/List.js';
 import ListCard from '../models/ListCard.js';
 import { ownerFilter } from '../middleware/auth.js';
 import { handleDbError } from '../middleware/errorHandler.js';
 import { parsePaging } from '../utils/paging.js';
 import { validateListCard, validateListName } from '../utils/validate.js';
-import { roomForCards, roomForOneMore } from '../utils/accountLimits.js';
+import { roomForCards, roomForOneMore, saveWithinLimits } from '../utils/accountLimits.js';
 
 const router = Router();
 
@@ -136,18 +135,16 @@ router.put('/:id/cards', async (req, res) => {
     // Not past the most cards one account may keep (this list's present cards are about to be replaced)
     const full = await roomForCards(req.user.sub, checked.length, { Model: ListCard, filter: { list: list._id } });
     if (full) return res.status(400).json({ error: full });
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        await ListCard.deleteMany({ list: list._id }, { session });
-        for (let start = 0; start < checked.length; start += BATCH) {
-          const slice = checked.slice(start, start + BATCH).map((card) => ({ ...card, owner: req.user.sub, list: list._id }));
-          await ListCard.insertMany(slice, { session });
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+    // The swap, all or nothing. The account is measured again once the cards are written, and the whole
+    // swap is undone if that puts it over a limit (see saveWithinLimits).
+    const over = await saveWithinLimits(req.user.sub, async (session) => {
+      await ListCard.deleteMany({ list: list._id }, { session });
+      for (let start = 0; start < checked.length; start += BATCH) {
+        const slice = checked.slice(start, start + BATCH).map((card) => ({ ...card, owner: req.user.sub, list: list._id }));
+        await ListCard.insertMany(slice, { session });
+      }
+    });
+    if (over) return res.status(400).json({ error: over });
     // Note the time on the list itself, so other devices can tell its cards changed
     await List.updateOne({ _id: list._id }, { $currentDate: { updatedAt: true } });
     return res.json({ saved: checked.length });

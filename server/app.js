@@ -12,6 +12,7 @@ import morgan from 'morgan';
 import helmet from 'helmet';
 import cors from 'cors';
 import { rateLimit } from 'express-rate-limit';
+import { oneBigSaveAtATime } from './utils/bigSaves.js';
 import { loadConfig } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requireAuth, requireAdmin, requirePrism, requireAiScan } from './middleware/auth.js';
@@ -111,12 +112,14 @@ app.post('/auth/refresh', makeAuthLimiter(config.authRateLimitMax * 2));
 // The two routes that really need big bodies (a whole binder's cards, a
 // .csv file) get a bigger limit. Sign-in is checked FIRST, so a stranger
 // can't make us read a huge body. Once read, the normal reader below skips it.
-app.put('/binders/:id/cards', requireAuth, express.json({ limit: '25mb' }));
-app.put('/lists/:id/cards', requireAuth, express.json({ limit: '10mb' }));
-app.put('/decks/:id/cards', requireAuth, express.json({ limit: '10mb' }));
+// Each account's big saves take turns (oneBigSaveAtATime), and wait BEFORE their contents are read, so a
+// burst of them can't fill the server's memory (see utils/bigSaves.js)
+app.put('/binders/:id/cards', requireAuth, oneBigSaveAtATime, express.json({ limit: '25mb' }));
+app.put('/lists/:id/cards', requireAuth, oneBigSaveAtATime, express.json({ limit: '10mb' }));
+app.put('/decks/:id/cards', requireAuth, oneBigSaveAtATime, express.json({ limit: '10mb' }));
 // A PRISM set with a lot painted can be large too (the route itself refuses a set over 2 MB)
 app.put('/prism/:clientId', requireAuth, requirePrism, express.json({ limit: '3mb' }));
-app.post('/binders/import', requireAuth, express.json({ limit: '10mb' }));
+app.post('/binders/import', requireAuth, oneBigSaveAtATime, express.json({ limit: '10mb' }));
 
 // Everything else: JSON bodies up to 100 KB
 app.use(express.json({ limit: '100kb' }));

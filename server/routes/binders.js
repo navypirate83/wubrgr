@@ -17,7 +17,6 @@
    ===================================================================== */
 
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import Binder, { COVER_SYMBOL_PATTERN } from '../models/Binder.js';
 import Card from '../models/Card.js';
 import { ownerFilter } from '../middleware/auth.js';
@@ -25,7 +24,7 @@ import { handleDbError } from '../middleware/errorHandler.js';
 import { parsePaging } from '../utils/paging.js';
 import { validateBinder, validateCard, checkDate, MAX_CARDS_PER_BINDER } from '../utils/validate.js';
 import { binderToCsv, readCsvRows, KEPT_COLUMNS } from '../utils/binderCsv.js';
-import { roomForCards, roomForOneMore } from '../utils/accountLimits.js';
+import { overLimits, roomForCards, roomForOneMore, saveWithinLimits } from '../utils/accountLimits.js';
 
 const router = Router();
 
@@ -182,6 +181,14 @@ router.post('/import', async (req, res) => {
       await Binder.deleteOne({ _id: binder._id });
       throw err;
     }
+    // Now that the cards are in: is the account still within its limits (their real size is only known
+    // now)? If not, the new binder is taken out again and the upload is refused.
+    const over = await overLimits(req.user.sub);
+    if (over) {
+      await Card.deleteMany({ binder: binder._id });
+      await Binder.deleteOne({ _id: binder._id });
+      return res.status(400).json({ error: over });
+    }
     return res.status(201).json({ binder: { id: String(binder._id), name: binder.name }, imported: valid.length, skipped });
   } catch (err) {
     return handleDbError(err, res);
@@ -288,18 +295,16 @@ router.put('/:id/cards', async (req, res) => {
     const full = await roomForCards(req.user.sub, checked.length, { Model: Card, filter: { binder: binder._id } });
     if (full) return res.status(400).json({ error: full });
 
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        await Card.deleteMany({ binder: binder._id }, { session });
-        for (let start = 0; start < checked.length; start += BATCH) {
-          const slice = checked.slice(start, start + BATCH).map((card) => ({ ...card, owner: req.user.sub, binder: binder._id }));
-          await Card.insertMany(slice, { session });
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+    // The swap, all or nothing. The account is measured again once the cards are written, and the whole
+    // swap is undone if that puts it over a limit (see saveWithinLimits).
+    const over = await saveWithinLimits(req.user.sub, async (session) => {
+      await Card.deleteMany({ binder: binder._id }, { session });
+      for (let start = 0; start < checked.length; start += BATCH) {
+        const slice = checked.slice(start, start + BATCH).map((card) => ({ ...card, owner: req.user.sub, binder: binder._id }));
+        await Card.insertMany(slice, { session });
+      }
+    });
+    if (over) return res.status(400).json({ error: over });
     // Note the time on the binder itself, so other devices can tell its cards changed
     await Binder.updateOne({ _id: binder._id }, { $currentDate: { updatedAt: true } });
     return res.json({ saved: checked.length });

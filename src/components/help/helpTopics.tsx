@@ -130,7 +130,7 @@ export const helpTopics: HelpTopic[] = [
             <P>
               New binders have 10 pages: 160 cards with the usual 16 pockets a page (4 across,
               4 down), or as many as your <HelpLink to="settings-layout">page layout</HelpLink> holds.
-              You can make plenty: an account can hold up to 200 binders, 200 lists and 500 decks, and 100,000 cards across all of them together. (The database is shared by everybody, so there has to be a ceiling; if you ever reach one, the app says so and nothing you saved is touched.)
+              You can make plenty: an account can hold up to 200 binders, 200 lists and 500 decks, and 100,000 cards across all of them together, as long as those cards take no more than 25 MB of room (about 50,000 ordinary cards). (The database is shared by everybody, so there has to be a ceiling; if you ever reach one, the app says so and nothing you saved is touched.)
             </P>
             <P>
               To bring back a binder you saved as a file, or make one from a ManaBox card list,

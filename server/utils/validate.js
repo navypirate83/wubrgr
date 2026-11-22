@@ -104,8 +104,13 @@ export function validateBinder(body, { partial = false } = {}) {
 
 /* ---------- one card ---------- */
 
-// The most "extra" columns a card may carry, and how long each may be
-const MAX_EXTRA_KEYS = 30;
+// The most "extra" notes a card may carry (the app writes about 15), how long a note's name may be, and how
+// long its value may be: 100 characters, or 200 for the two that can really be long (a card's type line and
+// the other name printed on it). Kept tight because every note takes room in the database everybody shares.
+const MAX_EXTRA_KEYS = 20;
+const MAX_EXTRA_NAME = 40;
+const MAX_EXTRA_VALUE = 100;
+const LONG_EXTRA = new Set(['Type', 'Printed name']);
 
 // Checks a card's "extra" notes: a plain object of short text values
 function checkExtra(extra) {
@@ -114,10 +119,10 @@ function checkExtra(extra) {
   if (keys.length > MAX_EXTRA_KEYS) return `extra can have at most ${MAX_EXTRA_KEYS} entries`;
   for (const key of keys) {
     // MongoDB can't store keys with "." or starting with "$", and these names are dangerous
-    if (key === '' || key.length > 60 || /[.$]/.test(key) || key === '__proto__' || hasControlChars(key)) {
+    if (key === '' || key.length > MAX_EXTRA_NAME || /[.$]/.test(key) || key === '__proto__' || hasControlChars(key)) {
       return 'extra has a name that isn\'t allowed';
     }
-    const problem = checkText(extra[key], `extra "${key}"`, { max: 200, allowEmpty: true });
+    const problem = checkText(extra[key], `extra "${key}"`, { max: LONG_EXTRA.has(key) ? 200 : MAX_EXTRA_VALUE, allowEmpty: true });
     if (problem) return problem;
   }
   return null;
