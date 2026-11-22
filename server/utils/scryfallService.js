@@ -91,14 +91,19 @@ export function createScryfallService(client) {
     load: async () => slimCard(await client.get(`/cards/${encodeURIComponent(id)}`)),
   });
 
-  // Every printing of a card (in every set), found from any one printing
-  const prints = (id) => cachedLookup({
-    key: `prints:${lower(id)}`, kind: 'prints', ttlMs: FRESH.prints,
-    load: async () => {
-      const { data: card } = await cardById(id);
-      return allPages(card.prints_search_uri);
-    },
-  });
+  // Every printing of a card (in every set), found from any one printing.
+  // The list is filed under the CARD ("oracle id": the same for every printing of it), not under the printing
+  // that was asked about. A basic land has about a thousand printings and its list is about 2 MB: filed per
+  // printing, opening different Forests saved that same 2 MB again each time, enough to fill the whole database.
+  // (A few odd cards have no oracle id of their own; those are still filed under the printing.)
+  const prints = async (id) => {
+    const { data: card } = await cardById(id);
+    return cachedLookup({
+      key: card.oracle_id ? `prints:card:${lower(card.oracle_id)}` : `prints:${lower(id)}`,
+      kind: 'prints', ttlMs: FRESH.prints,
+      load: () => allPages(card.prints_search_uri),
+    });
+  };
 
   // The official rulings for a card, oldest first
   const rulings = (id) => cachedLookup({

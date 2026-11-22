@@ -9,6 +9,11 @@
         the notebook, return that (marked "stale") instead of an error.
    Two people asking for the same thing at the same moment share one
    lookup.
+   THE NOTEBOOK HAS A SIZE LIMIT (trimCache below): the whole database is
+   512 MB and is shared with everybody's binders, so the notebook may take
+   up to MAX_CACHE_MB of it. Past that, the answers fetched longest ago
+   are removed first. Nothing is lost by that: they are only copies, and
+   the next lookup asks Scryfall again.
    ===================================================================== */
 
 import ScryfallCache from '../models/ScryfallCache.js';
@@ -18,6 +23,45 @@ const KEEP_OLD_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Lookups running right now, by key
 const running = new Map();
+
+// The most room the notebook may take in the database (megabytes), and how low a tidy-up brings it (so the
+// next few answers don't set off another one straight away)
+const MAX_CACHE_MB = Number(process.env.SCRYFALL_CACHE_MAX_MB) > 0 ? Number(process.env.SCRYFALL_CACHE_MAX_MB) : 150;
+const TRIM_TO = 0.8;
+// The size is looked at no more often than this (looking costs a little each time)
+const CHECK_EVERY_MS = 10 * 60 * 1000;
+let lastCheck = 0;
+
+// Bring the notebook back under its limit by removing the answers fetched longest ago.
+// "maxBytes" is the limit (the tests pass a small one). Gives how many answers were removed.
+export async function trimCache({ maxBytes = MAX_CACHE_MB * 1024 * 1024 } = {}) {
+  // How big is it? (Asked of the database itself, which adds up each answer's size.)
+  const [sum] = await ScryfallCache.aggregate([{ $group: { _id: null, bytes: { $sum: { $bsonSize: '$$ROOT' } } } }]);
+  let over = (sum?.bytes ?? 0) - maxBytes;
+  if (over <= 0) return 0;
+  // Over the limit: remove the oldest until it is down to 80% of the limit
+  over += maxBytes * (1 - TRIM_TO);
+  const oldest = ScryfallCache.aggregate([
+    { $sort: { fetchedAt: 1 } },
+    { $project: { bytes: { $bsonSize: '$$ROOT' } } },
+  ]).cursor();
+  const going = [];
+  for await (const row of oldest) {
+    going.push(row._id);
+    over -= row.bytes;
+    if (over <= 0) break;
+  }
+  await ScryfallCache.deleteMany({ _id: { $in: going } });
+  return going.length;
+}
+
+// After an answer is written: now and then (not every time), check the size in the background. A problem here
+// must never spoil the lookup that set it off, so it is only written in the log.
+function tidyNowAndThen(now) {
+  if (now - lastCheck < CHECK_EVERY_MS) return;
+  lastCheck = now;
+  trimCache().catch((err) => console.error('Could not tidy the Scryfall notebook:', err.message));
+}
 
 // key:    what is being asked for ("card:set/lea/1")
 // kind:   a short label for the sort of answer ("card")
@@ -49,6 +93,7 @@ export async function cachedLookup({ key, kind, ttlMs, load, now = () => Date.no
         } },
         { upsert: true },
       );
+      tidyNowAndThen(Date.now());
       return { data, stale: false };
     } catch (err) {
       // Scryfall said "not found" (404) or "bad request": that IS the

@@ -175,6 +175,26 @@ test('every printing: follows the pages and trims each card', async () => {
   expect(res.body.cards[0]).not.toHaveProperty('edhrec_rank');
 });
 
+test('the printings list is saved once per CARD, however many of its printings are asked about', async () => {
+  let listAsked = 0;
+  const list = { data: [rawCard(ID_A, 'c21', '263'), rawCard(ID_B, 'lea', '1')], has_more: false };
+  const client = fakeScryfall({
+    [`/cards/${ID_A}`]: rawCard(ID_A, 'c21', '263'),
+    [`/cards/${ID_B}`]: rawCard(ID_B, 'lea', '1'),
+    // (a "getter": counts each time the list is fetched from Scryfall)
+    get 'https://api.scryfall.com/cards/search?order=released&q=oracleid%3Aoracle-1&unique=prints'() { listAsked += 1; return list; },
+  });
+  const me = await signedIn(client);
+  const viaA = await me.get(`/scryfall/cards/id/${ID_A}/prints`);
+  const viaB = await me.get(`/scryfall/cards/id/${ID_B}/prints`);
+  expect(viaA.body.cards.map((c) => c.id)).toEqual([ID_A, ID_B]);
+  expect(viaB.body.cards.map((c) => c.id)).toEqual([ID_A, ID_B]);
+  // One list in the notebook, filed under the card, fetched from Scryfall once
+  const saved = await ScryfallCache.find({ kind: 'prints' }).lean();
+  expect(saved.map((row) => row.key)).toEqual(['prints:card:oracle-1']);
+  expect(listAsked).toBe(1);
+});
+
 test('rulings and languages', async () => {
   const query = encodeURIComponent('set:c21 cn:"263" lang:any');
   const client = fakeScryfall({

@@ -5,7 +5,7 @@
    down, and that a "not found" is never hidden behind an old answer.
    ===================================================================== */
 
-import { cachedLookup } from '../../utils/scryfallCache.js';
+import { cachedLookup, trimCache } from '../../utils/scryfallCache.js';
 import { ScryfallError } from '../../utils/scryfallClient.js';
 import ScryfallCache from '../../models/ScryfallCache.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
@@ -77,3 +77,26 @@ test('rows get a self-destruct date after the expiry', async () => {
   const row = await ScryfallCache.findOne({ key: 'card:h' }).lean();
   expect(row.deleteAt.getTime()).toBeGreaterThan(row.expiresAt.getTime());
 });
+
+// One saved answer of about "kb" kilobytes, fetched "hoursAgo" hours ago
+const savedAnswer = (key, kb, hoursAgo) => ({
+  key, kind: 'card', data: { text: 'x'.repeat(kb * 1024) },
+  fetchedAt: new Date(Date.now() - hoursAgo * HOUR), expiresAt: new Date(Date.now() + HOUR), deleteAt: new Date(Date.now() + 48 * HOUR),
+});
+
+test('under its size limit the notebook is left alone', async () => {
+  await ScryfallCache.insertMany([savedAnswer('a', 100, 3), savedAnswer('b', 100, 2)]);
+  expect(await trimCache({ maxBytes: 1024 * 1024 })).toBe(0);
+  expect(await ScryfallCache.countDocuments()).toBe(2);
+});
+
+test('over its size limit, the answers fetched longest ago are removed first, down to 80% of the limit', async () => {
+  // Six answers of about 100 KB (600 KB), oldest first; the limit is 500 KB, so it trims to about 400 KB
+  await ScryfallCache.insertMany(['a', 'b', 'c', 'd', 'e', 'f'].map((key, i) => savedAnswer(key, 100, 10 - i)));
+  const removed = await trimCache({ maxBytes: 500 * 1024 });
+  expect(removed).toBe(3);
+  expect((await ScryfallCache.find().sort({ key: 1 }).lean()).map((row) => row.key)).toEqual(['d', 'e', 'f']);
+  // A second tidy-up finds nothing more to do
+  expect(await trimCache({ maxBytes: 500 * 1024 })).toBe(0);
+});
+
