@@ -724,8 +724,9 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Google Drive backup</Strong> (optional): a separate <Strong>Sign in with Google</Strong> button
               under Account keeps a copy of your binders in your own Google Drive. Signing in compares this device
               with your Google Drive and asks which way to sync if they differ. Signing out of Google sends any
-              waiting changes to Drive first. (On phones, Google sign-in is coming in the full app build; it works on the
-              website now.)
+              waiting changes to Drive first. Google sign-in is still in development: for now, only authorized
+              users are able to use it, and a small note under the button says so. (On phones, Google sign-in is
+              coming in the full app build; it works on the website now.)
             </Bullet>
           </>
         ),
@@ -1477,7 +1478,8 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>
               <Strong>On this device only</Strong>: a <Strong>Sign in with Google</Strong> button,
-              which compares the binders on this device with your Google Drive. (This works on the
+              which compares the binders on this device with your Google Drive. Google sign-in is still
+              in development, so for now only authorized users are able to use it. (This works on the
               website now; on phones, it's coming in the full app build.)
             </Bullet>
             <Bullet>

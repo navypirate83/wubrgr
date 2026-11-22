@@ -16,7 +16,7 @@
    ===================================================================== */
 
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAccount } from '@/hooks/useAccount';
 import {
@@ -31,11 +31,18 @@ import { syncSettings } from '@/lib/settings';
 import { showMessage } from '@/lib/dialogs';
 import { GOOGLE_SIGN_IN_WORKS, explainPhoneSignIn } from '@/lib/googleSignInNote';
 import { SPACE } from '@/theme/colors';
+import { useColors } from '@/hooks/useTheme';
 import Button from '@/components/Button';
 import TextField from '@/components/TextField';
 import { SettingRow, SettingsSection } from './SettingsParts';
 
+// The small note shown under every "Sign in with Google" button. Google sign-in is still being
+// worked on, and Google only lets in the accounts the owner of the app has added to its list.
+const GOOGLE_NOTE = 'Google sign-in is still in development. For now, only authorized users are able to use it.';
+
 export default function AccountSection() {
+  // The colors of the theme in use (for the small grey note under the Google button)
+  const colors = useColors();
   const { signedIn, serverSignedIn, serverUser, localMode, usingBinders } = useAccount();
   // Signed in before, but the Google pass (it lasts about an hour) ran out
   const expired = usingBinders && !signedIn && !localMode && !serverSignedIn;
@@ -243,6 +250,7 @@ export default function AccountSection() {
       {localMode && !serverSignedIn && (
         <View style={styles.buttons}>
           <Button label={busyText ?? 'Sign in with Google'} icon="logo-google" disabled={busy} onPress={signIn} />
+          <Text style={[styles.googleNote, { color: colors.muted }]}>{GOOGLE_NOTE}</Text>
         </View>
       )}
 
@@ -257,6 +265,7 @@ export default function AccountSection() {
       {expired && (
         <View style={styles.buttons}>
           <Button label={busyText ?? 'Sign in with Google'} icon="logo-google" disabled={busy} onPress={signIn} />
+          <Text style={[styles.googleNote, { color: colors.muted }]}>{GOOGLE_NOTE}</Text>
         </View>
       )}
 
@@ -270,6 +279,7 @@ export default function AccountSection() {
       {serverSignedIn && !signedIn && (
         <View style={styles.buttons}>
           <Button label={busyText ?? 'Sign in with Google'} icon="logo-google" kind="secondary" disabled={busy} onPress={signIn} />
+          <Text style={[styles.googleNote, { color: colors.muted }]}>{GOOGLE_NOTE}</Text>
         </View>
       )}
 
@@ -292,6 +302,8 @@ export default function AccountSection() {
 // The buttons: side by side (wrapping if there isn't room), with room around them
 const styles = StyleSheet.create({
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.m, padding: SPACE.m },
+  // The small note under a "Sign in with Google" button: full width, so it sits on its own line below the button
+  googleNote: { width: '100%', fontSize: 13 },
   // The password box and buttons shown after the delete warning
   deleteBox: { gap: SPACE.m, padding: SPACE.m },
   deleteButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.m },
