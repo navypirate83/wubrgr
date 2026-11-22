@@ -6,6 +6,8 @@
    - the token only lasts 15 minutes. When the server says it ran out
      (error 401), we quietly ask for a new one with the long-lasting
      "refresh token" and try the request again, once.
+   - on the website, that refresh token is in a locked cookie this code can't read: the browser
+     sends it by itself on the sign-in routes (see ON_WEBSITE below)
    - several requests can run out at the same moment. They SHARE one
      refresh, because a refresh token is meant to be swapped once (the
      server also forgives a second try within two weeks, in case the new
@@ -25,6 +27,12 @@ import { RequestError, fetchOrExplain } from './http';
 // (EXPO_PUBLIC_API_URL). Without it the app talks to a server on this
 // same computer, which is what you want while testing on the website.
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4100').replace(/\/+$/, '');
+
+// Is this the website (a browser page), not the phone app? On the website the sign-in routes
+// (/auth/...) keep the long-lasting login in a locked cookie that this page's code can't read
+// (see server/utils/sessionCookie.js). Each of those requests says so with the header
+// "X-Session-Store: cookie", and lets the browser send and keep that cookie ("credentials").
+const ON_WEBSITE = typeof document !== 'undefined';
 
 // How long to wait for the server before giving up: a minute, because a
 // free host that went to sleep needs that long to wake up
@@ -95,13 +103,16 @@ async function sendOnce(
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (useToken && accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  // The website's sign-in routes use the locked cookie (see ON_WEBSITE above)
+  const cookieRoute = ON_WEBSITE && path.startsWith('/auth/');
+  if (cookieRoute) headers['X-Session-Store'] = 'cookie';
 
   // If the reply is slow, tell the screens the server may be waking up
   const timer = setTimeout(() => tellWaking(true), WAKING_AFTER_MS);
   try {
     return await fetchOrExplain(
       `${API_URL}${path}`,
-      { method, headers, body: body === undefined ? undefined : JSON.stringify(body) },
+      { method, headers, body: body === undefined ? undefined : JSON.stringify(body), ...(cookieRoute ? { credentials: 'include' as const } : {}) },
       'the WUBRG\'r server',
       SERVER_TIMEOUT_MS,
     );

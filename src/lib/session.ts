@@ -5,8 +5,13 @@
        access token   works for 15 minutes; kept only in memory (api.ts)
        refresh token  works for 60 days and is swapped for a new pair; kept
                       on the device so you stay signed in. On a phone it
-                      goes in the phone's secure vault (expo-secure-store);
-                      on the website, in the browser's saved values.
+                      goes in the phone's secure vault (expo-secure-store).
+                      On the website the SERVER keeps it in a locked cookie that
+                      this page's code can't read (so no other script on the page
+                      could ever steal it); the app only remembers THAT there is
+                      one. A website login saved the old way (in the browser's
+                      saved values) is moved into the cookie the first time it is
+                      renewed.
    - Who you are (name, username, email, rights) is saved too, so the app knows
      you're signed in even with no internet. Being offline never signs you
      out: only the server saying "that login is finished" does.
@@ -26,11 +31,23 @@ import { markSession } from './scanner/crashTrail';
 export type { ServerUser };
 
 // What the server sends back after any sign-in
-type SessionReply = { accessToken: string; refreshToken: string; user: ServerUser };
+// (On the website the reply has no refreshToken: the server put it in the locked cookie instead.)
+type SessionReply = { accessToken: string; refreshToken?: string; user: ServerUser };
 
 // The names things are saved under
 const REFRESH_KEY = 'serverRefreshToken';
 const USER_KEY = 'serverUser';
+// Website only: a note that the login is in the locked cookie (the cookie itself can't be seen from here)
+const COOKIE_NOTE_KEY = 'serverLoginInCookie';
+// Website only: a note that a log out could not reach the server, so the cookie's login still has to be ended
+const LOGOUT_OWED_KEY = 'serverLogoutOwed';
+
+// What "refreshToken" below holds on the website when the real token is in the locked cookie
+const IN_COOKIE = '(in the cookie)';
+
+// What to send the server along with a renew or log out: the token itself, or nothing when the browser
+// sends it in the cookie
+const tokenBody = (token: string) => (token === IN_COOKIE ? {} : { refreshToken: token });
 
 // Who is signed in right now (null = nobody), and the refresh token in memory
 let user: ServerUser | null = null;
@@ -40,16 +57,30 @@ let refreshToken: string | null = null;
 
 // Save it (phone: secure vault; website: saved values) and WAIT until it is really written. This is the very first
 // thing done with a new sign-in reply, so if the app closes a moment later the newest code is already kept.
-async function saveRefreshToken(token: string): Promise<void> {
+// On the website the reply normally has no token (the server put it in the locked cookie): then only a note
+// is saved, and a token saved the old way is removed.
+async function saveRefreshToken(token: string | undefined): Promise<void> {
+  if (Platform.OS === 'web') {
+    if (token) {
+      // (Only from a server that doesn't use the cookie yet: kept the old way)
+      refreshToken = token;
+      await storageSetNow(REFRESH_KEY, token);
+    } else {
+      refreshToken = IN_COOKIE;
+      await storageSetNow(COOKIE_NOTE_KEY, '1');
+      storageRemove(REFRESH_KEY);
+    }
+    return;
+  }
+  if (!token) return;
   refreshToken = token;
-  if (Platform.OS === 'web') await storageSetNow(REFRESH_KEY, token);
-  else await SecureStore.setItemAsync(REFRESH_KEY, token);
+  await SecureStore.setItemAsync(REFRESH_KEY, token);
 }
 
 // Forget it everywhere
 async function forgetRefreshToken(): Promise<void> {
   refreshToken = null;
-  if (Platform.OS === 'web') storageRemove(REFRESH_KEY);
+  if (Platform.OS === 'web') { storageRemove(REFRESH_KEY); storageRemove(COOKIE_NOTE_KEY); }
   else await SecureStore.deleteItemAsync(REFRESH_KEY).catch(() => { /* already gone */ });
 }
 
@@ -58,7 +89,8 @@ async function forgetRefreshToken(): Promise<void> {
 // still saved, so if it fails it is asked again a couple of times before giving up. The answer says
 // whether the vault FAILED (so "no token" can be told apart from "could not look"): a failure must never sign anyone out.
 async function readRefreshToken(): Promise<{ token: string | null; failed: boolean }> {
-  if (Platform.OS === 'web') return { token: storageGet(REFRESH_KEY), failed: false };
+  // The website: a token saved the old way, or else the note that the login is in the locked cookie
+  if (Platform.OS === 'web') return { token: storageGet(REFRESH_KEY) ?? (storageGet(COOKIE_NOTE_KEY) ? IN_COOKIE : null), failed: false };
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return { token: await SecureStore.getItemAsync(REFRESH_KEY), failed: false };
@@ -106,6 +138,8 @@ export function isServerSignedIn(): boolean {
 async function startSession(reply: SessionReply): Promise<ServerUser> {
   setAccessToken(reply.accessToken);
   await saveRefreshToken(reply.refreshToken);
+  // A new login replaces the cookie, so an older log out that never reached the server no longer matters
+  storageRemove(LOGOUT_OWED_KEY);
   // Make sure the rights are a list of text (anything else counts as no rights)
   user = normalizeUser(reply.user);
   // Who is signed in is written and WAITED for (not left to finish in the background), so an app that closes right after
@@ -152,7 +186,11 @@ export function logIn(who: string, password: string): Promise<ServerUser> {
 export async function signOut(): Promise<void> {
   const token = refreshToken;
   if (token) {
-    await apiRequest('/auth/logout', { method: 'POST', body: { refreshToken: token }, auth: false }).catch(() => { /* signed out here anyway */ });
+    await apiRequest('/auth/logout', { method: 'POST', body: tokenBody(token), auth: false }).catch(() => {
+      // Signed out here anyway. On the website the cookie is still in the browser, and this page can't remove it
+      // (only the server can), so leave a note to finish the log out the next time the app starts.
+      if (token === IN_COOKIE) storageSet(LOGOUT_OWED_KEY, '1');
+    });
   }
   await endSession();
 }
@@ -196,7 +234,7 @@ async function refreshSession(): Promise<boolean> {
     }
   }
   try {
-    await startSession(await apiRequest<SessionReply>('/auth/refresh', { method: 'POST', body: { refreshToken }, auth: false }));
+    await startSession(await apiRequest<SessionReply>('/auth/refresh', { method: 'POST', body: tokenBody(refreshToken), auth: false }));
     return true;
   } catch (err) {
     // Only the server saying "that login is finished" signs you out. Anything else (no signal, a slow or sleeping
@@ -231,6 +269,13 @@ export async function loadSession(): Promise<void> {
 
   if (plan === 'signed-out') {
     markSession('session restore: no refresh token (signed out)');
+    // The website: a log out that couldn't reach the server last time is finished now (the server ends the
+    // cookie's login and tells the browser to throw the cookie away). If it fails again, the note stays.
+    if (Platform.OS === 'web' && storageGet(LOGOUT_OWED_KEY)) {
+      apiRequest('/auth/logout', { method: 'POST', body: {}, auth: false })
+        .then(() => { if (!user) storageRemove(LOGOUT_OWED_KEY); })
+        .catch(() => { /* still no server: try again next time */ });
+    }
     return;
   }
   if (plan === 'keep-waiting') {
