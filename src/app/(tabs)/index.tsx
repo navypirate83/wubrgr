@@ -5,8 +5,8 @@
    - signed in (or using the app locally): where the binders are kept,
      and a "Go to your binders" button. Anyone not logged in (even when
      using the app locally) still sees "Login" and "Create account".
-   Under that, a list of places to go: The Shelf, Card Finder, Lists,
-   Decks and Help.
+   Under that, "Latest changes": what's new in each version of the app,
+   newest first (see components/home/LatestChanges.tsx).
    Another screen can send a message to show here, like "You're signed
    out." (Settings does, after signing out): it comes in the address, as
    /?message=...
@@ -22,11 +22,11 @@ import { useColors } from '@/hooks/useTheme';
 import { setLocalMode } from '@/lib/binderStorage';
 import { MAX_CONTENT_WIDTH, SPACE } from '@/theme/colors';
 import Button from '@/components/Button';
-import HomeLinks from '@/components/home/HomeLinks';
+import LatestChanges from '@/components/home/LatestChanges';
 
 export default function HomeScreen() {
   const colors = useColors();
-  const { signedIn, serverSignedIn, localMode, usingBinders } = useAccount();
+  const { signedIn, serverSignedIn, localMode } = useAccount();
   // Already signed in, or using the app locally? Then it's "welcome back"
   // (no sign-in buttons).
   const welcomeBack = serverSignedIn || signedIn || localMode;
@@ -119,10 +119,10 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* PLACES TO GO: The Shelf (for someone using the binders), Card
-            Finder, Lists, Decks and Help */}
-        <Text style={[styles.groupTitle, { color: colors.muted }]} accessibilityRole="header">Go to</Text>
-        <HomeLinks showShelf={usingBinders} />
+        {/* LATEST CHANGES: what's new in each version of the app, newest
+            first (written in lib/changes.ts) */}
+        <Text style={[styles.groupTitle, { color: colors.muted }]} accessibilityRole="header">Latest changes</Text>
+        <LatestChanges />
       </View>
     </ScrollView>
   );

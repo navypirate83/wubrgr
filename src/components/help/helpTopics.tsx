@@ -544,8 +544,9 @@ export const helpTopics: HelpTopic[] = [
             <Bullet>
               <Strong>Home</Strong> (the house): the welcome screen. When you're signed in (or using the app
               locally), it has no sign-in buttons, just a <Strong>Go to your binders</Strong> button.
-              It also has buttons for <Strong>Lists</Strong> (your card lists)
-              and <Strong>Decks</Strong> (your decks).
+              Under that is <Strong>Latest changes</Strong>: what's new in each version of the app, newest first
+              (tap <Strong>Show older changes</Strong> for the rest). The version you have is the one at the top; it is
+              also in <Strong>Settings → About</Strong>. On the phone app the list goes up to the version that is installed.
             </Bullet>
             <Bullet>
               <Strong>The Shelf</Strong> (the row of books): your binders, lists and decks. It takes you back to

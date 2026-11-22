@@ -14,7 +14,7 @@
 
 import { createElement, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Constants from 'expo-constants';
+import { APP_VERSION } from '@/lib/changes';
 import * as Clipboard from 'expo-clipboard';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColors } from '@/hooks/useTheme';
@@ -46,8 +46,9 @@ const STATUS_PAGE_URL = 'https://stats.uptimerobot.com/WQDbcwUml0';
 const STATUS_BADGE_IMAGE_URL = 'https://badge.uptimerobot.com/psp/5156fb071badab132d286123bc8f3037.svg?theme=dark&style=logo';
 const STATUS_BADGE_HEIGHT = 24;
 
-// The app's version number (from app.json), like "0.2.0"
-const VERSION = Constants.expoConfig?.version ?? '';
+// The app's version number, like "1.0.0": the newest entry in the list of changes
+// (lib/changes.ts), so it always matches the Home screen's "Latest changes"
+const VERSION = APP_VERSION;
 
 /* ----- A row that opens a web page ----- */
 
