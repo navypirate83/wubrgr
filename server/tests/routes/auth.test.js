@@ -8,6 +8,7 @@ import request from 'supertest';
 import { jest } from '@jest/globals';
 import jwt from 'jsonwebtoken';
 import app from '../../app.js';
+import { afterForgot } from '../../routes/auth.js';
 import User from '../../models/User.js';
 import RefreshToken from '../../models/RefreshToken.js';
 import LoginTry from '../../models/LoginTry.js';
@@ -16,6 +17,14 @@ import List from '../../models/List.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
 import { makeUser, bearer, TEST_PASSWORD } from '../helpers/users.js';
 import { hashToken } from '../../utils/tokens.js';
+
+// Ask for a reset email, then wait for the server's work behind it (it answers first and sends the
+// email afterwards: see sendResetEmail in routes/auth.js)
+const forgot = async (body) => {
+  const res = await request(app).post('/auth/forgot').send(body);
+  await afterForgot();
+  return res;
+};
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);
@@ -153,7 +162,7 @@ describe('login', () => {
       expect(blocked.status).toBe(403);
       expect(blocked.body.error).toMatch(/Reset your password/);
 
-      await request(app).post('/auth/forgot').send({ email: user.email });
+      await forgot({ email: user.email });
       const code = /code is: ([A-Z0-9]{5}-[A-Z0-9]{5})/.exec(sent[0].text)[1];
       expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
       expect((await tryLogin(user, 'brand-new-pass1')).status).toBe(200);

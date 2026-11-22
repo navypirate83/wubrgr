@@ -385,9 +385,46 @@ async function countResetEmail(userId) {
 
 // The same answer whether or not the email has an account, so nobody can
 // use this to find out who is registered
-const FORGOT_ANSWER = { message: 'If that email has an account, we sent it a code. It works for 15 minutes.' };
+const FORGOT_ANSWER = { message: `If that email has an account, we sent it a code. It works for ${RESET_CODE_MINUTES} minutes.` };
 
-// Sends a 6-digit code AND the username to the account's email
+// THE WORK BEHIND "FORGOT", DONE AFTER THE ANSWER HAS GONE OUT. If the server did this work first and answered
+// afterwards, a real account would take noticeably longer to answer than an unknown email (it has a code to save
+// and an email to send), and a failed send would give a different answer. Either would show which emails have
+// accounts. So the route answers at once, the same way for everyone, and then this runs. A problem here is
+// written in the server's log; the person just sees no email arrive and asks again.
+async function sendResetEmail(user) {
+  // Over this account's cap for the hour: nothing is sent
+  if (!(await countResetEmail(user._id))) return;
+  const code = makeResetCode();
+  // A Google-only account has no password to reset: just remind the username
+  const googleOnly = !user.password;
+  if (!googleOnly) {
+    // ADD this code to the person's working codes. The earlier ones keep working (so asking again can't
+    // be used to cancel somebody's code); only the newest 5 are kept, which is also the most that can be
+    // emailed in an hour.
+    const expiresAt = new Date(Date.now() + RESET_CODE_MINUTES * 60 * 1000);
+    await PasswordReset.findOneAndUpdate(
+      { user: user._id },
+      { $push: { codes: { $each: [{ hash: hashToken(code), expiresAt }], $slice: -RESET_EMAILS_PER_HOUR } }, $set: { expiresAt } },
+      { upsert: true },
+    );
+  }
+  await sendMail({
+    to: user.email,
+    subject: 'Your WUBRG\'r sign-in details',
+    text: `Your WUBRG'r username is: ${user.username}\n\n`
+      + (googleOnly
+        ? 'This account signs in with Google, so there is no password to reset.\n'
+        : `Your password reset code is: ${showResetCode(code)}\nIt works for ${RESET_CODE_MINUTES} minutes. Type it in the app, or on the website if your app only takes 6 digits. If you didn't ask for it, ignore this email.\n`),
+  });
+}
+
+// The background work still going on (one request's after another's, so two requests for the same account can't
+// trip over each other). The tests wait for it with afterForgot(); nothing else needs to.
+let forgotWork = Promise.resolve();
+export const afterForgot = () => forgotWork;
+
+// Emails a reset code AND the username to the account, if the email has one
 router.post('/forgot', async (req, res) => {
   const { email } = req.body ?? {};
   if (typeof email !== 'string' || !EMAIL_SHAPE.test(email.trim())) {
@@ -395,40 +432,15 @@ router.post('/forgot', async (req, res) => {
   }
   if (!mailIsConfigured()) return res.status(503).json({ error: 'Email isn\'t set up on this server yet' });
   try {
+    // One look in the database, the same for a real and an unknown email, and then the answer goes out
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
+    res.status(200).json(FORGOT_ANSWER);
     if (user) {
-      // Over this account's cap for the hour: nothing is sent, and the answer is the usual one (so the
-      // cap can't be used to find out whether the email has an account)
-      if (!(await countResetEmail(user._id))) return res.status(200).json(FORGOT_ANSWER);
-      const code = makeResetCode();
-      // A Google-only account has no password to reset: just remind the username
-      const googleOnly = !user.password;
-      if (!googleOnly) {
-        // ADD this code to the person's working codes. The earlier ones keep working (so asking again can't
-        // be used to cancel somebody's code); only the newest 5 are kept, which is also the most that can be
-        // emailed in an hour.
-        const expiresAt = new Date(Date.now() + RESET_CODE_MINUTES * 60 * 1000);
-        await PasswordReset.findOneAndUpdate(
-          { user: user._id },
-          { $push: { codes: { $each: [{ hash: hashToken(code), expiresAt }], $slice: -RESET_EMAILS_PER_HOUR } }, $set: { expiresAt } },
-          { upsert: true },
-        );
-      }
-      try {
-        await sendMail({
-          to: user.email,
-          subject: 'Your WUBRG\'r sign-in details',
-          text: `Your WUBRG'r username is: ${user.username}\n\n`
-            + (googleOnly
-              ? 'This account signs in with Google, so there is no password to reset.\n'
-              : `Your password reset code is: ${showResetCode(code)}\nIt works for ${RESET_CODE_MINUTES} minutes. Type it in the app, or on the website if your app only takes 6 digits. If you didn't ask for it, ignore this email.\n`),
-        });
-      } catch (err) {
-        console.error('Could not send the reset email:', err.message);
-        return res.status(503).json({ error: 'Could not send the email. Try again in a moment.' });
-      }
+      forgotWork = forgotWork
+        .then(() => sendResetEmail(user))
+        .catch((err) => console.error('Could not send the reset email:', err.message));
     }
-    return res.status(200).json(FORGOT_ANSWER);
+    return undefined;
   } catch (err) {
     return handleDbError(err, res);
   }

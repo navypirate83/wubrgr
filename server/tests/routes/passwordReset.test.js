@@ -7,9 +7,18 @@
 import request from 'supertest';
 import { jest } from '@jest/globals';
 import app from '../../app.js';
+import { afterForgot } from '../../routes/auth.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
 import { makeUser, TEST_PASSWORD } from '../helpers/users.js';
 import PasswordReset from '../../models/PasswordReset.js';
+
+// Ask for a reset email, then wait for the server's work behind it (it answers first and sends the
+// email afterwards: see sendResetEmail in routes/auth.js)
+const forgot = async (body) => {
+  const res = await request(app).post('/auth/forgot').send(body);
+  await afterForgot();
+  return res;
+};
 
 // How the code looks in the email: two halves of five letters and digits ("K7QM2-XH4RT")
 const CODE = /code is: ([A-Z0-9]{5}-[A-Z0-9]{5})/;
@@ -36,8 +45,8 @@ function fakeMail() {
 test('forgot sends the username and a code, and reset sets the new password', async () => {
   const user = await makeUser();
   const sent = fakeMail();
-  const forgot = await request(app).post('/auth/forgot').send({ email: user.email });
-  expect(forgot.status).toBe(200);
+  const asked = await forgot({ email: user.email });
+  expect(asked.status).toBe(200);
   expect(sent).toHaveLength(1);
   expect(sent[0].text).toContain(user.username);
   const code = CODE.exec(sent[0].text)[1];
@@ -52,7 +61,7 @@ test('forgot sends the username and a code, and reset sets the new password', as
 
 test('an unknown email gets the same answer and nothing is sent', async () => {
   const sent = fakeMail();
-  const res = await request(app).post('/auth/forgot').send({ email: 'nobody@example.com' });
+  const res = await forgot({ email: 'nobody@example.com' });
   expect(res.status).toBe(200);
   expect(sent).toHaveLength(0);
 });
@@ -60,7 +69,7 @@ test('an unknown email gets the same answer and nothing is sent', async () => {
 test('wrong guesses never throw the code away: after 20 of them the real code still works', async () => {
   const user = await makeUser();
   const sent = fakeMail();
-  await request(app).post('/auth/forgot').send({ email: user.email });
+  await forgot({ email: user.email });
   const code = CODE.exec(sent[0].text)[1];
   // 20 wrong codes all sent together (somebody trying to spoil the owner's code), in the old and the new shape
   const wrongs = [...Array.from({ length: 10 }, (_, i) => String(100000 + i)), ...Array.from({ length: 10 }, (_, i) => `AAAAA-BBBB${i}`)].filter((guess) => guess !== code);
@@ -74,8 +83,8 @@ test('wrong guesses never throw the code away: after 20 of them the real code st
 test('asking for another code does not cancel the earlier one', async () => {
   const user = await makeUser();
   const sent = fakeMail();
-  await request(app).post('/auth/forgot').send({ email: user.email });
-  await request(app).post('/auth/forgot').send({ email: user.email });   // (somebody else asking, say)
+  await forgot({ email: user.email });
+  await forgot({ email: user.email });   // (somebody else asking, say)
   const [first, second] = sent.map((mail) => CODE.exec(mail.text)[1]);
   expect(first).not.toBe(second);
   expect((await request(app).post('/auth/reset').send({ email: user.email, code: first, password: 'brand-new-pass1' })).status).toBe(200);
@@ -88,7 +97,7 @@ test('the code can be typed in small letters, without the dash, or with spaces',
     await clearTestDb();
     const user = await makeUser();
     const sent = fakeMail();
-    await request(app).post('/auth/forgot').send({ email: user.email });
+    await forgot({ email: user.email });
     const code = CODE.exec(sent[0].text)[1];
     expect((await request(app).post('/auth/reset').send({ email: user.email, code: retype(code), password: 'brand-new-pass1' })).status).toBe(200);
     jest.restoreAllMocks();
@@ -98,7 +107,7 @@ test('the code can be typed in small letters, without the dash, or with spaces',
 test('the code is 10 letters and digits, works for 90 minutes, and is refused once it has run out', async () => {
   const user = await makeUser();
   const sent = fakeMail();
-  await request(app).post('/auth/forgot').send({ email: user.email });
+  await forgot({ email: user.email });
   expect(sent[0].text).toMatch(/works for 90 minutes/);
   const code = CODE.exec(sent[0].text)[1];
   const row = await PasswordReset.findOne({ user: user._id });
@@ -114,7 +123,7 @@ test('the code is 10 letters and digits, works for 90 minutes, and is refused on
 test('the right code with a new password that holds the username does not use up the code', async () => {
   const user = await makeUser();
   const sent = fakeMail();
-  await request(app).post('/auth/forgot').send({ email: user.email });
+  await forgot({ email: user.email });
   const code = CODE.exec(sent[0].text)[1];
   // Six tries with a password that holds the username: all refused for the password, and the code stays good
   for (let i = 0; i < 6; i += 1) {
@@ -128,7 +137,7 @@ test('an account is sent at most 5 forgot-password emails an hour; the answer st
   const user = await makeUser();
   const sent = fakeMail();
   for (let i = 0; i < 7; i += 1) {
-    const res = await request(app).post('/auth/forgot').send({ email: user.email });
+    const res = await forgot({ email: user.email });
     expect(res.status).toBe(200);
     expect(res.body.message).toContain('If that email has an account');
   }
@@ -141,19 +150,49 @@ test('an account is sent at most 5 forgot-password emails an hour; the answer st
 test('once the hour is over, forgot-password emails are sent again', async () => {
   const user = await makeUser();
   const sent = fakeMail();
-  for (let i = 0; i < 6; i += 1) await request(app).post('/auth/forgot').send({ email: user.email });
+  for (let i = 0; i < 6; i += 1) await forgot({ email: user.email });
   expect(sent).toHaveLength(5);
   // Pretend that hour began 61 minutes ago
   const { default: User } = await import('../../models/User.js');
   await User.updateOne({ _id: user._id }, { resetEmailsSince: new Date(Date.now() - 61 * 60 * 1000) });
-  await request(app).post('/auth/forgot').send({ email: user.email });
+  await forgot({ email: user.email });
   expect(sent).toHaveLength(6);
+});
+
+test('the answer goes out before the email is sent, so a real account answers as fast as an unknown email', async () => {
+  const user = await makeUser();
+  // A mail service that takes 1.5 seconds to answer
+  const sent = [];
+  jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, options) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    sent.push(JSON.parse(options.body));
+    return { ok: true, status: 200 };
+  });
+  const started = Date.now();
+  const res = await request(app).post('/auth/forgot').send({ email: user.email });
+  expect(res.status).toBe(200);
+  expect(Date.now() - started).toBeLessThan(1200);
+  expect(sent).toHaveLength(0);
+  // ...and the email does go out afterwards
+  await afterForgot();
+  expect(sent).toHaveLength(1);
+}, 15000);
+
+test('a mail service that fails gives the same answer as always (the problem is only in the log)', async () => {
+  const user = await makeUser();
+  jest.spyOn(globalThis, 'fetch').mockImplementation(async () => ({ ok: false, status: 500, text: async () => 'down', json: async () => ({}) }));
+  const quiet = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const real = await forgot({ email: user.email });
+  const unknown = await forgot({ email: 'nobody@example.com' });
+  expect({ status: real.status, body: real.body }).toEqual({ status: unknown.status, body: unknown.body });
+  expect(real.status).toBe(200);
+  expect(quiet).toHaveBeenCalled();
 });
 
 test('without mail settings, forgot says email is not set up', async () => {
   delete process.env.RESEND_API_KEY;
   const user = await makeUser();
-  expect((await request(app).post('/auth/forgot').send({ email: user.email })).status).toBe(503);
+  expect((await forgot({ email: user.email })).status).toBe(503);
 });
 
 test('a short new password is refused', async () => {
@@ -172,7 +211,7 @@ test('an old 8-character password still logs in, but a reset needs 12 characters
   expect((await request(app).post('/auth/login').send({ email: user.email, password: 'old8char' })).status).toBe(200);
 
   const sent = fakeMail();
-  await request(app).post('/auth/forgot').send({ email: user.email });
+  await forgot({ email: user.email });
   const code = CODE.exec(sent[0].text)[1];
   const weak = await request(app).post('/auth/reset').send({ email: user.email, code, password: 'elevenchar1' });
   expect(weak.status).toBe(400);
