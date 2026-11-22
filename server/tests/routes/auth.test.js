@@ -242,12 +242,58 @@ describe('sessions', () => {
   test('a swapped token coming back weeks later is treated as theft and cancels the whole login', async () => {
     const first = (await signup(good)).body;
     const second = (await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken })).body;
-    // Pretend the swap happened 15 days ago (the grace period is 14)
+    // Pretend the swap happened 15 days ago (a lost reply is forgiven for 14)
     await RefreshToken.updateMany({ usedAt: { $ne: null } }, { usedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000) });
     const replay = await request(app).post('/auth/refresh').send({ refreshToken: first.refreshToken });
     expect(replay.status).toBe(401);
     const newer = await request(app).post('/auth/refresh').send({ refreshToken: second.refreshToken });
     expect(newer.status).toBe(401);
+  });
+
+  // Pretend every swap so far happened this long ago (the two-minute "same moment" allowance has passed)
+  const swapsWere = (minutesAgo) => RefreshToken.updateMany({ usedAt: { $ne: null } }, { usedAt: new Date(Date.now() - minutesAgo * 60 * 1000) });
+  const refresh = (refreshToken) => request(app).post('/auth/refresh').send({ refreshToken });
+
+  test('a lost reply days later still works, and the token that never arrived is cancelled', async () => {
+    const first = (await signup(good)).body;
+    const lost = (await refresh(first.refreshToken)).body;     // the reply that never arrived
+    await swapsWere(3 * 24 * 60);
+    const retry = await refresh(first.refreshToken);
+    expect(retry.status).toBe(200);
+    // The one that never arrived is cancelled; the new one carries on
+    expect((await RefreshToken.findOne({ tokenHash: hashToken(lost.refreshToken) })).cancelledAt).not.toBeNull();
+    expect((await refresh(retry.body.refreshToken)).status).toBe(200);
+  });
+
+  test('an old token coming back after its replacement was used is a copy: the whole login is ended', async () => {
+    const first = (await signup(good)).body;
+    const second = (await refresh(first.refreshToken)).body;
+    const third = (await refresh(second.refreshToken)).body;   // the owner carried on with the replacement
+    await swapsWere(10);
+    expect((await refresh(first.refreshToken)).status).toBe(401);          // the copy is refused...
+    expect((await refresh(third.refreshToken)).status).toBe(401);          // ...and the login is over for everyone
+    expect(await RefreshToken.countDocuments()).toBe(0);
+  });
+
+  test('a copy used first is caught when the owner and the copy have both carried on', async () => {
+    const first = (await signup(good)).body;
+    const thief = (await refresh(first.refreshToken)).body;    // someone with a copy swaps it first
+    await swapsWere(10);
+    const owner = await refresh(first.refreshToken);           // the owner's app tries the same token later
+    expect(owner.status).toBe(200);                            // (looks like a lost reply: the thief's token is unused)
+    // The thief's token was cancelled, so using it now ends the whole login
+    expect((await refresh(thief.refreshToken)).status).toBe(401);
+    expect((await refresh(owner.body.refreshToken)).status).toBe(401);
+  });
+
+  test('two tokens handed out at the same moment: the one that carries on cancels the other', async () => {
+    const first = (await signup(good)).body;
+    const [a, b] = (await Promise.all([1, 2].map(() => refresh(first.refreshToken)))).map((r) => r.body);
+    expect((await refresh(a.refreshToken)).status).toBe(200);
+    expect((await RefreshToken.findOne({ tokenHash: hashToken(b.refreshToken) })).cancelledAt).not.toBeNull();
+    // The cancelled one turning up means two parties hold the login: it is ended
+    expect((await refresh(b.refreshToken)).status).toBe(401);
+    expect(await RefreshToken.countDocuments()).toBe(0);
   });
 
   test('two refreshes at the same instant (two browser tabs) both succeed and neither is signed out', async () => {

@@ -4,8 +4,9 @@
    - POST /auth/login        sign in with a username-or-email + password (5 wrong passwords in a row pause
                              the account for 30 minutes; 5 more and the password must be reset by email)
    - POST /auth/google       sign in with Google (SWITCHED OFF: answers 403 unless GOOGLE_LOGIN=on)
-   - POST /auth/refresh      swap the long-lived token for a fresh pair (a token swapped in the last
-                             14 days still works once more: see the note in the route)
+   - POST /auth/refresh      swap the long-lived token for a fresh pair (an already-swapped token still
+                             works when its replacement was never used, which is what a lost reply
+                             looks like; a copied token ends the whole login: see the note in the route)
    - POST /auth/logout       end this login
    - POST /auth/logout-all   end every login of this account (needs sign-in)
    - POST /auth/forgot       email a 6-digit code (and the username) to an account
@@ -44,9 +45,14 @@ const RESERVED_USERNAMES = ['admin', 'administrator', 'root', 'support', 'system
 // password" and can't be told apart by timing.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 
-// How long after a refresh token was swapped it may still be used once more without it counting as theft
-// (see /auth/refresh). Long enough that "I opened the app, left, and came back later" never signs anyone out.
-const REUSE_GRACE_DAYS = 14;
+// A refresh token is meant to be swapped once. Two honest things make an already-swapped one come back
+// (see /auth/refresh for how they are told apart from a copied token):
+//  - two requests at the same moment (two browser tabs renewing together): allowed for this long after the swap
+const SAME_MOMENT_MS = 2 * 60 * 1000;
+//  - the new token never reached the app (it was closed, or the signal dropped, while the reply was on its
+//    way), so the app tries the old one again next time it is opened: allowed for this many days, but ONLY
+//    while the token handed out in its place has never been used
+const LOST_REPLY_DAYS = 14;
 
 // Guarding one account against password guessing (on top of the limit per internet address in app.js):
 // after this many wrong passwords in a row the account is paused...
@@ -249,15 +255,38 @@ router.post('/refresh', async (req, res) => {
     // Not found, or past its 60 days
     if (!row || row.expiresAt <= new Date()) return over();
 
-    // Already swapped for a newer one. Usually that's an honest second try, not theft: the swap
-    // worked but the new token never reached the app (it was switched away from or closed while the
-    // reply was on its way, the signal dropped, or two browser tabs refreshed at once). Signing the
-    // person out for that is what made the app forget them, so a token swapped within the grace
-    // period is let through and gets a fresh pair. Only an OLD swapped token coming back (weeks
-    // later: it may have been copied) cancels every token from this login.
-    if (row.usedAt && Date.now() - row.usedAt.getTime() > REUSE_GRACE_DAYS * 24 * 60 * 60 * 1000) {
+    // A CANCELLED token: the server decided earlier that this one never reached the app, and handed out
+    // another in its place. If it turns up after all, two parties hold this login (one of them a copy),
+    // so the whole login is ended and the real owner signs in again with their password.
+    if (row.cancelledAt) {
       await RefreshToken.deleteMany({ family: row.family });
       return over();
+    }
+
+    if (row.usedAt) {
+      // ALREADY SWAPPED for a newer one, and now it is back. Honest, or a copy? Look at what happened to
+      // the token(s) handed out in its place:
+      //  - one of them has been USED: so the new token did arrive, and somebody is carrying on with it.
+      //    The old one coming back means a second party has this login. (Except in the first two
+      //    minutes, when it is just two browser tabs renewing at the same moment.) The login is ended.
+      //  - none has been used: that is what a lost reply looks like (the app never got the new token, so
+      //    it tries the old one again). Let through, for up to 14 days.
+      const sinceSwap = Date.now() - row.usedAt.getTime();
+      const replacementUsed = await RefreshToken.exists({ parent: tokenHash, usedAt: { $ne: null } });
+      if ((replacementUsed && sinceSwap > SAME_MOMENT_MS) || sinceSwap > LOST_REPLY_DAYS * 24 * 60 * 60 * 1000) {
+        await RefreshToken.deleteMany({ family: row.family });
+        return over();
+      }
+      // A lost reply: the unused token(s) handed out before are CANCELLED, so only the one given out now
+      // carries on. (Not in the first two minutes: with two tabs, either tab's token may be the one kept.)
+      if (sinceSwap > SAME_MOMENT_MS) {
+        await RefreshToken.updateMany({ parent: tokenHash, usedAt: null, cancelledAt: null }, { cancelledAt: new Date() });
+      }
+    } else if (row.parent) {
+      // THE NORMAL CASE, a token used for the first time. If other tokens were handed out in place of the
+      // same older one (two tabs, or a retry after a lost reply), this is the one that is carrying on, so
+      // the others are cancelled. Only one line of tokens stays alive for a login.
+      await RefreshToken.updateMany({ parent: row.parent, tokenHash: { $ne: tokenHash }, usedAt: null, cancelledAt: null }, { cancelledAt: new Date() });
     }
 
     // The account must still exist (this also picks up a change of rights)
@@ -270,8 +299,8 @@ router.post('/refresh', async (req, res) => {
     // Mark it used in ONE step (it does nothing if it was already used, which is fine now)
     await RefreshToken.updateOne({ tokenHash, usedAt: null }, { usedAt: new Date() });
 
-    // A new pair, in the same family
-    return sendSession(req, res, 200, await issueSession(user, row.family));
+    // A new pair, in the same family, remembering which token it replaces
+    return sendSession(req, res, 200, await issueSession(user, row.family, tokenHash));
   } catch (err) {
     return handleDbError(err, res);
   }

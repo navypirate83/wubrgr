@@ -36,13 +36,15 @@ export function signAccessToken(user) {
 
 // A new refresh token: 48 random bytes written as text. Only the
 // fingerprint is saved; the plain text is returned once and forgotten.
-// "family" ties together every token that came from one login.
-export async function createRefreshToken(user, family = crypto.randomUUID()) {
+// "family" ties together every token that came from one login, and "parent" is
+// the fingerprint of the older token this one replaces (null for a new login).
+export async function createRefreshToken(user, family = crypto.randomUUID(), parent = null) {
   const token = crypto.randomBytes(48).toString('base64url');
   await RefreshToken.create({
     user: user._id,
     tokenHash: hashToken(token),
     family,
+    parent,
     expiresAt: new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000),
   });
   return token;
@@ -51,13 +53,13 @@ export async function createRefreshToken(user, family = crypto.randomUUID()) {
 // The one way every sign-in ends (signup, login, refresh, Google): both
 // tokens plus a user object built BY HAND with only safe fields, so a
 // password hash can never leak even if the model gains fields later.
-export async function issueSession(user, family) {
+export async function issueSession(user, family, parent = null) {
   // Write down that this account was just used (the Admin page shows it). If this
   // small note can't be saved, signing in still works, so a failure is ignored.
   await User.updateOne({ _id: user._id }, { $set: { lastAccessAt: new Date() } }).catch(() => {});
   return {
     accessToken: signAccessToken(user),
-    refreshToken: await createRefreshToken(user, family),
+    refreshToken: await createRefreshToken(user, family, parent),
     user: {
       id: String(user._id),
       username: user.username,

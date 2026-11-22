@@ -10,8 +10,8 @@
      sends it by itself on the sign-in routes (see ON_WEBSITE below)
    - several requests can run out at the same moment. They SHARE one
      refresh, because a refresh token is meant to be swapped once (the
-     server also forgives a second try within two weeks, in case the new
-     one never arrived; see server/routes/auth.js).
+     server also forgives a second try when the new one never arrived, and
+     ends the login if a copy is used; see server/routes/auth.js).
    - a server on a free host goes to sleep when nobody uses it and takes
      up to a minute to wake. If a reply is slow, listeners (a screen) are
      told so it can say "Waking the server…" instead of looking frozen.
