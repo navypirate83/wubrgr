@@ -9,6 +9,10 @@
         the notebook, return that (marked "stale") instead of an error.
    Two people asking for the same thing at the same moment share one
    lookup.
+   "NOT FOUND" IS REMEMBERED TOO, for an hour: everybody shares one slow
+   line to Scryfall, so asking again and again for cards that don't exist
+   would hold everyone else's lookups up. (An hour, not longer, because a
+   brand-new card might be added to Scryfall at any time.)
    THE NOTEBOOK HAS A SIZE LIMIT (trimCache below): the whole database is
    512 MB and is shared with everybody's binders, so the notebook may take
    up to MAX_CACHE_MB of it. Past that, the answers fetched longest ago
@@ -17,6 +21,11 @@
    ===================================================================== */
 
 import ScryfallCache from '../models/ScryfallCache.js';
+import { ScryfallError } from './scryfallClient.js';
+
+// How long a "not found" answer is remembered, and the label its row carries in the notebook
+const MISSING_MS = 60 * 60 * 1000;
+export const MISSING = 'missing';
 
 // How long an old answer is kept as a safety net (30 days past its expiry)
 const KEEP_OLD_MS = 30 * 24 * 60 * 60 * 1000;
@@ -71,7 +80,13 @@ export function tidyNowAndThen(now = Date.now()) {
 // Returns { data, stale } where stale is true for an old answer used
 // because Scryfall couldn't be asked.
 export async function cachedLookup({ key, kind, ttlMs, load, now = () => Date.now() }) {
-  const saved = await ScryfallCache.findOne({ key }).lean();
+  let saved = await ScryfallCache.findOne({ key }).lean();
+  if (saved?.kind === MISSING) {
+    // Scryfall said "not found" less than an hour ago: say the same, without asking again
+    if (saved.expiresAt.getTime() > now()) throw new ScryfallError(404, saved.data?.message || 'Not found');
+    // An old "not found" is no answer at all: ask afresh, and never hand it out as an old copy
+    saved = null;
+  }
   if (saved && saved.expiresAt.getTime() > now()) {
     return { data: saved.data, stale: false };
   }
@@ -102,6 +117,16 @@ export async function cachedLookup({ key, kind, ttlMs, load, now = () => Date.no
       // or "had a problem", an old copy is better than nothing.
       const trouble = !err.status || err.status === 429 || err.status >= 500;
       if (saved && trouble) return { data: saved.data, stale: true };
+      // "Not found": remember it for an hour (see the top of this file). The row deletes itself after that.
+      // If it can't be written, never mind: the person still gets their "not found".
+      if (err.status === 404) {
+        const when = now();
+        await ScryfallCache.updateOne(
+          { key },
+          { $set: { kind: MISSING, data: { message: err.message }, fetchedAt: new Date(when), expiresAt: new Date(when + MISSING_MS), deleteAt: new Date(when + MISSING_MS) } },
+          { upsert: true },
+        ).catch(() => {});
+      }
       throw err;
     }
   })();

@@ -527,6 +527,10 @@ router.post('/logout-all', requireAuth, async (req, res) => {
 // It cannot be undone, so it asks for the password again (so a stolen
 // phone that is still logged in can't wipe the account). An account that
 // only signs in with Google has no password, so it sends { confirm: true }.
+// Passwords typed here are counted exactly as on the login screen (5 wrong
+// in a row start a 30-minute pause), so this can't be used to guess the
+// password without limit. And the ONLY admin can't delete their own account:
+// with no admin, nobody could open the People page again.
 router.delete('/account', requireAuth, async (req, res) => {
   try {
     const { password, confirm } = req.body ?? {};
@@ -536,12 +540,37 @@ router.delete('/account', requireAuth, async (req, res) => {
       if (typeof password !== 'string' || password === '') {
         return res.status(400).json({ error: 'Your password is required to delete the account' });
       }
-      if (!(await bcrypt.compare(password, user.password))) {
+      const ok = await bcrypt.compare(password, user.password);
+      // Counted BEFORE the answer is given, the same way as a login try (see countLoginTry). While the
+      // account is paused or needs a reset, even the right password is refused here too.
+      const refused = await countLoginTry(User, { _id: user._id });
+      if (refused === 'reset') {
+        return res.status(403).json({ error: 'Too many wrong passwords. Reset your password first: log out and tap "Forgot username/password?".' });
+      }
+      if (refused) {
+        return res.status(429).json({ error: `Too many wrong passwords. Try again in ${refused} minute${refused === 1 ? '' : 's'}.` });
+      }
+      if (!ok) {
         // 403, not 401: the login is fine, only the password typed here is wrong
         return res.status(403).json({ error: 'That password is not right' });
       }
+      // The right password: the count of wrong ones starts again (it matters if the delete is refused below)
+      await User.updateOne({ _id: user._id }, { $set: { failedLogins: 0 }, $unset: { lockedUntil: '', mustResetPassword: '' } });
     } else if (confirm !== true) {
       return res.status(400).json({ error: 'Please confirm that you want to delete the account' });
+    }
+    // The only admin can't delete their own account. Checked before, and again after the admin right has
+    // been taken away: if two admins delete themselves at the very same moment, both could count "2, fine",
+    // so if nobody is left the right is given back and the delete is refused. (The same rule and the same
+    // two-step check as on the People page: see routes/admin.js.)
+    if (user.roles.includes('admin')) {
+      const onlyAdmin = { error: 'You are the only admin. Make someone else an admin first, then delete your account.' };
+      if ((await User.countDocuments({ roles: 'admin' })) <= 1) return res.status(409).json(onlyAdmin);
+      await User.updateOne({ _id: user._id }, { $pull: { roles: 'admin' } });
+      if ((await User.countDocuments({ roles: 'admin' })) === 0) {
+        await User.updateOne({ _id: user._id }, { $set: { roles: [...user.roles] } });
+        return res.status(409).json(onlyAdmin);
+      }
     }
     await deleteAccountAndData(user._id);
     if (wantsCookie(req)) clearRefreshCookie(req, res);

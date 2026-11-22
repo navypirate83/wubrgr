@@ -291,3 +291,45 @@ test('each person has their own limit per minute', async () => {
   // Someone else is not affected
   expect((await get(two)).status).toBe(200);
 });
+
+
+test('"not found" is remembered for an hour, so Scryfall is asked once', async () => {
+  const client = fakeScryfall({});
+  const me = await signedIn(client);
+  const first = await me.get('/scryfall/cards/set/lea/999');
+  expect(first.status).toBe(404);
+  const second = await me.get('/scryfall/cards/set/lea/999');
+  expect(second.status).toBe(404);
+  expect(second.body.error).toBe(first.body.error);
+  expect(client.calls.get).toHaveLength(1);
+  // The remembered answer deletes itself within the hour
+  const row = await ScryfallCache.findOne({ key: 'card:lea/999' }).lean();
+  expect(row.kind).toBe('missing');
+  expect(row.deleteAt.getTime() - Date.now()).toBeLessThanOrEqual(60 * 60 * 1000);
+
+  // Once the hour is up it is asked again, and a card that exists by then is found
+  await ScryfallCache.updateMany({}, { $set: { expiresAt: new Date(Date.now() - 1000) } });
+  client.table['/cards/lea/999'] = rawCard(ID_A, 'lea', '999');
+  const later = await me.get('/scryfall/cards/set/lea/999');
+  expect(later.status).toBe(200);
+  expect(client.calls.get).toHaveLength(2);
+});
+
+test('a remembered "not found" is never handed out as a card by the many-cards lookup', async () => {
+  const client = fakeScryfall({ collection: knows });
+  const me = await signedIn(client);
+  expect((await me.get('/scryfall/cards/set/lea/1')).status).toBe(404);
+  const res = await me.post('/scryfall/cards/collection', { identifiers: [{ set: 'lea', number: '1' }] });
+  expect(res.body.cards.map((c) => `${c.set}/${c.collector_number}`)).toEqual(['lea/1']);
+});
+
+test('a card number with a quote mark in it is refused without asking Scryfall', async () => {
+  const client = fakeScryfall({});
+  const me = await signedIn(client);
+  expect((await me.get('/scryfall/cards/set/lea/1%22x')).status).toBe(400);
+  expect((await me.get('/scryfall/cards/set/lea/1%22x/languages')).status).toBe(400);
+  expect((await me.post('/scryfall/cards/collection', { identifiers: [{ set: 'lea', number: '1"x' }] })).status).toBe(400);
+  expect(client.calls.get).toHaveLength(0);
+  expect(client.calls.post).toHaveLength(0);
+});
+

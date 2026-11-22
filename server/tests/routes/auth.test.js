@@ -460,6 +460,34 @@ describe('delete account', () => {
     expect(await User.countDocuments()).toBe(1);
   });
 
+  test('wrong passwords typed here are counted like login tries: five start a pause', async () => {
+    const user = await makeUser();
+    const del = (password) => request(app).delete('/auth/account').set('Authorization', bearer(user)).send({ password });
+    for (let n = 0; n < 5; n += 1) expect((await del('wrong-pass-1')).status).toBe(403);
+    // Paused now: even the right password is refused, and the account is still there
+    const paused = await del(TEST_PASSWORD);
+    expect(paused.status).toBe(429);
+    expect(paused.body.error).toMatch(/Too many wrong passwords/);
+    expect(await User.countDocuments({ _id: user._id })).toBe(1);
+    // The same pause holds on the login screen
+    expect((await request(app).post('/auth/login').send({ email: user.email, password: TEST_PASSWORD })).status).toBe(429);
+  });
+
+  test('the only admin cannot delete their own account; with a second admin they can', async () => {
+    const boss = await makeUser({ roles: ['admin'] });
+    const del = () => request(app).delete('/auth/account').set('Authorization', bearer(boss)).send({ password: TEST_PASSWORD });
+    const refused = await del();
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toBe('You are the only admin. Make someone else an admin first, then delete your account.');
+    // Still there, and still an admin
+    expect((await User.findById(boss._id).lean()).roles).toEqual(['admin']);
+    // With another admin, it goes through
+    await makeUser({ roles: ['admin'] });
+    expect((await del()).status).toBe(204);
+    expect(await User.countDocuments({ _id: boss._id })).toBe(0);
+    expect(await User.countDocuments({ roles: 'admin' })).toBe(1);
+  });
+
   test('deletes the account, its binders, lists and logins, and nobody else', async () => {
     const mine = await makeUser();
     const other = await makeUser();

@@ -10,7 +10,7 @@
    ===================================================================== */
 
 import ScryfallCache from '../models/ScryfallCache.js';
-import { cachedLookup, tidyNowAndThen } from './scryfallCache.js';
+import { MISSING, cachedLookup, tidyNowAndThen } from './scryfallCache.js';
 import { slimCard } from './scryfallSlim.js';
 
 const HOUR = 60 * 60 * 1000;
@@ -136,9 +136,10 @@ export function createScryfallService(client) {
     const wanted = new Map();
     for (const identifier of identifiers) wanted.set(keyOf(identifier), identifier);
 
-    // What the notebook already has (fresh or not)
+    // What the notebook already has (fresh or not). A remembered "not found" (see scryfallCache.js) is not a
+    // card, so it is left out here: those cards are simply asked about again.
     const saved = new Map(
-      (await ScryfallCache.find({ key: { $in: [...wanted.keys()] } }).lean()).map((row) => [row.key, row]),
+      (await ScryfallCache.find({ key: { $in: [...wanted.keys()] }, kind: { $ne: MISSING } }).lean()).map((row) => [row.key, row]),
     );
     const found = new Map();
     let stale = false;

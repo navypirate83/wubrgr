@@ -33,7 +33,9 @@ const MAX_COLLECTION = 150;
 // What a good value looks like. Checking before we ask Scryfall means a
 // strange request is turned away without spending a request on it.
 const SET_CODE = /^[a-z0-9]{2,8}$/i;
-const COLLECTOR_NUMBER = /^[^\s/?#\\]{1,12}$/u;
+// (No quote marks either: no real collector number has one, and the number is put inside quote marks in a
+// search sent to Scryfall.)
+const COLLECTOR_NUMBER = /^[^\s/?#\\"]{1,12}$/u;
 const SCRYFALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isName = (value) => typeof value === 'string' && value.trim() !== '' && value.length <= 200;
 

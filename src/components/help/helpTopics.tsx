@@ -1475,7 +1475,7 @@ export const helpTopics: HelpTopic[] = [
               and tap <Strong>Delete my account forever</Strong>. Your account, with every binder, list and
               setting saved in it, is deleted from the server and can't be brought back. The binders and
               lists already on this device stay here, but they are no longer backed up or synced. A Google
-              Drive backup, if you made one, is not touched. It needs an internet connection.
+              Drive backup, if you made one, is not touched. It needs an internet connection. Wrong passwords typed here count the same as on the login screen: five in a row start a 30-minute pause.
             </Bullet>
             <Bullet>
               <Strong>Google Drive backup</Strong> is optional: sign in with Google to also keep a copy

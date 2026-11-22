@@ -46,7 +46,10 @@ test('a new person gets one welcome email with their username and no secrets', a
   expect(sent[0].url).toBe('https://api.resend.com/emails');
   expect(sent[0].to).toEqual(['new.person@example.com']);
   expect(sent[0].subject).toBe('Welcome to WUBRG\'r');
-  expect(sent[0].text).toContain('Hi New Person,');
+  // The greeting never uses the name typed at sign-up (a stranger could choose its words)
+  expect(sent[0].text).toContain('Hi there,');
+  expect(sent[0].text).not.toContain('New Person');
+  expect(sent[0].html).not.toContain('New Person');
   expect(sent[0].text).toContain('Your username: newperson');
   expect(typeof sent[0].html).toBe('string');
   expect(sent[0].html).toContain('newperson');
@@ -84,19 +87,20 @@ test('no email is sent when signing up is refused', async () => {
   expect(sent).toHaveLength(1);
 });
 
-test('a name with HTML in it cannot change how the email looks', () => {
-  const email = welcomeEmail({ name: '<b>Sam</b> & "Co"', username: 'sam', email: 'sam@example.com' });
-  expect(email.html).not.toContain('<b>Sam</b>');
-  expect(email.html).toContain('&lt;b&gt;Sam&lt;/b&gt; &amp; &quot;Co&quot;');
-  // The plain text is not HTML, so it keeps the name as typed
-  expect(email.text).toContain('Hi <b>Sam</b> & "Co",');
+test('the name typed at sign-up is not in the email at all, whatever it says', () => {
+  const email = welcomeEmail({ name: '<b>Sam</b> visit evil.example', username: 'sam', email: 'sam@example.com' });
+  for (const part of [email.html, email.text]) {
+    expect(part).not.toContain('Sam</b>');
+    expect(part).not.toContain('evil.example');
+    expect(part).toContain('Hi there,');
+  }
 });
 
 test('when the username is the email (Google sign-ups), it is not said twice', () => {
   const email = welcomeEmail({ name: 'Gina', username: 'Gina@Example.com', email: 'gina@example.com' });
   expect(email.text).not.toContain('Your username:');
   expect(email.html).not.toContain('Your username:');
-  expect(email.text).toContain('Hi Gina,');
+  expect(email.text).toContain('Hi there,');
 });
 
 test('the link in the email can be set with APP_URL', () => {

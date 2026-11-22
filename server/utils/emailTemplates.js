@@ -25,9 +25,11 @@ export function escapeHtml(text) {
 }
 
 // The welcome email for a new person: { subject, text, html }.
-// user needs name, username and email.
+// user needs username and email.
+// It greets everybody with "Hi there," and never uses the NAME typed at sign-up. Nobody has confirmed that
+// the email address belongs to whoever signed up, so a stranger could sign up with someone else's address
+// and have our server send that person a greeting made of words the stranger chose ("Hi visit this site...").
 export function welcomeEmail(user) {
-  const name = (user.name || '').trim() || 'there';
   // For people who signed up with Google (or left the username empty) the
   // username IS their email, so don't say the same thing twice
   const showUsername = user.username && user.username.toLowerCase() !== String(user.email).toLowerCase();
@@ -36,7 +38,7 @@ export function welcomeEmail(user) {
   const subject = 'Welcome to WUBRG\'r';
 
   const text = [
-    `Hi ${name},`,
+    'Hi there,',
     '',
     'Your WUBRG\'r account is ready.',
     '',
@@ -60,7 +62,7 @@ export function welcomeEmail(user) {
   <body style="margin:0;padding:24px;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#1f2933;">
     <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:28px;">
       <h1 style="margin:0 0 16px;font-size:22px;">Welcome to WUBRG'r</h1>
-      <p style="margin:0 0 12px;font-size:16px;line-height:24px;">Hi ${escapeHtml(name)},</p>
+      <p style="margin:0 0 12px;font-size:16px;line-height:24px;">Hi there,</p>
       <p style="margin:0 0 12px;font-size:16px;line-height:24px;">Your WUBRG'r account is ready.</p>
       ${showUsername
         ? `<p style="margin:0 0 12px;font-size:16px;line-height:24px;">Your username: <strong>${escapeHtml(user.username)}</strong><br>You can log in with this or with your email address.</p>`
