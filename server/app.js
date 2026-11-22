@@ -54,9 +54,12 @@ app.use(helmet());
 // CORS: which WEBSITES a browser lets read our answers. Only the exact
 // addresses in CORS_ORIGINS are allowed, never "*". This is NOT a login:
 // it only controls browsers, so the token checks below still do the real
-// protecting. The phone app sends no Origin and isn't affected. We don't
-// turn on "credentials" because the app sends its token in a header.
+// protecting. The phone app sends no Origin and isn't affected.
+// "credentials" lets the browser send and keep the website's locked login cookie (see
+// utils/sessionCookie.js). It is only ever granted to the exact addresses above, and the cookie is
+// only used on the sign-in routes; everything else still uses the token in a header.
 app.use(cors({
+  credentials: true,
   origin(origin, callback) {
     // No Origin header (phone app, curl): fine. Otherwise it must match exactly.
     callback(null, !origin || config.corsOrigins.includes(origin) ? (origin ?? false) : false);

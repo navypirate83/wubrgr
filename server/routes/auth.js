@@ -12,6 +12,9 @@
    - POST /auth/reset        set a new password using that code
    - DELETE /auth/account    delete the account and everything in it (needs sign-in + password)
    Every sign-in ends by calling issueSession (see utils/tokens.js).
+   THE WEBSITE keeps its long-lived login code in a locked cookie its own page can't read, not in the
+   reply: sign-in answers go out through sendSession, and /refresh and /logout read the cookie
+   (see utils/sessionCookie.js). The phone app is unchanged: tokens in the reply and in the body.
    The strict rate limits on these routes are attached in app.js.
    ===================================================================== */
 
@@ -29,6 +32,7 @@ import { checkNewPassword } from '../utils/password.js';
 import { deleteAccountAndData } from '../utils/deleteAccount.js';
 import { hashToken, issueSession } from '../utils/tokens.js';
 import { checkGoogleAccessToken, googleIsConfigured, googleLoginIsOn } from '../utils/google.js';
+import { clearRefreshCookie, readRefreshCookie, sendSession, wantsCookie } from '../utils/sessionCookie.js';
 
 const router = Router();
 
@@ -97,7 +101,7 @@ router.post('/signup', async (req, res) => {
     const user = await User.create({ email: cleanEmail, password, name: name.trim(), username: chosenUsername });
     // Say welcome by email (not waited for, and never a reason signing up fails)
     sendWelcomeEmail(user);
-    return res.status(201).json(await issueSession(user));
+    return sendSession(req, res, 201, await issueSession(user));
   } catch (err) {
     // Two signups at the same instant can both pass the checks above; the
     // unique rule in the database stops the second one
@@ -160,7 +164,7 @@ router.post('/login', async (req, res) => {
     if (user.failedLogins || user.lockedUntil || user.mustResetPassword) {
       await User.updateOne({ _id: user._id }, { $set: { failedLogins: 0 }, $unset: { lockedUntil: '', mustResetPassword: '' } });
     }
-    return res.status(200).json(await issueSession(user));
+    return sendSession(req, res, 200, await issueSession(user));
   } catch (err) {
     return handleDbError(err, res);
   }
@@ -215,7 +219,7 @@ router.post('/google', async (req, res) => {
         if (result.lastErrorObject?.updatedExisting === false) sendWelcomeEmail(user);
       }
     }
-    return res.status(200).json(await issueSession(user));
+    return sendSession(req, res, 200, await issueSession(user));
   } catch (err) {
     return handleDbError(err, res);
   }
@@ -224,15 +228,26 @@ router.post('/google', async (req, res) => {
 /* ---------- staying signed in ---------- */
 
 router.post('/refresh', async (req, res) => {
-  const { refreshToken } = req.body ?? {};
-  if (typeof refreshToken !== 'string' || refreshToken === '') {
+  // The refresh token comes in the request's body (the phone app, and a website login from before the
+  // cookie existed) or, for the website, in the locked cookie (see utils/sessionCookie.js)
+  const cookieMode = wantsCookie(req);
+  const sent = req.body?.refreshToken;
+  const refreshToken = typeof sent === 'string' && sent !== '' ? sent : readRefreshCookie(req);
+  // The website with no cookie at all (it ran out, or the browser threw it away): the login is simply over
+  if (refreshToken === '' && cookieMode) return res.status(401).json({ error: 'Please sign in' });
+  if (refreshToken === '') {
     return res.status(400).json({ error: 'refreshToken is required' });
   }
+  // "The login is over": for the website, the cookie is thrown away as well
+  const over = () => {
+    if (cookieMode) clearRefreshCookie(req, res);
+    return res.status(401).json({ error: 'Please sign in' });
+  };
   try {
     const tokenHash = hashToken(refreshToken);
     const row = await RefreshToken.findOne({ tokenHash });
     // Not found, or past its 60 days
-    if (!row || row.expiresAt <= new Date()) return res.status(401).json({ error: 'Please sign in' });
+    if (!row || row.expiresAt <= new Date()) return over();
 
     // Already swapped for a newer one. Usually that's an honest second try, not theft: the swap
     // worked but the new token never reached the app (it was switched away from or closed while the
@@ -242,21 +257,21 @@ router.post('/refresh', async (req, res) => {
     // later: it may have been copied) cancels every token from this login.
     if (row.usedAt && Date.now() - row.usedAt.getTime() > REUSE_GRACE_DAYS * 24 * 60 * 60 * 1000) {
       await RefreshToken.deleteMany({ family: row.family });
-      return res.status(401).json({ error: 'Please sign in' });
+      return over();
     }
 
     // The account must still exist (this also picks up a change of rights)
     const user = await User.findById(row.user);
     if (!user) {
       await RefreshToken.deleteMany({ family: row.family });
-      return res.status(401).json({ error: 'Please sign in' });
+      return over();
     }
 
     // Mark it used in ONE step (it does nothing if it was already used, which is fine now)
     await RefreshToken.updateOne({ tokenHash, usedAt: null }, { usedAt: new Date() });
 
     // A new pair, in the same family
-    return res.status(200).json(await issueSession(user, row.family));
+    return sendSession(req, res, 200, await issueSession(user, row.family));
   } catch (err) {
     return handleDbError(err, res);
   }
@@ -354,14 +369,18 @@ router.post('/reset', async (req, res) => {
 // reveals nothing about whether the token was real.
 router.post('/logout', async (req, res) => {
   try {
-    const { refreshToken } = req.body ?? {};
-    if (typeof refreshToken === 'string' && refreshToken !== '') {
+    // The token to end: from the body (phone app) or, for the website, from the locked cookie
+    const sent = req.body?.refreshToken;
+    const refreshToken = typeof sent === 'string' && sent !== '' ? sent : readRefreshCookie(req);
+    if (refreshToken !== '') {
       const row = await RefreshToken.findOne({ tokenHash: hashToken(refreshToken) });
       if (row) await RefreshToken.deleteMany({ family: row.family });
     }
   } catch (err) {
     console.error(err);
   }
+  // The website's browser throws its cookie away too
+  if (wantsCookie(req)) clearRefreshCookie(req, res);
   return res.status(204).end();
 });
 
@@ -369,6 +388,7 @@ router.post('/logout', async (req, res) => {
 router.post('/logout-all', requireAuth, async (req, res) => {
   try {
     await RefreshToken.deleteMany({ user: req.user.sub });
+    if (wantsCookie(req)) clearRefreshCookie(req, res);
     return res.status(204).end();
   } catch (err) {
     return handleDbError(err, res);
@@ -399,6 +419,7 @@ router.delete('/account', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Please confirm that you want to delete the account' });
     }
     await deleteAccountAndData(user._id);
+    if (wantsCookie(req)) clearRefreshCookie(req, res);
     return res.status(204).end();
   } catch (err) {
     return handleDbError(err, res);
