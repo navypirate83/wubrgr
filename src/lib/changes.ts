@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.0.15',
+    date: '2026-11-21',
+    lines: ['Security fixes. Password reset codes are now 10 letters and digits, and work for 90 minutes.'],
+  },
+  {
     version: '1.1.0',
     date: '2026-11-21',
     lines: [

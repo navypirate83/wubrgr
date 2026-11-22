@@ -9,7 +9,7 @@
                              looks like; a copied token ends the whole login: see the note in the route)
    - POST /auth/logout       end this login
    - POST /auth/logout-all   end every login of this account (needs sign-in)
-   - POST /auth/forgot       email a 6-digit code (and the username) to an account
+   - POST /auth/forgot       email a 10-character code (and the username) to an account
    - POST /auth/reset        set a new password using that code
    - DELETE /auth/account    delete the account and everything in it (needs sign-in + password)
    Every sign-in ends by calling issueSession (see utils/tokens.js).
@@ -20,11 +20,12 @@
    ===================================================================== */
 
 import { Router } from 'express';
-import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import User, { USERNAME_PATTERN } from '../models/User.js';
 import RefreshToken from '../models/RefreshToken.js';
 import PasswordReset from '../models/PasswordReset.js';
+import LoginTry from '../models/LoginTry.js';
+import { RESET_CODE_MINUTES, cleanResetCode, makeResetCode, showResetCode } from '../utils/resetCode.js';
 import { mailIsConfigured, sendMail, sendWelcomeEmail } from '../utils/mail.js';
 import { requireAuth } from '../middleware/auth.js';
 import { handleDbError } from '../middleware/errorHandler.js';
@@ -121,6 +122,48 @@ router.post('/signup', async (req, res) => {
 
 /* ---------- log in ---------- */
 
+// COUNT ONE LOGIN TRY, in ONE step in the database, BEFORE the password's answer is given.
+// "Add one to the tries in a row, unless this name is paused or needs a reset. If that makes 5 (or 10, 15...),
+// start a 30-minute pause; if it makes 10 and email works, mark it as needing a password reset."
+// Doing the count AND the pause as one step is what stops a burst: guesses that arrive at the same instant
+// can't all read "not paused yet", so no more than 5 are ever answered between pauses.
+// "Model" and "who" say where the count lives: an account (User, by id) or a typed name with no account
+// (LoginTry, by the name's fingerprint, made the first time it is tried).
+// Gives null when the try may go ahead, 'reset' when a password reset is needed, or the minutes left of a pause.
+async function countLoginTry(Model, who) {
+  const now = new Date();
+  // "Reset needed" only counts while email works: without it nobody could ever get back in
+  const resetCounts = mailIsConfigured();
+  const filter = {
+    ...who,
+    ...(resetCounts ? { mustResetPassword: { $ne: true } } : {}),
+    $or: [{ lockedUntil: null }, { lockedUntil: { $lte: now } }],
+  };
+  const update = [
+    { $set: { failedLogins: { $add: [{ $ifNull: ['$failedLogins', 0] }, 1] } } },
+    { $set: {
+      // Every 5th try in a row starts a pause
+      lockedUntil: { $cond: [{ $eq: [{ $mod: ['$failedLogins', WRONG_BEFORE_LOCK] }, 0] }, new Date(now.getTime() + LOCK_MINUTES * 60 * 1000), { $ifNull: ['$lockedUntil', null] }] },
+      // The 10th in a row: the password stops working until it is reset by email
+      mustResetPassword: { $cond: [{ $and: [resetCounts, { $gte: ['$failedLogins', WRONG_BEFORE_RESET] }] }, true, { $ifNull: ['$mustResetPassword', false] }] },
+      // (a row for a name with no account deletes itself 30 days after its last try)
+      ...(Model === LoginTry ? { expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) } : {}),
+    } },
+  ];
+  try {
+    const counted = await Model.findOneAndUpdate(filter, update, { returnDocument: 'after', upsert: Model === LoginTry, updatePipeline: true });
+    if (counted) return null;
+  } catch (err) {
+    // (11000: the row for this name exists but is paused, so "make a new one" was refused. That is a pause.)
+    if (err?.code !== 11000) throw err;
+  }
+  // Not counted, so it is paused or needs a reset: which?
+  const state = await Model.findOne(who).select('lockedUntil mustResetPassword').lean();
+  if (state?.mustResetPassword && resetCounts) return 'reset';
+  const left = state?.lockedUntil ? state.lockedUntil.getTime() - Date.now() : 0;
+  return Math.max(1, Math.ceil(left / 60000));
+}
+
 router.post('/login', async (req, res) => {
   const { password } = req.body ?? {};
   // "username" or "email": either field may hold the username or the email
@@ -135,41 +178,26 @@ router.post('/login', async (req, res) => {
     // Same amount of work whether or not the account exists (or has a password)
     const ok = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
 
-    // An account with a password can be paused or made to reset it after too many wrong
-    // passwords. While that holds, even the RIGHT password is refused (otherwise the pause
-    // would not slow a guesser down at all). Signing in with Google is not affected.
-    if (user?.password) {
-      // "Reset needed" only counts while email works: without it nobody could ever get back in
-      if (user.mustResetPassword && mailIsConfigured()) {
-        return res.status(403).json({ error: 'Too many wrong passwords. Reset your password to log in again: tap "Forgot username/password?".' });
-      }
-      if (user.lockedUntil && user.lockedUntil > new Date()) {
-        const minutes = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000));
-        return res.status(429).json({ error: `Too many wrong passwords. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}, or reset your password.` });
-      }
+    // EVERY try is counted before the answer is given (see countLoginTry above): on the account itself when
+    // the name belongs to one with a password, and otherwise on a row for the name that was typed, so a
+    // made-up name is paused and answered in exactly the same way as a real one. While a name is paused or
+    // needs a reset, even the RIGHT password is refused (otherwise the pause would not slow a guesser down).
+    const real = !!user?.password;
+    const refused = real
+      ? await countLoginTry(User, { _id: user._id })
+      : await countLoginTry(LoginTry, { key: hashToken(`login:${name}`) });
+    if (refused === 'reset') {
+      return res.status(403).json({ error: 'Too many wrong passwords. Reset your password to log in again: tap "Forgot username/password?".' });
+    }
+    if (refused) {
+      return res.status(429).json({ error: `Too many wrong passwords. Try again in ${refused} minute${refused === 1 ? '' : 's'}, or reset your password.` });
     }
 
-    if (!user || !user.password || !ok) {
-      // A wrong password for a real account: count it, in ONE step in the database so
-      // guesses sent at the same instant are all counted
-      if (user?.password) {
-        const counted = await User.findOneAndUpdate({ _id: user._id }, { $inc: { failedLogins: 1 } }, { returnDocument: 'after' }).select('failedLogins');
-        const wrong = counted?.failedLogins ?? 0;
-        if (wrong >= WRONG_BEFORE_RESET && mailIsConfigured()) {
-          // The 10th in a row: the password stops working until it is reset by email
-          await User.updateOne({ _id: user._id }, { $set: { mustResetPassword: true } });
-        } else if (wrong >= WRONG_BEFORE_LOCK && wrong % WRONG_BEFORE_LOCK === 0) {
-          // The 5th in a row (and, where email is not set up, every 5th after it): pause for 30 minutes
-          await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60 * 1000) } });
-        }
-      }
-      // One answer for "no such account" and "wrong password"
-      return res.status(401).json({ error: 'Invalid username or password' });
-    }
+    // One answer for "no such account" and "wrong password"
+    if (!real || !ok) return res.status(401).json({ error: 'Invalid username or password' });
+
     // The right password: the count of wrong ones starts again from nothing
-    if (user.failedLogins || user.lockedUntil || user.mustResetPassword) {
-      await User.updateOne({ _id: user._id }, { $set: { failedLogins: 0 }, $unset: { lockedUntil: '', mustResetPassword: '' } });
-    }
+    await User.updateOne({ _id: user._id }, { $set: { failedLogins: 0 }, $unset: { lockedUntil: '', mustResetPassword: '' } });
     return sendSession(req, res, 200, await issueSession(user));
   } catch (err) {
     return handleDbError(err, res);
@@ -335,8 +363,6 @@ router.post('/refresh', async (req, res) => {
 // without a cap somebody could keep asking for fresh codes to get more guesses (and bury the real
 // owner in emails). 5 an hour is plenty for a person who really forgot.
 const RESET_EMAILS_PER_HOUR = 5;
-// How many guesses one reset code allows before it is thrown away
-const RESET_GUESSES = 5;
 
 // May this account be sent another "forgot password" email right now? Counts it if so. Done in ONE step
 // in the database each way, so requests arriving at the same instant can't all slip under the cap.
@@ -374,14 +400,17 @@ router.post('/forgot', async (req, res) => {
       // Over this account's cap for the hour: nothing is sent, and the answer is the usual one (so the
       // cap can't be used to find out whether the email has an account)
       if (!(await countResetEmail(user._id))) return res.status(200).json(FORGOT_ANSWER);
-      const code = String(randomInt(0, 1000000)).padStart(6, '0');
+      const code = makeResetCode();
       // A Google-only account has no password to reset: just remind the username
       const googleOnly = !user.password;
       if (!googleOnly) {
-        // Replace any code still waiting for this person
+        // ADD this code to the person's working codes. The earlier ones keep working (so asking again can't
+        // be used to cancel somebody's code); only the newest 5 are kept, which is also the most that can be
+        // emailed in an hour.
+        const expiresAt = new Date(Date.now() + RESET_CODE_MINUTES * 60 * 1000);
         await PasswordReset.findOneAndUpdate(
           { user: user._id },
-          { codeHash: hashToken(code), attempts: 0, expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
+          { $push: { codes: { $each: [{ hash: hashToken(code), expiresAt }], $slice: -RESET_EMAILS_PER_HOUR } }, $set: { expiresAt } },
           { upsert: true },
         );
       }
@@ -392,7 +421,7 @@ router.post('/forgot', async (req, res) => {
           text: `Your WUBRG'r username is: ${user.username}\n\n`
             + (googleOnly
               ? 'This account signs in with Google, so there is no password to reset.\n'
-              : `Your password reset code is: ${code}\nIt works for 15 minutes. If you didn't ask for it, ignore this email.\n`),
+              : `Your password reset code is: ${showResetCode(code)}\nIt works for ${RESET_CODE_MINUTES} minutes. Type it in the app, or on the website if your app only takes 6 digits. If you didn't ask for it, ignore this email.\n`),
         });
       } catch (err) {
         console.error('Could not send the reset email:', err.message);
@@ -419,30 +448,20 @@ router.post('/reset', async (req, res) => {
   const WRONG = { error: 'That code is wrong or has run out. Ask for a new one.' };
   try {
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
-    // EVERY guess is counted BEFORE the code is looked at, in ONE step in the database: "add one to the
-    // count, but only if it is still under 5 and the code has not run out". Guesses that arrive at the
-    // same instant can't all read the old count, so exactly 5 are ever checked per code. No row back
-    // means there is no code, it ran out, or its guesses are used up.
-    const row = user
-      ? await PasswordReset.findOneAndUpdate(
-        { user: user._id, attempts: { $lt: RESET_GUESSES }, expiresAt: { $gt: new Date() } },
-        { $inc: { attempts: 1 } },
-        { returnDocument: 'after' },
-      )
-      : null;
-    if (!row) return res.status(400).json(WRONG);
-    if (row.codeHash !== hashToken(code.trim())) {
-      // A wrong guess. That was the last one allowed: the code is thrown away.
-      if (row.attempts >= RESET_GUESSES) await row.deleteOne();
+    // The code must be one of this person's emailed codes that still works. A wrong guess changes nothing:
+    // the code is far too long to guess (see utils/resetCode.js), so there is no "too many guesses" rule that
+    // somebody else could set off on purpose to throw a person's code away.
+    const row = user ? await PasswordReset.findOne({ user: user._id }) : null;
+    const typed = cleanResetCode(code);
+    const typedHash = typed ? hashToken(typed) : '';
+    const now = new Date();
+    if (!row || !typedHash || !(row.codes ?? []).some((one) => one.hash === typedHash && one.expiresAt > now)) {
       return res.status(400).json(WRONG);
     }
     // Now that we know who it is: the new password can't hold their username either
+    // (the code stays good, so picking another password doesn't use it up)
     const ownProblem = checkNewPassword(password, { email: user.email, username: user.username });
-    if (ownProblem) {
-      // The code was right, so this try is handed back: picking another password doesn't use up the code
-      await PasswordReset.updateOne({ _id: row._id }, { $inc: { attempts: -1 } });
-      return res.status(400).json({ error: ownProblem });
-    }
+    if (ownProblem) return res.status(400).json({ error: ownProblem });
     user.password = password;   // scrambled by the model when saved
     // A reset also lifts any pause or "reset needed" from too many wrong passwords
     user.failedLogins = 0;

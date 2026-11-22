@@ -74,7 +74,7 @@ export const helpTopics: HelpTopic[] = [
               password. Your binders and lists are saved in your account and on this device, so you
               can open them on any phone or computer, and the app still works with no internet.
               On the login screen, <Strong>Forgot username/password?</Strong> emails you your
-              username and a 6-digit code to set a new password.
+              username and a code to set a new password (10 letters and digits, good for 90 minutes).
             </Bullet>
             <Bullet>
               <Strong>Create account</Strong> (the link under Login): type your name, email, a
@@ -714,7 +714,7 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>
               <Strong>Forgot your username or password?</Strong> On the login screen, tap{' '}
-              <Strong>Forgot username/password?</Strong>. It emails you your username and a 6-digit code to set a new password.
+              <Strong>Forgot username/password?</Strong>. It emails you your username and a code to set a new password: 10 letters and digits, shown as two halves with a dash. Type or paste it (capitals, the dash and spaces don't matter). It works for 90 minutes, asking again doesn't cancel an earlier code, and at most 5 emails are sent in an hour. A phone app from before version 1.0.15 only takes 6 digits in that box: reset the password on the website instead.
               To stop anyone guessing a password, 5 wrong passwords in a row pause logging in to that account for 30 minutes
               (even with the right password). After 5 more wrong ones the password stops working until you set a new one
               with <Strong>Forgot username/password?</Strong>. Logging in with the right password, or setting a new one,

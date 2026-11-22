@@ -6,7 +6,9 @@
    - create:  name, email, an optional username (left empty, the email is
               the username) and a password
    - forgot:  step 1, type your email: the server emails you your username
-              and a 6-digit code. Step 2, type the code and a new password.
+              and a code of 10 letters and digits ("K7QM2-XH4RT"). Step 2, type the
+              code and a new password. The code works for 90 minutes; the dash, spaces
+              and capitals don't matter when typing it.
    After signing in or creating an account the binders and lists on this
    device are sent to your account (see lib/serverSync.ts), then you go to
    your binders.
@@ -25,6 +27,9 @@ import TextField from '@/components/TextField';
 
 // The three things this screen can be doing
 type Mode = 'login' | 'create' | 'forgot';
+
+// How many letters and digits are in what was typed (the reset code has 10; its dash and any spaces don't count)
+const lettersAndDigits = (text: string) => text.replace(/[^A-Za-z0-9]/g, '').length;
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -157,7 +162,8 @@ export default function LoginScreen() {
           {mode === 'forgot' && (
             <View style={styles.form}>
               <Text style={[styles.text, { color: colors.muted }]}>
-                Type the email of your account. We email you your username and a 6-digit code to set a new password.
+                Type the email of your account. We email you your username and a code to set a new password.
+                The code works for 90 minutes.
               </Text>
               <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
                          keyboardType="email-address" autoComplete="email" textContentType="emailAddress" editable={!codeSent} />
@@ -165,11 +171,14 @@ export default function LoginScreen() {
                 <Button label={busy ? 'Sending…' : 'Email me'} icon="mail-outline" disabled={busy || !email.trim()} onPress={sendCode} />
               ) : (
                 <>
-                  <TextField label="6-digit code from the email" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} />
+                  {/* The code is 10 letters and digits, shown in the email as two halves with a dash. It can be
+                      typed or pasted any way round: capitals, the dash and spaces don't matter. */}
+                  <TextField label="Code from the email (10 letters and digits)" value={code} onChangeText={setCode}
+                             autoCapitalize="characters" autoCorrect={false} autoComplete="one-time-code" maxLength={20} />
                   <TextField label="New password (12 or more characters, with a number or symbol)" value={password} onChangeText={setPassword} secureTextEntry
                              autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" />
                   <Button label={busy ? 'Changing…' : 'Change password'} icon="key-outline"
-                          disabled={busy || code.trim().length !== 6 || password.length < 12} onPress={changePassword} />
+                          disabled={busy || lettersAndDigits(code) !== 10 || password.length < 12} onPress={changePassword} />
                 </>
               )}
               <Button label="Back to log in" kind="plain" onPress={() => go('login')} />

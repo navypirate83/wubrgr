@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import app from '../../app.js';
 import User from '../../models/User.js';
 import RefreshToken from '../../models/RefreshToken.js';
+import LoginTry from '../../models/LoginTry.js';
 import Binder from '../../models/Binder.js';
 import List from '../../models/List.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
@@ -153,7 +154,7 @@ describe('login', () => {
       expect(blocked.body.error).toMatch(/Reset your password/);
 
       await request(app).post('/auth/forgot').send({ email: user.email });
-      const code = /code is: (\d{6})/.exec(sent[0].text)[1];
+      const code = /code is: ([A-Z0-9]{5}-[A-Z0-9]{5})/.exec(sent[0].text)[1];
       expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
       expect((await tryLogin(user, 'brand-new-pass1')).status).toBe(200);
       const saved = await User.findById(user._id);
@@ -173,7 +174,50 @@ describe('login', () => {
     await User.updateOne({ _id: user._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
     await tryLogin(user, 'wrong-wrong-1', 5);
     expect((await tryLogin(user, TEST_PASSWORD)).status).toBe(429);
-    expect((await User.findById(user._id)).mustResetPassword).toBeUndefined();
+    expect((await User.findById(user._id)).mustResetPassword).toBeFalsy();
+  });
+
+  test('a burst of 20 wrong passwords at the same instant: only 5 are answered, the rest find the account paused', async () => {
+    const user = await makeUser();
+    const answers = await Promise.all(Array.from({ length: 20 }, () => request(app).post('/auth/login').send({ email: user.email, password: 'wrong-wrong-1' })));
+    expect(answers.filter((res) => res.status === 401)).toHaveLength(5);
+    expect(answers.filter((res) => res.status === 429)).toHaveLength(15);
+    expect((await User.findById(user._id)).failedLogins).toBe(5);
+  });
+
+  test('the right password hidden in a burst of wrong ones cannot slip past the count', async () => {
+    const user = await makeUser();
+    // 12 wrong and then the right one, all at once: at most 5 of the 13 are answered at all
+    const answers = await Promise.all([...Array.from({ length: 12 }, () => 'wrong-wrong-1'), TEST_PASSWORD]
+      .map((password) => request(app).post('/auth/login').send({ email: user.email, password })));
+    expect(answers.filter((res) => res.status !== 429).length).toBeLessThanOrEqual(5);
+  });
+
+  test('a name with no account is paused, and asked to reset, exactly like a real one', async () => {
+    process.env.RESEND_API_KEY = 'fake';
+    process.env.MAIL_FROM = 'Test <test@example.com>';
+    try {
+      const real = await makeUser();
+      const ghost = { email: 'ghost@example.com' };
+      // The same tries on both, side by side: every answer must match (status and words)
+      const both = async (password) => {
+        const [a, b] = [await tryLogin(real, password), await tryLogin(ghost, password)];
+        expect({ status: b.status, body: b.body }).toEqual({ status: a.status, body: a.body });
+        return a;
+      };
+      for (let i = 0; i < 5; i += 1) expect((await both('wrong-wrong-1')).status).toBe(401);
+      expect((await both('wrong-wrong-1')).status).toBe(429);
+      // The pause ends for both (pretend the 30 minutes have passed)
+      await User.updateOne({ _id: real._id }, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
+      await LoginTry.updateMany({}, { $set: { lockedUntil: new Date(Date.now() - 1000) } });
+      for (let i = 0; i < 5; i += 1) expect((await both('wrong-wrong-1')).status).toBe(401);
+      expect((await both('wrong-wrong-1')).status).toBe(403);
+      // Only a fingerprint of the made-up name is kept
+      expect(JSON.stringify(await LoginTry.find().lean())).not.toContain('ghost');
+    } finally {
+      delete process.env.RESEND_API_KEY;
+      delete process.env.MAIL_FROM;
+    }
   });
 
   test('wrong passwords for an account that does not exist change nothing', async () => {

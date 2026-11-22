@@ -10,6 +10,8 @@ export const COLLECTIONS = {
   user: 'wubrgr_users',
   refreshToken: 'wubrgr_refreshtokens',
   passwordReset: 'wubrgr_passwordresets',
+  // Wrong passwords typed for a name that has no account (see models/LoginTry.js)
+  loginTry: 'wubrgr_logintries',
   binder: 'wubrgr_binders',
   card: 'wubrgr_cards',
   list: 'wubrgr_lists',

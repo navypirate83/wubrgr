@@ -9,6 +9,10 @@ import { jest } from '@jest/globals';
 import app from '../../app.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
 import { makeUser, TEST_PASSWORD } from '../helpers/users.js';
+import PasswordReset from '../../models/PasswordReset.js';
+
+// How the code looks in the email: two halves of five letters and digits ("K7QM2-XH4RT")
+const CODE = /code is: ([A-Z0-9]{5}-[A-Z0-9]{5})/;
 
 beforeAll(connectTestDb);
 afterAll(disconnectTestDb);
@@ -36,7 +40,7 @@ test('forgot sends the username and a code, and reset sets the new password', as
   expect(forgot.status).toBe(200);
   expect(sent).toHaveLength(1);
   expect(sent[0].text).toContain(user.username);
-  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
+  const code = CODE.exec(sent[0].text)[1];
 
   const reset = await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' });
   expect(reset.status).toBe(200);
@@ -53,39 +57,66 @@ test('an unknown email gets the same answer and nothing is sent', async () => {
   expect(sent).toHaveLength(0);
 });
 
-test('five wrong codes throw the code away', async () => {
+test('wrong guesses never throw the code away: after 20 of them the real code still works', async () => {
   const user = await makeUser();
   const sent = fakeMail();
   await request(app).post('/auth/forgot').send({ email: user.email });
-  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
-  const wrong = code === '000000' ? '111111' : '000000';
-  for (let i = 0; i < 5; i += 1) {
-    expect((await request(app).post('/auth/reset').send({ email: user.email, code: wrong, password: 'brand-new-pass1' })).status).toBe(400);
-  }
-  // Even the right code fails now
-  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(400);
-});
-
-test('a burst of wrong codes at the same instant still only gets 5 guesses, and the right code fails after', async () => {
-  const user = await makeUser();
-  const sent = fakeMail();
-  await request(app).post('/auth/forgot').send({ email: user.email });
-  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
-  // 20 different wrong codes, all sent together
-  const wrongs = Array.from({ length: 21 }, (_, i) => String(100000 + i)).filter((guess) => guess !== code).slice(0, 20);
+  const code = CODE.exec(sent[0].text)[1];
+  // 20 wrong codes all sent together (somebody trying to spoil the owner's code), in the old and the new shape
+  const wrongs = [...Array.from({ length: 10 }, (_, i) => String(100000 + i)), ...Array.from({ length: 10 }, (_, i) => `AAAAA-BBBB${i}`)].filter((guess) => guess !== code);
   const answers = await Promise.all(wrongs.map((guess) => request(app).post('/auth/reset').send({ email: user.email, code: guess, password: 'brand-new-pass1' })));
   expect(answers.every((res) => res.status === 400)).toBe(true);
-  // The code is used up: even the right one fails, and the old password still works
-  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(400);
   expect((await request(app).post('/auth/login').send({ username: user.username, password: TEST_PASSWORD })).status).toBe(200);
+  // The owner's code is untouched
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
+});
+
+test('asking for another code does not cancel the earlier one', async () => {
+  const user = await makeUser();
+  const sent = fakeMail();
+  await request(app).post('/auth/forgot').send({ email: user.email });
+  await request(app).post('/auth/forgot').send({ email: user.email });   // (somebody else asking, say)
+  const [first, second] = sent.map((mail) => CODE.exec(mail.text)[1]);
+  expect(first).not.toBe(second);
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code: first, password: 'brand-new-pass1' })).status).toBe(200);
+  // A reset uses up every code that was waiting
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code: second, password: 'another-pass-2' })).status).toBe(400);
+});
+
+test('the code can be typed in small letters, without the dash, or with spaces', async () => {
+  for (const retype of [(c) => c.toLowerCase(), (c) => c.replace('-', ''), (c) => ` ${c.replace('-', ' ')} `]) {
+    await clearTestDb();
+    const user = await makeUser();
+    const sent = fakeMail();
+    await request(app).post('/auth/forgot').send({ email: user.email });
+    const code = CODE.exec(sent[0].text)[1];
+    expect((await request(app).post('/auth/reset').send({ email: user.email, code: retype(code), password: 'brand-new-pass1' })).status).toBe(200);
+    jest.restoreAllMocks();
+  }
+});
+
+test('the code is 10 letters and digits, works for 90 minutes, and is refused once it has run out', async () => {
+  const user = await makeUser();
+  const sent = fakeMail();
+  await request(app).post('/auth/forgot').send({ email: user.email });
+  expect(sent[0].text).toMatch(/works for 90 minutes/);
+  const code = CODE.exec(sent[0].text)[1];
+  const row = await PasswordReset.findOne({ user: user._id });
+  expect(row.codes).toHaveLength(1);
+  expect(row.codes[0].expiresAt.getTime()).toBeGreaterThan(Date.now() + 89 * 60 * 1000);
+  // Only a fingerprint is kept, never the code
+  expect(JSON.stringify(row)).not.toContain(code.replace('-', ''));
+  // Pretend the 90 minutes are over
+  await PasswordReset.updateOne({ user: user._id }, { $set: { 'codes.0.expiresAt': new Date(Date.now() - 1000) } });
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(400);
 });
 
 test('the right code with a new password that holds the username does not use up the code', async () => {
   const user = await makeUser();
   const sent = fakeMail();
   await request(app).post('/auth/forgot').send({ email: user.email });
-  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
-  // Six tries with a password that holds the username: all refused for the password, none uses a guess
+  const code = CODE.exec(sent[0].text)[1];
+  // Six tries with a password that holds the username: all refused for the password, and the code stays good
   for (let i = 0; i < 6; i += 1) {
     const res = await request(app).post('/auth/reset').send({ email: user.email, code, password: `${user.username}-pass-1!` });
     expect(res.status).toBe(400);
@@ -103,7 +134,7 @@ test('an account is sent at most 5 forgot-password emails an hour; the answer st
   }
   expect(sent).toHaveLength(5);
   // The last code that WAS sent still works
-  const code = /code is: (\d{6})/.exec(sent[4].text)[1];
+  const code = CODE.exec(sent[4].text)[1];
   expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
 });
 
@@ -142,7 +173,7 @@ test('an old 8-character password still logs in, but a reset needs 12 characters
 
   const sent = fakeMail();
   await request(app).post('/auth/forgot').send({ email: user.email });
-  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
+  const code = CODE.exec(sent[0].text)[1];
   const weak = await request(app).post('/auth/reset').send({ email: user.email, code, password: 'elevenchar1' });
   expect(weak.status).toBe(400);
   expect(weak.body.error).toBe('Password must be at least 12 characters long');
