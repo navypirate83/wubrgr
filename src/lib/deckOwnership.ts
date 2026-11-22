@@ -6,8 +6,9 @@
      - 'printing': you own the card, but not this printing -> dashed red border
                    (tap it to pick one of the printings you own)
      - false:      you own this printing                   -> no border
-   A "printing" is one version of a card: a set and a collector number.
-   Foil and language don't count as a different printing here.
+   A "printing" here is one version of a card: a set, a collector number and
+   its finish (foil or not). So owning the non-foil does NOT cover a foil
+   pick (or the other way round). Language doesn't count as different.
 
    If a deck holds more copies of a printing than you own, the extra copies
    are split off as their own entry (so each entry can have its own border),
@@ -29,7 +30,11 @@ export type OwnedMap = Map<string, OwnedPrint[]>;
 // A border to draw: false is none
 export type Mark = false | 'card' | 'printing';
 
+// The set and collector number only (the PRISM section uses this one)
 export const printKey = (card: { set: string; number: string }): string => `${card.set}/${card.number}`.toLowerCase();
+// The same, plus the finish: a foil and a non-foil of one printing are told
+// apart. Decks use this one to check what you own.
+export const ownKey = (card: { set: string; number: string; foil?: boolean }): string => `${printKey(card)}${card.foil ? '/foil' : ''}`;
 const nameKey = (name: string): string => name.trim().toLowerCase();
 
 // Read your binders: each card name with the printings you own and how many
@@ -39,7 +44,7 @@ export function loadOwned(): OwnedMap {
   for (const binder of loadBinderList()) {
     for (const card of Object.values(loadBinder(binder.id))) {
       const name = nameKey(card.name);
-      const key = printKey(card);
+      const key = ownKey(card);
       const prints = owned.get(name) ?? [];
       const found = prints.find((p) => p.key === key);
       if (found) {
@@ -70,7 +75,7 @@ export function marksFor(cards: DeckCard[], owned: OwnedMap): Mark[] {
   return cards.map((card) => {
     const prints = owned.get(nameKey(card.name));
     if (!prints?.length) return 'card';
-    const key = printKey(card);
+    const key = ownKey(card);
     if (!prints.some((p) => p.key === key)) return 'printing';
     const have = left.get(key) ?? 0;
     const need = cardCount(card);
@@ -98,7 +103,7 @@ export function normalizeOwnership(cards: DeckCard[], owned: OwnedMap): DeckCard
   for (const prints of owned.values()) for (const p of prints) left.set(p.key, p.count);
   const result: DeckCard[] = [];
   for (const card of joined) {
-    const key = printKey(card);
+    const key = ownKey(card);
     const have = left.get(key);
     const need = cardCount(card);
     if (have === undefined || card.zone === 'command') {
@@ -124,11 +129,11 @@ export function normalizeOwnership(cards: DeckCard[], owned: OwnedMap): DeckCard
 export function choicesFor(cards: DeckCard[], index: number, owned: OwnedMap): { print: OwnedPrint; free: number }[] {
   const card = cards[index];
   if (!card) return [];
-  const here = printKey(card);
+  const here = ownKey(card);
   const choices: { print: OwnedPrint; free: number }[] = [];
   for (const print of owned.get(nameKey(card.name)) ?? []) {
     if (print.key === here) continue;
-    const used = cards.reduce((sum, c, i) => (i !== index && nameKey(c.name) === nameKey(card.name) && printKey(c) === print.key ? sum + cardCount(c) : sum), 0);
+    const used = cards.reduce((sum, c, i) => (i !== index && nameKey(c.name) === nameKey(card.name) && ownKey(c) === print.key ? sum + cardCount(c) : sum), 0);
     if (print.count - used > 0) choices.push({ print, free: print.count - used });
   }
   return choices;

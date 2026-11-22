@@ -29,11 +29,12 @@ import SymbolText from '@/components/SymbolText';
 
 type Props = {
   card: DeckCard;
+  haveOtherVersion?: boolean;       // you own the card, just not this printing or finish
   onDone: (note: string) => void;   // the copies were added: what to say
   onCancel: () => void;
 };
 
-export default function AddToCollectionDialog({ card, onDone, onCancel }: Props) {
+export default function AddToCollectionDialog({ card, haveOtherVersion, onDone, onCancel }: Props) {
   const colors = useColors();
   // What's showing: the two choices, a list of binders, a list of lists (with
   // "closing" between two, since a phone can't show one pop-up while another fades away)
@@ -99,7 +100,9 @@ export default function AddToCollectionDialog({ card, onDone, onCancel }: Props)
                  buttons={[{ label: 'Cancel', onPress: onCancel, kind: 'secondary' }]}>
       <View style={styles.menu}>
         <Text style={[styles.text, { color: colors.text }]}>
-          This card isn't in any of your binders. The card stays in the deck either way.
+          {haveOtherVersion
+            ? `You don't own this exact version${card.foil ? ' (foil)' : ''} of the card, only other versions. The card stays in the deck either way.`
+            : "This card isn't in any of your binders. The card stays in the deck either way."}
         </Text>
         <Button label="Add to a binder" icon="albums-outline" kind="secondary" onPress={() => go('binder')} />
         <Text style={[styles.hint, { color: colors.muted }]}>You own it, it's just not in your collection yet.</Text>

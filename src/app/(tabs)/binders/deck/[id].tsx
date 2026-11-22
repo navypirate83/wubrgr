@@ -755,8 +755,8 @@ export default function DeckScreen() {
               ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => moveCardTo(menuIndex, 'main') }] : []),
             ...(zoneOf(menuCard) === 'command'
               ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); } }] : []),
-            /* A card you don't own (a solid red border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */
-            ...(marks.get(menuCard) === 'card'
+            /* A card you don't own (a solid red border), or a printing or finish (say foil) you don't own (a dashed border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */
+            ...(marks.get(menuCard) === 'card' || marks.get(menuCard) === 'printing'
               ? [{ label: 'Add to a binder/list', picture: BINDER_ICON, plus: true, onPress: () => addToCollection(menuIndex) }] : []),
             { label: 'Delete from deck', icon: 'trash-outline' as const, kind: 'danger' as const, onPress: () => confirmDelete(menuIndex) },
           ]}
@@ -765,7 +765,7 @@ export default function DeckScreen() {
           {marks.get(menuCard) === 'printing' && menuChoices.length > 0 && (
             <View style={styles.printings}>
               <Text style={[styles.printingsText, { color: colors.text }]}>
-                You own other printings of this card. Tap one to use it{cardCount(menuCard) > 1 ? ` (it takes as many of the ${cardCount(menuCard)} copies as you own of it)` : ''}.
+                You don't own this exact version{menuCard.foil ? ' (foil)' : ''}, but you own other versions of the card. Tap one to use it{cardCount(menuCard) > 1 ? ` (it takes as many of the ${cardCount(menuCard)} copies as you own of it)` : ''}.
               </Text>
               <View style={styles.printRow}>
                 {menuChoices.map(({ print, free }) => (
@@ -774,7 +774,7 @@ export default function DeckScreen() {
                              onPress={() => pickPrinting(print)} style={({ pressed }) => [styles.printChoice, pressed && { opacity: 0.6 }]}>
                     <Image source={pictureSource(print.card.image)} style={styles.printPicture} contentFit="cover" />
                     <Text style={[styles.printLabel, { color: colors.muted }]} numberOfLines={1}>
-                      {print.card.set.toUpperCase()} #{print.card.number}{free > 1 ? ` ×${free}` : ''}
+                      {print.card.set.toUpperCase()} #{print.card.number}{print.card.foil ? ' foil' : ''}{free > 1 ? ` ×${free}` : ''}
                     </Text>
                   </Pressable>
                 ))}
@@ -851,7 +851,7 @@ export default function DeckScreen() {
 
       {/* "Add to a binder/list": choose a binder (you own it) or a list (a wishlist) */}
       {addingCard && (
-        <AddToCollectionDialog card={addingCard} onDone={addedToCollection} onCancel={() => setAddingIndex(null)} />
+        <AddToCollectionDialog card={addingCard} haveOtherVersion={marks.get(addingCard) === 'printing'} onDone={addedToCollection} onCancel={() => setAddingIndex(null)} />
       )}
     </KeyboardAvoidingView>
   );

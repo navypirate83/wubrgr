@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.1.0',
+    date: '2026-11-21',
+    lines: [
+      'Decks now tell foil from non-foil: owning the non-foil of a card no longer counts as owning the foil you picked for a deck.',
+      'A deck card you only own a different version of can now be added to a binder or list from its card screen.',
+    ],
+  },
+  {
     version: '1.0.14',
     date: '2026-11-21',
     lines: ['Security fixes.'],
