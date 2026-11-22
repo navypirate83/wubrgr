@@ -66,6 +66,59 @@ test('five wrong codes throw the code away', async () => {
   expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(400);
 });
 
+test('a burst of wrong codes at the same instant still only gets 5 guesses, and the right code fails after', async () => {
+  const user = await makeUser();
+  const sent = fakeMail();
+  await request(app).post('/auth/forgot').send({ email: user.email });
+  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
+  // 20 different wrong codes, all sent together
+  const wrongs = Array.from({ length: 21 }, (_, i) => String(100000 + i)).filter((guess) => guess !== code).slice(0, 20);
+  const answers = await Promise.all(wrongs.map((guess) => request(app).post('/auth/reset').send({ email: user.email, code: guess, password: 'brand-new-pass1' })));
+  expect(answers.every((res) => res.status === 400)).toBe(true);
+  // The code is used up: even the right one fails, and the old password still works
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(400);
+  expect((await request(app).post('/auth/login').send({ username: user.username, password: TEST_PASSWORD })).status).toBe(200);
+});
+
+test('the right code with a new password that holds the username does not use up the code', async () => {
+  const user = await makeUser();
+  const sent = fakeMail();
+  await request(app).post('/auth/forgot').send({ email: user.email });
+  const code = /code is: (\d{6})/.exec(sent[0].text)[1];
+  // Six tries with a password that holds the username: all refused for the password, none uses a guess
+  for (let i = 0; i < 6; i += 1) {
+    const res = await request(app).post('/auth/reset').send({ email: user.email, code, password: `${user.username}-pass-1!` });
+    expect(res.status).toBe(400);
+  }
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
+});
+
+test('an account is sent at most 5 forgot-password emails an hour; the answer stays the same', async () => {
+  const user = await makeUser();
+  const sent = fakeMail();
+  for (let i = 0; i < 7; i += 1) {
+    const res = await request(app).post('/auth/forgot').send({ email: user.email });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('If that email has an account');
+  }
+  expect(sent).toHaveLength(5);
+  // The last code that WAS sent still works
+  const code = /code is: (\d{6})/.exec(sent[4].text)[1];
+  expect((await request(app).post('/auth/reset').send({ email: user.email, code, password: 'brand-new-pass1' })).status).toBe(200);
+});
+
+test('once the hour is over, forgot-password emails are sent again', async () => {
+  const user = await makeUser();
+  const sent = fakeMail();
+  for (let i = 0; i < 6; i += 1) await request(app).post('/auth/forgot').send({ email: user.email });
+  expect(sent).toHaveLength(5);
+  // Pretend that hour began 61 minutes ago
+  const { default: User } = await import('../../models/User.js');
+  await User.updateOne({ _id: user._id }, { resetEmailsSince: new Date(Date.now() - 61 * 60 * 1000) });
+  await request(app).post('/auth/forgot').send({ email: user.email });
+  expect(sent).toHaveLength(6);
+});
+
 test('without mail settings, forgot says email is not set up', async () => {
   delete process.env.RESEND_API_KEY;
   const user = await makeUser();

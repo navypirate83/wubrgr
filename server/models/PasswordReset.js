@@ -14,7 +14,8 @@ const passwordResetSchema = new mongoose.Schema(
     // One waiting reset per person
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     codeHash: { type: String, required: true, maxlength: 128 },
-    // Wrong guesses so far (after 5 the code is thrown away)
+    // Guesses made so far (the code allows 5, then it is thrown away). Every guess is counted before it is
+    // checked; a right code with an unusable new password is handed back (see /auth/reset).
     attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true },
   },

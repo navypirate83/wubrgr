@@ -308,6 +308,32 @@ router.post('/refresh', async (req, res) => {
 
 /* ---------- forgot username / password ---------- */
 
+// How many "forgot password" emails one account can be sent per hour. Each code allows 5 guesses, so
+// without a cap somebody could keep asking for fresh codes to get more guesses (and bury the real
+// owner in emails). 5 an hour is plenty for a person who really forgot.
+const RESET_EMAILS_PER_HOUR = 5;
+// How many guesses one reset code allows before it is thrown away
+const RESET_GUESSES = 5;
+
+// May this account be sent another "forgot password" email right now? Counts it if so. Done in ONE step
+// in the database each way, so requests arriving at the same instant can't all slip under the cap.
+async function countResetEmail(userId) {
+  const now = new Date();
+  const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  // Still inside this account's current hour, and under the cap: one more
+  const more = await User.findOneAndUpdate(
+    { _id: userId, resetEmailsSince: { $gt: hourAgo }, resetEmailsSent: { $lt: RESET_EMAILS_PER_HOUR } },
+    { $inc: { resetEmailsSent: 1 } },
+  ).select('_id');
+  if (more) return true;
+  // No hour running (never asked before, or the last hour is over): a new hour starts with this one
+  const fresh = await User.findOneAndUpdate(
+    { _id: userId, $or: [{ resetEmailsSince: { $exists: false } }, { resetEmailsSince: null }, { resetEmailsSince: { $lte: hourAgo } }] },
+    { $set: { resetEmailsSince: now, resetEmailsSent: 1 } },
+  ).select('_id');
+  return !!fresh;
+}
+
 // The same answer whether or not the email has an account, so nobody can
 // use this to find out who is registered
 const FORGOT_ANSWER = { message: 'If that email has an account, we sent it a code. It works for 15 minutes.' };
@@ -322,6 +348,9 @@ router.post('/forgot', async (req, res) => {
   try {
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
     if (user) {
+      // Over this account's cap for the hour: nothing is sent, and the answer is the usual one (so the
+      // cap can't be used to find out whether the email has an account)
+      if (!(await countResetEmail(user._id))) return res.status(200).json(FORGOT_ANSWER);
       const code = String(randomInt(0, 1000000)).padStart(6, '0');
       // A Google-only account has no password to reset: just remind the username
       const googleOnly = !user.password;
@@ -367,17 +396,30 @@ router.post('/reset', async (req, res) => {
   const WRONG = { error: 'That code is wrong or has run out. Ask for a new one.' };
   try {
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
-    const row = user ? await PasswordReset.findOne({ user: user._id }) : null;
-    if (!row || row.expiresAt <= new Date()) return res.status(400).json(WRONG);
+    // EVERY guess is counted BEFORE the code is looked at, in ONE step in the database: "add one to the
+    // count, but only if it is still under 5 and the code has not run out". Guesses that arrive at the
+    // same instant can't all read the old count, so exactly 5 are ever checked per code. No row back
+    // means there is no code, it ran out, or its guesses are used up.
+    const row = user
+      ? await PasswordReset.findOneAndUpdate(
+        { user: user._id, attempts: { $lt: RESET_GUESSES }, expiresAt: { $gt: new Date() } },
+        { $inc: { attempts: 1 } },
+        { returnDocument: 'after' },
+      )
+      : null;
+    if (!row) return res.status(400).json(WRONG);
     if (row.codeHash !== hashToken(code.trim())) {
-      // A wrong guess. After 5 the code is thrown away.
-      row.attempts += 1;
-      if (row.attempts >= 5) await row.deleteOne(); else await row.save();
+      // A wrong guess. That was the last one allowed: the code is thrown away.
+      if (row.attempts >= RESET_GUESSES) await row.deleteOne();
       return res.status(400).json(WRONG);
     }
     // Now that we know who it is: the new password can't hold their username either
     const ownProblem = checkNewPassword(password, { email: user.email, username: user.username });
-    if (ownProblem) return res.status(400).json({ error: ownProblem });
+    if (ownProblem) {
+      // The code was right, so this try is handed back: picking another password doesn't use up the code
+      await PasswordReset.updateOne({ _id: row._id }, { $inc: { attempts: -1 } });
+      return res.status(400).json({ error: ownProblem });
+    }
     user.password = password;   // scrambled by the model when saved
     // A reset also lifts any pause or "reset needed" from too many wrong passwords
     user.failedLogins = 0;

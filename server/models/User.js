@@ -126,6 +126,11 @@ const userSchema = new mongoose.Schema(
     failedLogins: { type: Number, default: 0 },
     lockedUntil: { type: Date },
     mustResetPassword: { type: Boolean },
+    // "Forgot password" emails sent to this account in the current hour, and when
+    // that hour began. Only so many are sent per hour (see /auth/forgot), so nobody
+    // can flood a person with emails or keep asking for fresh codes to guess at.
+    resetEmailsSent: { type: Number, default: 0 },
+    resetEmailsSince: { type: Date },
     // When the settings were last saved
     settingsSavedAt: { type: Date },
     // When the account was last used: set every time the person signs in or the
