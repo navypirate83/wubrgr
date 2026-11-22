@@ -286,6 +286,37 @@ describe('sessions', () => {
     expect((await refresh(owner.body.refreshToken)).status).toBe(401);
   });
 
+  test('two tokens handed out together and then BOTH used at the same instant: the login is ended, never two lines', async () => {
+    for (let round = 0; round < 6; round += 1) {
+      await clearTestDb();
+      const first = (await signup(good)).body;
+      const [a, b] = (await Promise.all([1, 2].map(() => refresh(first.refreshToken)))).map((r) => r.body);
+      const both = await Promise.all([refresh(a.refreshToken), refresh(b.refreshToken)]);
+      // Whatever each was answered, nothing is left to carry on with
+      expect(await RefreshToken.countDocuments()).toBe(0);
+      for (const reply of both) {
+        if (reply.status === 200) expect((await refresh(reply.body.refreshToken)).status).toBe(401);
+      }
+    }
+  });
+
+  test('"log out everywhere" landing in the middle of a renewal leaves no login behind', async () => {
+    const first = (await signup(good)).body;
+    // The renewal notes "last used" on the account just before it makes the new token: at that exact point,
+    // delete every token of the account, as "log out everywhere" or a password reset would
+    const real = User.updateOne.bind(User);
+    jest.spyOn(User, 'updateOne').mockImplementationOnce((...args) => {
+      const run = async () => { await RefreshToken.deleteMany({}); return real(...args); };
+      const waiting = run();
+      // (the server adds .catch to this call)
+      return { catch: (handler) => waiting.catch(handler), then: (ok, bad) => waiting.then(ok, bad) };
+    });
+    const res = await refresh(first.refreshToken);
+    expect(res.status).toBe(401);
+    expect(await RefreshToken.countDocuments()).toBe(0);
+    jest.restoreAllMocks();
+  });
+
   test('two tokens handed out at the same moment: the one that carries on cancels the other', async () => {
     const first = (await signup(good)).body;
     const [a, b] = (await Promise.all([1, 2].map(() => refresh(first.refreshToken)))).map((r) => r.body);

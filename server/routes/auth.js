@@ -251,56 +251,79 @@ router.post('/refresh', async (req, res) => {
   };
   try {
     const tokenHash = hashToken(refreshToken);
-    const row = await RefreshToken.findOne({ tokenHash });
+    let row = await RefreshToken.findOne({ tokenHash });
     // Not found, or past its 60 days
     if (!row || row.expiresAt <= new Date()) return over();
+
+    // "Two parties hold this login": every token that came from it is deleted, and the answer is "sign in"
+    const endLogin = async () => {
+      await RefreshToken.deleteMany({ family: row.family });
+      return over();
+    };
+
+    // The account must still exist (this also picks up a change of rights)
+    const user = await User.findById(row.user);
+    if (!user) return endLogin();
+
+    // Hand out the new pair (in the same family, remembering which token it replaces), then look once more:
+    // if the old token has been deleted while this was going on (the person tapped "log out everywhere", reset
+    // their password or deleted the account, or the login was ended as copied), the new token must not
+    // survive it, so it is deleted again and the answer is "sign in".
+    const handOut = async () => {
+      const session = await issueSession(user, row.family, tokenHash);
+      if (!(await RefreshToken.exists({ tokenHash }))) {
+        await RefreshToken.deleteOne({ tokenHash: hashToken(session.refreshToken) });
+        return over();
+      }
+      return sendSession(req, res, 200, session);
+    };
+
+    // THE NORMAL CASE: a token that has never been used or cancelled. It is CLAIMED in one step in the database
+    // ("mark it used, but only if it is still unused and not cancelled"), so when two requests arrive with it at
+    // the same instant only one can claim it. The other finds it changed and is handled below, as a token that
+    // was just swapped (two browser tabs) or just cancelled.
+    if (!row.usedAt && !row.cancelledAt) {
+      const claimed = await RefreshToken.findOneAndUpdate({ tokenHash, usedAt: null, cancelledAt: null }, { usedAt: new Date() });
+      if (claimed) {
+        if (row.parent) {
+          // Other tokens may have been handed out in place of the same older one (two tabs, or a retry after a
+          // lost reply). Only one line of tokens may carry on for a login:
+          //  - one of the others has already been USED: two parties are each carrying on with their own. One of
+          //    them holds a copy, so the whole login is ended.
+          //  - none has: this is the one carrying on, and the others are cancelled.
+          if (await RefreshToken.exists({ parent: row.parent, tokenHash: { $ne: tokenHash }, usedAt: { $ne: null } })) return endLogin();
+          await RefreshToken.updateMany({ parent: row.parent, tokenHash: { $ne: tokenHash }, usedAt: null, cancelledAt: null }, { cancelledAt: new Date() });
+        }
+        return handOut();
+      }
+      // Somebody else changed it in the same instant: read it again and carry on below with what it is now
+      row = await RefreshToken.findOne({ tokenHash });
+      if (!row) return over();
+    }
 
     // A CANCELLED token: the server decided earlier that this one never reached the app, and handed out
     // another in its place. If it turns up after all, two parties hold this login (one of them a copy),
     // so the whole login is ended and the real owner signs in again with their password.
-    if (row.cancelledAt) {
-      await RefreshToken.deleteMany({ family: row.family });
-      return over();
+    if (row.cancelledAt) return endLogin();
+
+    // ALREADY SWAPPED for a newer one, and now it is back. Honest, or a copy? Look at what happened to
+    // the token(s) handed out in its place:
+    //  - one of them has been USED: so the new token did arrive, and somebody is carrying on with it.
+    //    The old one coming back means a second party has this login. (Except in the first two
+    //    minutes, when it is just two browser tabs renewing at the same moment.) The login is ended.
+    //  - none has been used: that is what a lost reply looks like (the app never got the new token, so
+    //    it tries the old one again). Let through, for up to 14 days.
+    const sinceSwap = Date.now() - row.usedAt.getTime();
+    const replacementUsed = await RefreshToken.exists({ parent: tokenHash, usedAt: { $ne: null } });
+    if ((replacementUsed && sinceSwap > SAME_MOMENT_MS) || sinceSwap > LOST_REPLY_DAYS * 24 * 60 * 60 * 1000) return endLogin();
+    // A lost reply: the unused token(s) handed out before are CANCELLED, so only the one given out now
+    // carries on. (Not in the first two minutes: with two tabs, either tab's token may be the one kept.)
+    // If one of them is being used at this very instant, it is not cancelled here; the "already USED" check
+    // in the normal case above ends the login the next time either line renews.
+    if (sinceSwap > SAME_MOMENT_MS) {
+      await RefreshToken.updateMany({ parent: tokenHash, usedAt: null, cancelledAt: null }, { cancelledAt: new Date() });
     }
-
-    if (row.usedAt) {
-      // ALREADY SWAPPED for a newer one, and now it is back. Honest, or a copy? Look at what happened to
-      // the token(s) handed out in its place:
-      //  - one of them has been USED: so the new token did arrive, and somebody is carrying on with it.
-      //    The old one coming back means a second party has this login. (Except in the first two
-      //    minutes, when it is just two browser tabs renewing at the same moment.) The login is ended.
-      //  - none has been used: that is what a lost reply looks like (the app never got the new token, so
-      //    it tries the old one again). Let through, for up to 14 days.
-      const sinceSwap = Date.now() - row.usedAt.getTime();
-      const replacementUsed = await RefreshToken.exists({ parent: tokenHash, usedAt: { $ne: null } });
-      if ((replacementUsed && sinceSwap > SAME_MOMENT_MS) || sinceSwap > LOST_REPLY_DAYS * 24 * 60 * 60 * 1000) {
-        await RefreshToken.deleteMany({ family: row.family });
-        return over();
-      }
-      // A lost reply: the unused token(s) handed out before are CANCELLED, so only the one given out now
-      // carries on. (Not in the first two minutes: with two tabs, either tab's token may be the one kept.)
-      if (sinceSwap > SAME_MOMENT_MS) {
-        await RefreshToken.updateMany({ parent: tokenHash, usedAt: null, cancelledAt: null }, { cancelledAt: new Date() });
-      }
-    } else if (row.parent) {
-      // THE NORMAL CASE, a token used for the first time. If other tokens were handed out in place of the
-      // same older one (two tabs, or a retry after a lost reply), this is the one that is carrying on, so
-      // the others are cancelled. Only one line of tokens stays alive for a login.
-      await RefreshToken.updateMany({ parent: row.parent, tokenHash: { $ne: tokenHash }, usedAt: null, cancelledAt: null }, { cancelledAt: new Date() });
-    }
-
-    // The account must still exist (this also picks up a change of rights)
-    const user = await User.findById(row.user);
-    if (!user) {
-      await RefreshToken.deleteMany({ family: row.family });
-      return over();
-    }
-
-    // Mark it used in ONE step (it does nothing if it was already used, which is fine now)
-    await RefreshToken.updateOne({ tokenHash, usedAt: null }, { usedAt: new Date() });
-
-    // A new pair, in the same family, remembering which token it replaces
-    return sendSession(req, res, 200, await issueSession(user, row.family, tokenHash));
+    return handOut();
   } catch (err) {
     return handleDbError(err, res);
   }
