@@ -3,7 +3,7 @@
    - POST /auth/signup       make an account (email + password)
    - POST /auth/login        sign in with a username-or-email + password (5 wrong passwords in a row pause
                              the account for 30 minutes; 5 more and the password must be reset by email)
-   - POST /auth/google       sign in with Google
+   - POST /auth/google       sign in with Google (SWITCHED OFF: answers 403 unless GOOGLE_LOGIN=on)
    - POST /auth/refresh      swap the long-lived token for a fresh pair (a token swapped in the last
                              14 days still works once more: see the note in the route)
    - POST /auth/logout       end this login
@@ -28,7 +28,7 @@ import { checkText } from '../utils/validate.js';
 import { checkNewPassword } from '../utils/password.js';
 import { deleteAccountAndData } from '../utils/deleteAccount.js';
 import { hashToken, issueSession } from '../utils/tokens.js';
-import { checkGoogleAccessToken, googleIsConfigured } from '../utils/google.js';
+import { checkGoogleAccessToken, googleIsConfigured, googleLoginIsOn } from '../utils/google.js';
 
 const router = Router();
 
@@ -166,9 +166,15 @@ router.post('/login', async (req, res) => {
   }
 });
 
-/* ---------- Google sign-in ---------- */
+/* ---------- Google sign-in (SWITCHED OFF: see googleLoginIsOn in utils/google.js) ---------- */
 
 router.post('/google', async (req, res) => {
+  // Switched off unless the server's settings say GOOGLE_LOGIN=on: everyone is turned away here, before
+  // anything else is looked at. The rest of the route is kept for when it is switched back on.
+  // BEFORE THAT: the step below that joins a Google sign-in to a password account with the same email
+  // must be changed (refuse, and tell the person to log in with their password), because nobody has
+  // confirmed that the password account's email really belongs to whoever made it.
+  if (!googleLoginIsOn()) return res.status(403).json({ error: 'Signing in with Google is switched off. Log in with your username and password.' });
   const { accessToken } = req.body ?? {};
   if (typeof accessToken !== 'string' || accessToken === '' || accessToken.length > 4096) {
     return res.status(400).json({ error: 'accessToken is required' });

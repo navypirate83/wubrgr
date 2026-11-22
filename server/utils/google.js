@@ -16,6 +16,15 @@ function allowedClientIds() {
   return (process.env.GOOGLE_CLIENT_ID ?? '').split(',').map((id) => id.trim()).filter(Boolean);
 }
 
+// Is signing in to an account with Google switched on? It is OFF unless the server's settings say
+// GOOGLE_LOGIN=on. (It was switched off on 2026-11-21: the app no longer has a Google login button, and
+// the route joined a Google sign-in to any password account with the same email, which nobody had
+// confirmed belongs to that person. Fix that joining step in routes/auth.js BEFORE switching this back on.)
+// The Google client id (GOOGLE_CLIENT_ID) is kept, so switching back on needs only this one setting.
+export function googleLoginIsOn() {
+  return (process.env.GOOGLE_LOGIN ?? '').trim().toLowerCase() === 'on';
+}
+
 // Is Google sign-in set up on this server at all?
 export function googleIsConfigured() {
   return allowedClientIds().length > 0;

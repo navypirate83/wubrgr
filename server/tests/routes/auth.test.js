@@ -294,7 +294,16 @@ describe('sessions', () => {
 });
 
 describe('google sign-in', () => {
-  test('answers 503 when it is not set up, and 400 without a token', async () => {
+  // Put the switch back to "off" after each test, so one test can't leave it on for the next
+  afterEach(() => { delete process.env.GOOGLE_LOGIN; });
+
+  test('is switched off: everyone is turned away with 403, with or without a token', async () => {
+    expect((await request(app).post('/auth/google').send({ accessToken: 'abc' })).status).toBe(403);
+    expect((await request(app).post('/auth/google').send({})).status).toBe(403);
+  });
+
+  test('switched on (GOOGLE_LOGIN=on): answers 503 when it is not set up, and 400 without a token', async () => {
+    process.env.GOOGLE_LOGIN = 'on';
     expect((await request(app).post('/auth/google').send({ accessToken: 'abc' })).status).toBe(503);
     expect((await request(app).post('/auth/google').send({})).status).toBe(400);
   });

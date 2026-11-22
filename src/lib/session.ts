@@ -143,11 +143,9 @@ export function logIn(who: string, password: string): Promise<ServerUser> {
     .then(startSession);
 }
 
-// Sign in with a Google access token (the server checks it with Google)
-export function logInWithGoogle(googleAccessToken: string): Promise<ServerUser> {
-  return apiRequest<SessionReply>('/auth/google', { method: 'POST', body: { accessToken: googleAccessToken }, auth: false })
-    .then(startSession);
-}
+// (Signing in to an account with Google was taken out of the app on 2026-11-21, and the server's /auth/google
+// route is switched off. To bring it back: switch the route on (GOOGLE_LOGIN=on, see server/utils/google.js)
+// and add a function here that posts { accessToken } to /auth/google and hands the reply to startSession.)
 
 // Sign out of this device. We tell the server (so the login can't be
 // used again) but if it can't be reached we sign out here anyway.
