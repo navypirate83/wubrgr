@@ -30,12 +30,12 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
-    version: '1.0.17',
+    version: '1.1.3',
     date: '2026-11-22',
     lines: ['Security fixes.'],
   },
   {
-    version: '1.0.16',
+    version: '1.1.2',
     date: '2026-11-21',
     lines: ['Security fixes.'],
   },
@@ -48,17 +48,17 @@ export const CHANGES: Change[] = [
     ],
   },
   {
-    version: '1.0.15',
-    date: '2026-11-21',
-    lines: ['Security fixes. Password reset codes are now 10 letters and digits, and work for 90 minutes.'],
-  },
-  {
     version: '1.1.0',
     date: '2026-11-21',
     lines: [
       'Decks now tell foil from non-foil: owning the non-foil of a card no longer counts as owning the foil you picked for a deck.',
       'A deck card you only own a different version of can now be added to a binder or list from its card screen.',
     ],
+  },
+  {
+    version: '1.0.15',
+    date: '2026-11-21',
+    lines: ['Security fixes. Password reset codes are now 10 letters and digits, and work for 90 minutes.'],
   },
   {
     version: '1.0.14',
