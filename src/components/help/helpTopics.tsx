@@ -130,7 +130,7 @@ export const helpTopics: HelpTopic[] = [
             <P>
               New binders have 10 pages: 160 cards with the usual 16 pockets a page (4 across,
               4 down), or as many as your <HelpLink to="settings-layout">page layout</HelpLink> holds.
-              There's no limit on how many binders you can make.
+              You can make plenty: an account can hold up to 200 binders, 200 lists and 500 decks, and 100,000 cards across all of them together. (The database is shared by everybody, so there has to be a ceiling; if you ever reach one, the app says so and nothing you saved is touched.)
             </P>
             <P>
               To bring back a binder you saved as a file, or make one from a ManaBox card list,
@@ -1724,7 +1724,7 @@ export const helpTopics: HelpTopic[] = [
               normal app. <Strong>PRISM</Strong> also shows the PRISM section. <Strong>AIScan</Strong> also shows the scanner's
               AI art matching option, which downloads the AI files from the server. <Strong>Admin</Strong> is everything, PRISM
               and AIScan included, and this page: an Admin has every right. Search by name or email, or use the buttons (All, Admin, PRISM, AIScan, No extra rights, each with a
-              count) to narrow the list. Under each email, <Strong>Last used</Strong> says when the account was last signed in
+              count) to narrow the list. A small line under the buttons says how full the database is, such as <Strong>Database: 98 MB of 512 MB used (19%)</Strong>; everybody's binders share that room, and the line turns red at 80%. Under each email, <Strong>Last used</Strong> says when the account was last signed in
               to or renewed its login (it updates about every 15 minutes while the app is open). Accounts that haven't been
               used since that began say "Not since tracking began".
             </P>

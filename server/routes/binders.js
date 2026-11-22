@@ -25,6 +25,7 @@ import { handleDbError } from '../middleware/errorHandler.js';
 import { parsePaging } from '../utils/paging.js';
 import { validateBinder, validateCard, checkDate, MAX_CARDS_PER_BINDER } from '../utils/validate.js';
 import { binderToCsv, readCsvRows, KEPT_COLUMNS } from '../utils/binderCsv.js';
+import { roomForCards, roomForOneMore } from '../utils/accountLimits.js';
 
 const router = Router();
 
@@ -166,6 +167,9 @@ router.post('/import', async (req, res) => {
   if (details.error) return res.status(400).json({ error: details.error });
 
   try {
+    // Not past what one account may keep (see utils/accountLimits.js): one more binder, and these cards
+    const full = (await roomForOneMore(Binder, req.user.sub, 'binders', 'binders')) ?? (await roomForCards(req.user.sub, valid.length));
+    if (full) return res.status(400).json({ error: full });
     const binder = await Binder.create({ ...details.value, owner: req.user.sub });
     try {
       for (let start = 0; start < valid.length; start += BATCH) {
@@ -190,6 +194,9 @@ router.post('/', async (req, res) => {
   const result = validateBinder(req.body);
   if (result.error) return res.status(400).json({ error: result.error });
   try {
+    // Not past the most binders one account may have (see utils/accountLimits.js)
+    const full = await roomForOneMore(Binder, req.user.sub, 'binders', 'binders');
+    if (full) return res.status(400).json({ error: full });
     // The owner is always the signed-in person; one in the body is ignored
     const binder = await Binder.create({ ...result.value, owner: req.user.sub });
     return res.status(201).json(binder);
@@ -276,6 +283,10 @@ router.put('/:id/cards', async (req, res) => {
   try {
     const binder = await Binder.findOne({ _id: req.params.id, ...ownerFilter(req) });
     if (!binder) return notFound(res);
+    // Not past the most cards one account may keep (this binder's present cards are about to be replaced,
+    // so they are not counted twice)
+    const full = await roomForCards(req.user.sub, checked.length, { Model: Card, filter: { binder: binder._id } });
+    if (full) return res.status(400).json({ error: full });
 
     const session = await mongoose.startSession();
     try {

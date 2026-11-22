@@ -21,6 +21,7 @@ import { ownerFilter } from '../middleware/auth.js';
 import { handleDbError } from '../middleware/errorHandler.js';
 import { parsePaging } from '../utils/paging.js';
 import { validateDeck, validateDeckCard } from '../utils/validate.js';
+import { roomForCards, roomForOneMore } from '../utils/accountLimits.js';
 
 const router = Router();
 
@@ -55,6 +56,9 @@ router.post('/', async (req, res) => {
   const result = validateDeck(req.body);
   if (result.error) return res.status(400).json({ error: result.error });
   try {
+    // Not past the most decks one account may have (see utils/accountLimits.js)
+    const full = await roomForOneMore(Deck, req.user.sub, 'decks', 'decks');
+    if (full) return res.status(400).json({ error: full });
     const deck = await Deck.create({ ...result.value, owner: req.user.sub });
     return res.status(201).json(deck);
   } catch (err) {
@@ -130,6 +134,9 @@ router.put('/:id/cards', async (req, res) => {
   try {
     const deck = await Deck.findOne({ _id: req.params.id, ...ownerFilter(req) });
     if (!deck) return notFound(res);
+    // Not past the most cards one account may keep (this deck's present cards are about to be replaced)
+    const full = await roomForCards(req.user.sub, checked.length, { Model: DeckCard, filter: { deck: deck._id } });
+    if (full) return res.status(400).json({ error: full });
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {

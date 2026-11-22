@@ -20,6 +20,7 @@ import { ownerFilter } from '../middleware/auth.js';
 import { handleDbError } from '../middleware/errorHandler.js';
 import { parsePaging } from '../utils/paging.js';
 import { validateListCard, validateListName } from '../utils/validate.js';
+import { roomForCards, roomForOneMore } from '../utils/accountLimits.js';
 
 const router = Router();
 
@@ -54,6 +55,9 @@ router.post('/', async (req, res) => {
   const result = validateListName(req.body);
   if (result.error) return res.status(400).json({ error: result.error });
   try {
+    // Not past the most lists one account may have (see utils/accountLimits.js)
+    const full = await roomForOneMore(List, req.user.sub, 'lists', 'lists');
+    if (full) return res.status(400).json({ error: full });
     const list = await List.create({ ...result.value, owner: req.user.sub });
     return res.status(201).json(list);
   } catch (err) {
@@ -129,6 +133,9 @@ router.put('/:id/cards', async (req, res) => {
   try {
     const list = await List.findOne({ _id: req.params.id, ...ownerFilter(req) });
     if (!list) return notFound(res);
+    // Not past the most cards one account may keep (this list's present cards are about to be replaced)
+    const full = await roomForCards(req.user.sub, checked.length, { Model: ListCard, filter: { list: list._id } });
+    if (full) return res.status(400).json({ error: full });
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {

@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.2.2',
+    date: '2026-11-22',
+    lines: ['Security fixes. An account can hold up to 200 binders, 200 lists, 500 decks and 100,000 cards.'],
+  },
+  {
     version: '1.2.1',
     date: '2026-11-22',
     lines: ['Security fixes.'],

@@ -3,6 +3,7 @@
    Only for accounts with the Admin right (anyone else who gets here, by
    typing the address, is sent home; Settings only shows the way in to admins).
    It lists everyone with an account, when each was last used, and the rights each has.
+   One small line under the buttons says how full the database is (it turns red at 80%).
    A person can have any mix of these rights (or none, which is the normal app):
      - PRISM: also the PRISM section
      - AIScan: also the scanner's AI art matching option (it downloads the AI files)
@@ -32,7 +33,7 @@ import { useColors } from '@/hooks/useTheme';
 import { showMessage } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import { RADIUS } from '@/theme/colors';
-import { RIGHTS, RIGHTS_ABOUT, RIGHTS_LABEL, deletePerson, joinedText, lastAccessText, listPeople, setRights, type Person, type Right } from '@/lib/adminApi';
+import { RIGHTS, RIGHTS_ABOUT, RIGHTS_LABEL, deletePerson, getStorage, joinedText, lastAccessText, listPeople, setRights, type Person, type Right, type Storage } from '@/lib/adminApi';
 
 // The page is never wider than this (points)
 const PAGE_MAX_WIDTH = 900;
@@ -79,6 +80,8 @@ export default function AdminScreen() {
   const [busy, setBusy] = useState(false);
   // A line under the search box for a moment ("Sam now has PRISM")
   const [note, setNote] = useState('');
+  // How full the database is (null until the server has said, or if it couldn't)
+  const [storage, setStorage] = useState<Storage | null>(null);
 
   const load = useCallback(async () => {
     setProblem('');
@@ -88,6 +91,8 @@ export default function AdminScreen() {
       setPeople([]);
       setProblem((err as Error).message);
     }
+    // How full the database is: one small line under the buttons. If it can't be read, the line just isn't shown.
+    getStorage().then(setStorage).catch(() => setStorage(null));
   }, []);
   // Read the list every time the page is come to (a tab screen stays in memory after the first visit,
   // so without this, coming back later would show the list as it was then)
@@ -189,6 +194,12 @@ export default function AdminScreen() {
                 );
               })}
             </View>
+            {/* How full the database is. Everybody's binders share it, so it turns red at 80% as a warning to look into it. */}
+            {storage && storage.limitMb > 0 ? (
+              <Text style={[styles.storage, { color: storage.percent >= 80 ? colors.error : colors.muted }]}>
+                Database: {storage.usedMb} MB of {storage.limitMb} MB used ({storage.percent}%){storage.percent >= 80 ? '. It is getting full.' : ''}
+              </Text>
+            ) : null}
             {note ? <Text style={[styles.note, { color: colors.success }]} accessibilityLiveRegion="polite">{note}</Text> : null}
           </View>
         )}
@@ -348,6 +359,7 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5 },
   chipText: { fontSize: 13, fontWeight: '600' },
   note: { fontSize: 14, fontWeight: '600' },
+  storage: { fontSize: 13 },
   loading: { marginTop: 40 },
   empty: { alignItems: 'center', gap: 12, marginTop: 30 },
   emptyText: { fontSize: 14, textAlign: 'center', marginTop: 20 },

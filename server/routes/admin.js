@@ -3,6 +3,7 @@
    Only for the admin account (mounted behind requireAuth AND
    requireAdmin in app.js). Admin power is kept to managing accounts: an
    admin can NOT read other people's binders or lists (a privacy choice).
+   - GET    /admin/storage      how full the database is (megabytes used, and of how many)
    - GET    /admin/users        everyone's account details (never passwords), a page at a time,
                                 including when each account was last used (lastAccessAt)
    - PATCH  /admin/users/:id    change one person's rights: { roles: [...] }, a list holding any of
@@ -27,6 +28,19 @@ import { parsePaging } from '../utils/paging.js';
 import { cleanRoles } from '../utils/roles.js';
 
 const router = Router();
+
+// How full the database is. The free database holds 512 MB (DB_LIMIT_MB says otherwise if that ever changes),
+// shared by everything kept in it, so an admin can see it filling up long before saving starts to fail.
+router.get('/storage', async (req, res) => {
+  try {
+    const stats = await mongoose.connection.db.stats();
+    const limitMb = Number(process.env.DB_LIMIT_MB) > 0 ? Number(process.env.DB_LIMIT_MB) : 512;
+    const usedMb = Math.round(((stats.dataSize ?? 0) + (stats.indexSize ?? 0)) / (1024 * 1024));
+    return res.json({ usedMb, limitMb, percent: Math.round((usedMb / limitMb) * 100) });
+  } catch (err) {
+    return handleDbError(err, res);
+  }
+});
 
 router.get('/users', async (req, res) => {
   const paging = parsePaging(req.query);

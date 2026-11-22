@@ -94,3 +94,12 @@ export function joinedText(createdAt: string): string {
   const date = new Date(createdAt);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
+
+// How full the database is: megabytes used, of how many, and the percentage (the server works it out).
+// Everybody's binders, lists and decks share this room, so an admin can see it filling up in good time.
+export type Storage = { usedMb: number; limitMb: number; percent: number };
+export async function getStorage(): Promise<Storage> {
+  const reply = await apiRequest<Partial<Storage>>('/admin/storage');
+  return { usedMb: Number(reply.usedMb) || 0, limitMb: Number(reply.limitMb) || 0, percent: Number(reply.percent) || 0 };
+}
+
