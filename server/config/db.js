@@ -34,6 +34,8 @@ export function loadConfig() {
     rateLimitMax: number(process.env.RATE_LIMIT_MAX, 100),
     // How many tries one visitor gets per minute on the sign-in routes
     authRateLimitMax: number(process.env.AUTH_RATE_LIMIT_MAX, 5),
+    // How many sign-up tries one visitor gets per HOUR (on top of the per-minute limit above)
+    signupHourlyMax: number(process.env.SIGNUP_HOURLY_MAX, 10),
     // How many card lookups one logged-in person may make per minute
     scryfallRateLimitMax: number(process.env.SCRYFALL_RATE_LIMIT_MAX, 60),
   };

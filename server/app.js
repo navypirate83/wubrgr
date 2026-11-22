@@ -89,6 +89,17 @@ function makeAuthLimiter(limit) {
   });
 }
 app.post('/auth/signup', makeAuthLimiter(config.authRateLimitMax));
+// Signing up has a second, slower limit as well: 10 tries an HOUR per visitor. The sign-up form has to say
+// "Email already registered" (people forget they already have an account), and that answer could be used
+// to test whether somebody has an account here. One person can still see it; testing thousands of
+// addresses this way would take weeks. Every try counts, whether or not an account was made.
+app.post('/auth/signup', rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: config.signupHourlyMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many sign-up tries from this connection. Please try again in an hour.' },
+}));
 app.post('/auth/login', makeAuthLimiter(config.authRateLimitMax));
 app.post('/auth/google', makeAuthLimiter(config.authRateLimitMax));
 app.post('/auth/forgot', makeAuthLimiter(config.authRateLimitMax));
