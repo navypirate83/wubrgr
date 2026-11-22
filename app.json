@@ -3,7 +3,7 @@
     "name": "WUBRG'r",
     "slug": "wubrgrexpo",
     "owner": "navypirate83",
-    "version": "0.2.0",
+    "version": "1.0.5",
     "description": "A Magic: The Gathering card binder: keep your cards in binders that look and work like real ones, and find any card with the MTG Card Finder.",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -21,7 +21,9 @@
         "backgroundColor": "#14151a"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "single",
@@ -58,7 +60,9 @@
             "enableShrinkResourcesInReleaseBuilds": false
           }
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

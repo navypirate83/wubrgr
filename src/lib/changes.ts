@@ -12,6 +12,8 @@
        Z starts again at 0: 1.0.4 → 1.1.0
      - X goes up only when the owner of the app says a major version has
        been reached. It is never raised otherwise.
+   The same number is also written in app.json ("version"), which is what
+   Android records as the installed app's version: change both together.
    Each entry is written in plain words for the people using the app.
    Security updates just say "Security fixes" (no details: the list is
    public). Things only some accounts can see (PRISM, the Admin page, AI
@@ -27,6 +29,11 @@ export type Change = {
 
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
+  {
+    version: '1.0.5',
+    date: '2026-11-21',
+    lines: ['Security fixes.'],
+  },
   {
     version: '1.0.4',
     date: '2026-11-21',
