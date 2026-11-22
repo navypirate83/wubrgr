@@ -6,7 +6,9 @@
    - aiReady(): are all four files saved here? (false on a device that cannot keep them)
    - checkAiRemote(): reads the server's ai.json (null if it can't be reached or this account may not)
    - downloadAiFiles(): downloads every file, with progress, checks each one's
-     size (and its checksum when the browser can work one out) and saves it
+     size (and its checksum when the browser can work one out) and saves it.
+     On Android each file goes straight onto the phone's disk (see aiStore.native.ts);
+     on the website it is read in pieces and then saved.
    - readAiFile(): gives back a saved file's bytes
    - removeAiFiles(): deletes them
    The files come from the WUBRG'r server and only to an account with AI scanner
@@ -15,7 +17,7 @@
    scanner then just works the way it did before the AI existed.
    ===================================================================== */
 
-import { ApiError, apiDownload } from '../../api';
+import { API_URL, ApiError, apiDownload, freshAuthHeaders } from '../../api';
 import { AI_FILE_NAMES, AI_PATH, SUPPORTED_AI_VERSION, type AiFileName, type AiManifest } from './aiConfig';
 import { aiStore } from './aiStore';
 
@@ -132,11 +134,38 @@ export async function downloadAiFiles(onProgress?: (fraction: number) => void): 
   const manifest = await fetchManifest();
   const total = AI_FILE_NAMES.reduce((sum, name) => sum + (manifest.files[name]?.bytes ?? 0), 0);
   let received = 0;
+  const count = (added: number) => { received += added; onProgress?.(total ? Math.min(1, received / total) : 0); };
+
+  // ANDROID: each file is downloaded straight onto the disk under a temporary name. Only when all four have arrived
+  // whole are they moved into place; if anything goes wrong the temporary files are thrown away and the old files stay.
+  const { download, commit, discard } = aiStore;
+  if (download && commit && discard) {
+    const headers = await freshAuthHeaders();
+    try {
+      for (const name of AI_FILE_NAMES) {
+        const listed = manifest.files[name];
+        if (!listed) throw new Error(`The AI file list has no ${name}`);
+        const size = await download.call(aiStore, name, `${API_URL}${AI_PATH}/${name}`, headers, count);
+        // A server "no" (not signed in, no access) would have saved its short message as the file: the size catches that too
+        if (size !== listed.bytes) throw new Error(`The AI file ${name} came through incomplete. Please try again.`);
+      }
+      readyKnown = null;
+      for (const name of AI_FILE_NAMES) await commit.call(aiStore, name);
+    } catch (err) {
+      for (const name of AI_FILE_NAMES) await discard.call(aiStore, name).catch(() => { /* nothing to throw away */ });
+      throw plainProblem(err);
+    } finally {
+      readyKnown = null;
+    }
+    return;
+  }
+
+  // THE WEBSITE: each file is read in pieces (so the progress can be shown), then all are saved together
   const arrived: { name: AiFileName; bytes: Uint8Array }[] = [];
   for (const name of AI_FILE_NAMES) {
     const listed = manifest.files[name];
     if (!listed) throw new Error(`The AI file list has no ${name}`);
-    const bytes = await fetchFile(name, (added) => { received += added; onProgress?.(total ? Math.min(1, received / total) : 0); });
+    const bytes = await fetchFile(name, count);
     // Check it is the whole file, and the same file that was listed
     if (bytes.length !== listed.bytes) throw new Error(`The AI file ${name} came through incomplete. Please try again.`);
     if (listed.sha256) {

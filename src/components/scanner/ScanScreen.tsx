@@ -48,8 +48,8 @@ import { useAccount } from '@/hooks/useAccount';
 import { storageGet, storageSet } from '@/lib/storage';
 import { aiModel } from '@/lib/scanner/ai/aiModel';
 import { aiStore } from '@/lib/scanner/ai/aiStore';
-import { aiReady, downloadAiFiles } from '@/lib/scanner/ai/aiFiles';
-import { forgetAiIndex } from '@/lib/scanner/ai/aiRun';
+import { aiReady } from '@/lib/scanner/ai/aiFiles';
+import AiDownloadWindow from './AiDownloadWindow';
 import { askYesNo } from '@/lib/dialogs';
 import { hapticTap } from '@/lib/haptics';
 import type { Finish } from '@/lib/cards';
@@ -174,11 +174,13 @@ export default function ScanScreen() {
 
   /* ----- the AI scanner: offer the download the first time ----- */
   // An account that may use the AI scanner (the AIScan right, or an Admin) is asked ONCE on each device, the first time the
-  // scanner is opened there, whether to download the AI files (about 42 MB). Yes downloads them, with the progress on the
-  // camera's message line. No is remembered, so the question does not come back; the files can still be downloaded later
+  // scanner is opened there, whether to download the AI files (about 42 MB). Yes opens a window that downloads them and
+  // shows a progress bar (AiDownloadWindow.tsx). No is remembered, so the question does not come back; the files can still be downloaded later
   // from the scanner options (the gear button). Nothing is asked when the files are already here, or on a device that
   // cannot run the AI or keep its files.
   const { hasAiScan } = useAccount();
+  // Whether the download window (with its progress bar) is open
+  const [aiDownloading, setAiDownloading] = useState(false);
   useEffect(() => {
     if (!hasAiScan || !aiModel.available || !aiStore.available) return;
     let alive = true;
@@ -194,16 +196,13 @@ export default function ScanScreen() {
           'Your account can use the AI scanner. It recognises a card by its artwork, which helps when the name or the small print cannot be read. It needs a one-time download of about 42 MB to this device. You can also do this later from the scanner options (the gear button).',
           'Download', 'Not now',
         );
-        if (!yes) return;
-        await downloadAiFiles((fraction) => { if (alive) setMessage(`Downloading the AI scanner… ${Math.round(fraction * 100)}%`); });
-        forgetAiIndex();
-        if (alive) say('The AI scanner is ready.');
-      } catch (err) {
-        if (alive) say(`The AI scanner could not be downloaded: ${(err as Error).message}`);
+        if (yes && alive) setAiDownloading(true);
+      } catch {
+        /* the saved "already asked" note could not be read or written: just don't ask this time */
       }
     })();
     return () => { alive = false; };
-  }, [hasAiScan, say]);
+  }, [hasAiScan]);
 
   /* ----- warming up: get the reader, the name lists and (if on) the AI ready before the first scan ----- */
   // Starts once the catalogue is open, and again if the AI option is switched on or off. Closing the screen stops
@@ -370,12 +369,15 @@ export default function ScanScreen() {
       {report && <CrashTrailNotice report={report} onDismiss={() => { clearReport(); setReport(null); }} />}
 
       <ScannerCamera
-        onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding || settingsOpen}
+        onReading={onReading} message={message} bar={bar} paused={!!sheet || !!picker || listOpen || !!adding || settingsOpen || aiDownloading}
         queue={mode === 'stack'} readingSense={readingSense}
         looksLikeName={(text) => text.split('\n').some((line) => { const plain = normalizeName(line); return plain.length >= 3 && (nameIndex.current ? looksLikeAnyNameIndexed(plain, nameIndex.current) : looksLikeAnyName(plain, names.current)); })}
       />
 
       {settingsOpen && <ScanSettingsSheet options={options} onChange={changeScanOptions} onClose={() => setSettingsOpen(false)} />}
+
+      {/* Downloading the AI scanner, with a progress bar (opened by "Download" in the first-time question) */}
+      {aiDownloading && <AiDownloadWindow onClose={() => setAiDownloading(false)} />}
 
       {sheet && (
         <ConfirmSheet

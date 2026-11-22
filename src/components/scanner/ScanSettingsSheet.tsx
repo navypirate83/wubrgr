@@ -31,7 +31,9 @@ import type { SetInfo } from '@/lib/scanner/core/catalogueTypes';
 import type { ScanOptions } from '@/lib/scanner/core/scanOptions';
 import Button from '@/components/Button';
 import { aiModel } from '@/lib/scanner/ai/aiModel';
-import { aiReady, downloadAiFiles } from '@/lib/scanner/ai/aiFiles';
+import { aiReady, downloadAiFiles, removeAiFiles } from '@/lib/scanner/ai/aiFiles';
+import ProgressBar from '@/components/ProgressBar';
+import { askYesNo } from '@/lib/dialogs';
 import { forgetAiIndex } from '@/lib/scanner/ai/aiRun';
 import { RADIUS } from '@/theme/colors';
 
@@ -83,7 +85,8 @@ function SetRow({ set, bold }: { set: Pick<SetInfo, 'code' | 'name' | 'icon'>; b
   );
 }
 
-// The line under the AI switch: whether the AI files are on this device, and a Download button if not.
+// The line under the AI switch: whether the AI files are on this device, with a Download button if not (and a
+// progress bar while they download) or a Delete button if they are.
 // (The files are big, about 42 MB, so they are only downloaded when you tap the button.)
 function AiFilesStatus() {
   const colors = useColors();
@@ -109,6 +112,24 @@ function AiFilesStatus() {
     }
   }
 
+  // Delete the files from this device (it asks first). They can be downloaded again at any time.
+  async function remove() {
+    const yes = await askYesNo(
+      'Delete the AI files?',
+      'This frees about 42 MB on this device. The scanner goes back to working without AI art matching. You can download the files again here at any time.',
+      'Delete', 'Keep',
+    );
+    if (!yes) return;
+    setProblem('');
+    try {
+      await removeAiFiles();
+      forgetAiIndex();
+    } catch (err) {
+      setProblem(`The AI files could not be deleted: ${(err as Error).message}`);
+    }
+    setReady(await aiReady());
+  }
+
   const status = ready === undefined ? 'Checking the AI files…'
     : ready ? 'AI files: ready'
     : progress !== null ? `Downloading the AI files… ${Math.round(progress * 100)}%`
@@ -116,8 +137,12 @@ function AiFilesStatus() {
   return (
     <View style={styles.aiStatus}>
       <Text style={[styles.aiStatusText, { color: colors.text }]}>{status}</Text>
+      {/* While downloading: a bar showing how far along it is */}
+      {progress !== null && <ProgressBar fraction={progress} label="AI files download" />}
       {problem !== '' && <Text style={[styles.aiStatusText, { color: colors.muted }]}>{problem}</Text>}
       {ready === false && <Button label="Download AI files" kind="secondary" icon="download-outline" onPress={download} disabled={progress !== null} />}
+      {/* The files are here: a way to remove them again */}
+      {ready === true && <Button label="Delete AI files" kind="secondary" icon="trash-outline" onPress={remove} />}
     </View>
   );
 }
@@ -228,7 +253,7 @@ const styles = StyleSheet.create({
   setCode: { flexShrink: 0, fontSize: 15, fontWeight: '600', fontFamily: 'monospace', marginHorizontal: 8 },
   setName: { flex: 1, minWidth: 0, fontSize: 15 },
   bold: { fontWeight: '700' },
-  aiStatus: { paddingHorizontal: 16, paddingBottom: 8, gap: 8, alignItems: 'flex-start' },
+  aiStatus: { paddingHorizontal: 16, paddingBottom: 8, gap: 8, alignItems: 'flex-start', alignSelf: 'stretch' },
   aiStatusText: { fontSize: 14, lineHeight: 20 },
   offRow: { minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' },
 });

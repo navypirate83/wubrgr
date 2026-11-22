@@ -177,6 +177,15 @@ export async function apiDownload(path: string, timeoutMs: number = SERVER_TIMEO
   return response;
 }
 
+// The login header for a request that is NOT made through this file: on the phone, big files are
+// downloaded straight to disk by the phone's own code (see lib/scanner/ai/aiStore.native.ts), which
+// needs to be handed the token. The token is renewed first, so it has its full 15 minutes ahead of it.
+// Gives an empty set of headers when nobody is signed in.
+export async function freshAuthHeaders(): Promise<Record<string, string>> {
+  try { await refreshOnce(); } catch { /* no reply: use the token we have, if any */ }
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
 // Is this error "no reply at all" (offline, slow, unreachable)? Used to
 // decide to keep changes on the device and try again later.
 export function isOffline(err: unknown): boolean {
