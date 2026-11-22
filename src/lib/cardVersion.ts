@@ -31,6 +31,8 @@ export function versionEdit(card: BinderCard, version: ScryfallCard): CardEdit {
     image: imageFor(version, face, ['normal', 'large']) ?? card.image,
     lang: null,
     foil: finishPart.foil,
-    extra: { ...detailsOf(version), ...finishPart.extra },
+    // "Printed name" is cleared first (null) so a version with its real name doesn't
+    // keep the other name of the old one; detailsOf puts it back when the new one has one
+    extra: { 'Printed name': null, ...detailsOf(version), ...finishPart.extra },
   };
 }

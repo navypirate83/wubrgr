@@ -29,7 +29,7 @@ import {
   isDoubleSided, languageName, versionLabel, type SetGroup,
 } from '@/lib/cards';
 import type { BinderCard } from '@/lib/binderStorage';
-import { detailsOf } from '@/lib/cardDetails';
+import { detailsOf, flavorNameOf } from '@/lib/cardDetails';
 import type { ListCard } from '@/lib/listStorage';
 import { openLink, shareLink } from '@/lib/links';
 import { hapticTap } from '@/lib/haptics';
@@ -526,7 +526,9 @@ export default function CardPanel(props: Props) {
       {/* The card's name, set, number and artist, and a link to Scryfall */}
       {print && (
         <View style={styles.cardInfo}>
-          <Text style={[styles.cardName, { color: colors.text }]} accessibilityRole="header">{print.name}</Text>
+          {/* A reskinned card shows the name printed on it, with its real name under it */}
+          <Text style={[styles.cardName, { color: colors.text }]} accessibilityRole="header">{flavorNameOf(print) ?? print.name}</Text>
+          {flavorNameOf(print) ? <Text style={[styles.cardDetails, { color: colors.muted }]}>Real name: {print.name}</Text> : null}
           <Text style={[styles.cardDetails, { color: colors.muted }]}>
             {print.set_name} · #{print.collector_number}
             {print.artist ? ` · Illustrated by ${print.artist}` : ''}

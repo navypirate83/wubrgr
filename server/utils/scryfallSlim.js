@@ -27,6 +27,7 @@ function slimImages(images) {
 function slimFace(face) {
   return {
     name: face.name,
+    flavor_name: face.flavor_name,   // the other name printed on this side, for a reskinned card
     image_uris: slimImages(face.image_uris),
     mana_cost: face.mana_cost,
     type_line: face.type_line,
@@ -62,6 +63,7 @@ export function slimCard(card) {
     id: card.id,
     oracle_id: card.oracle_id,
     name: card.name,
+    flavor_name: card.flavor_name,   // the other name printed on a reskinned card ("Ronin's Arsenal")
     lang: card.lang,
     set: card.set,
     set_name: card.set_name,

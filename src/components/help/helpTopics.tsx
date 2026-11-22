@@ -922,7 +922,7 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Tapping a card</Strong> opens its card screen (a sheet on a phone, a pop-up in the middle on a wide
               window; tap outside it to close it). On a wide window the card's information sits beside the picture, the rules
               text is always showing, and the icons run along the bottom of the pop-up. You see a big picture of the card (tap the picture to
-              open the card in the Card Finder). Under it (beside it on a wide window) come the card's name (with a <Strong>Foil</Strong> or <Strong>Etched</Strong> tag beside it), its set's symbol in
+              open the card in the Card Finder). Under it (beside it on a wide window) come the card's name (with a <Strong>Foil</Strong> or <Strong>Etched</Strong> tag beside it; a card printed under another name shows that name, with "Real name" just under it), its set's symbol in
               the color of its rarity (red mythic, gold rare, silver uncommon, black common, purple special) with the set code and number, then the icon of your <Strong>Price store</Strong> (Settings) and the price of one copy, and a
               bar: language, condition, the binder's name with a small binder drawing, and, further along, a binder drawing with how many
               copies of the card you own in all your binders. The icons along the bottom are the
@@ -1065,6 +1065,9 @@ export const helpTopics: HelpTopic[] = [
               Pictures of matching cards fill the area under the box, A to Z, three across (more on a wide screen).
               Any word in the name counts, not just the first, so "bolt" finds Lightning Bolt. Scroll down and more
               load. If nothing matches (a typo, say), the cards for the closest names are shown instead.
+              Some cards are printed under a different name than their real one (Conqueror's Flail was printed as
+              "Ronin's Arsenal"). Type either name and the card is found; its card shows the printed name with the real name under it.
+              (Searching a printed name also matches letters in the middle of its words, so a stray card may sneak in.)
               Tap (or click) the card you want.
             </Step>
             <Step n={3}>The card opens, with its picture, name, set and artist, and all its versions. What you typed stays in the search box.</Step>

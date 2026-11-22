@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.1.1',
+    date: '2026-11-21',
+    lines: [
+      'Reskinned cards can now be found by the name printed on them: typing "Ronin\'s Arsenal" in the Card Finder finds Conqueror\'s Flail.',
+      'A card printed under another name now shows that name on its card screen and in the Card Finder, with its real name just under it.',
+    ],
+  },
+  {
     version: '1.0.15',
     date: '2026-11-21',
     lines: ['Security fixes. Password reset codes are now 10 letters and digits, and work for 90 minutes.'],

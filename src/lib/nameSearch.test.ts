@@ -15,16 +15,18 @@ test('a name fits when every typed word starts one of its words', () => {
   assert.equal(nameHasWords('Lightning Bolt', ''), true);
 });
 
-test('one letter makes a search for names with a word starting with it', () => {
-  assert.equal(scryfallWordQuery('a'), 'name:/\\ba/ -st:memorabilia');
+test('one letter makes a search for names with a word starting with it (or a flavor name with it)', () => {
+  assert.equal(scryfallWordQuery('a'), '((name:/\\ba/) OR (has:flavorname name:a)) -st:memorabilia');
 });
 
 test('every typed word must start a word in the name', () => {
-  assert.equal(scryfallWordQuery('bol lightn'), 'name:/\\bbol/ name:/\\blightn/ -st:memorabilia');
+  assert.equal(scryfallWordQuery('bol lightn'),
+    '((name:/\\bbol/ name:/\\blightn/) OR (has:flavorname name:bol name:lightn)) -st:memorabilia');
 });
 
 test('capitals, accents and punctuation are tidied away', () => {
-  assert.equal(scryfallWordQuery("  Séance, Lim-Dûl's "), 'name:/\\bseance/ name:/\\blim/ name:/\\bduls/ -st:memorabilia');
+  assert.equal(scryfallWordQuery("  Séance, Lim-Dûl's "),
+    '((name:/\\bseance/ name:/\\blim/ name:/\\bduls/) OR (has:flavorname name:seance name:lim name:duls)) -st:memorabilia');
 });
 
 test('nothing typed means no search', () => {

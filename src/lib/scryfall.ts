@@ -43,6 +43,7 @@ export type ImageUris = {
 // One side of a card that has two (or two halves)
 export type CardFace = {
   name: string;
+  flavor_name?: string;   // the other name printed on this side, for a reskin
   image_uris?: ImageUris;
   mana_cost?: string;     // its casting cost, like "{1}{U}{U}"
   type_line?: string;     // like "Creature — Elf Druid"
@@ -54,6 +55,10 @@ export type CardFace = {
 export type ScryfallCard = {
   id: string;
   name: string;
+  // The other name printed on this card when it's a "reskin" (Conqueror's Flail
+  // printed as "Ronin's Arsenal"). Most cards don't have one. A two-sided
+  // card may have it on each side, in card_faces, instead.
+  flavor_name?: string;
   lang: string;
   set: string;
   set_name: string;

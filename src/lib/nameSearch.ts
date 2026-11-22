@@ -157,10 +157,18 @@ export function fuzzySearch(entries: NameEntry[], text: string): string[] {
 // out Scryfall's "memorabilia" group (the World Championship "Ad" cards and
 // other collectibles that aren't playable cards), which would otherwise
 // crowd the top of a short search.
+// Some printings wear a different name than the card's real one (a "flavor
+// name": Conqueror's Flail printed as "Ronin's Arsenal"). Scryfall's word-start
+// search ignores those, so a second search is added with "OR": only cards that
+// have a flavor name ("has:flavorname"), whose name or flavor name contains
+// each typed word. (That one matches anywhere inside a word, so it can bring
+// in a stray card or two. Worth it to find the reskins.)
 export function scryfallWordQuery(text: string): string {
   const words = simplify(text).split(' ').filter(Boolean);
   if (words.length === 0) return '';
-  return [...words.map((word) => `name:/\\b${word}/`), '-st:memorabilia'].join(' ');
+  const realName = words.map((word) => `name:/\\b${word}/`).join(' ');
+  const flavorName = ['has:flavorname', ...words.map((word) => `name:${word}`)].join(' ');
+  return `((${realName}) OR (${flavorName})) -st:memorabilia`;
 }
 
 // Does this card name fit what's typed, the same way the Scryfall search above

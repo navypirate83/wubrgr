@@ -75,7 +75,10 @@ export default function CardGrid({ text, names, onPick, visible, onHint }: Props
   // follows every key press, before Scryfall has even answered.
   const old = query.isPlaceholderData;
   const loaded = query.data?.pages.flatMap((page) => page.cards) ?? [];
-  const cards = old ? loaded.filter((card) => nameHasWords(card.name, text)) : loaded;
+  // (A reskinned card, like Conqueror's Flail printed as "Ronin's Arsenal", fits on either name.)
+  const cards = old
+    ? loaded.filter((card) => nameHasWords(card.name, text) || (card.flavor_name ? nameHasWords(card.flavor_name, text) : false))
+    : loaded;
   const closest = !old && (query.data?.pages[0]?.closest ?? false);
 
   // Say "closest names" under the search box when these aren't exact matches

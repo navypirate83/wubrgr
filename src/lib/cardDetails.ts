@@ -79,9 +79,25 @@ export function typeLineOf(print: ScryfallCard): string {
    THE DETAILS AS SAVED WITH A CARD (all text, like the rest of "extra")
    --------------------------------------------------------------------- */
 
+// The other name printed on a reskinned card ("Ronin's Arsenal" on Conqueror's
+// Flail), or undefined for a card that wears its real name. A two-sided card's
+// is read from its front side. (Scryfall only sends one when it's different.)
+export function flavorNameOf(print: ScryfallCard): string | undefined {
+  return print.flavor_name || print.card_faces?.[0]?.flavor_name || undefined;
+}
+
+// The name PRINTED on a card you own: its other name when it has one, else
+// its real name. Used wherever the card is shown, so the card on screen
+// reads like the card in your hand. ("Printed name" is saved with the card.)
+export function printedNameOf(card: BinderCard): string {
+  return card.extra?.['Printed name'] || card.name;
+}
+
 // The notes a card should carry, from its printing
 export function detailsOf(print: ScryfallCard): Record<string, string> {
   const details: Record<string, string> = { 'Set name': print.set_name };
+  const printed = flavorNameOf(print);
+  if (printed) details['Printed name'] = printed;
   if (print.rarity) details.Rarity = print.rarity;
   details.Colors = colorsOf(print).join('') || 'C';
   const type = typeLineOf(print);

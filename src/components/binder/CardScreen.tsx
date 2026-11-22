@@ -42,7 +42,7 @@ import { copyPrice, currencyOf, formatPrice, loadCardKingdomPrices } from '@/lib
 import { pictureSource } from '@/lib/http';
 import type { BinderCard } from '@/lib/binderStorage';
 import { loadOwned } from '@/lib/deckOwnership';
-import { finishOf } from '@/lib/cardDetails';
+import { finishOf, printedNameOf } from '@/lib/cardDetails';
 import { CONDITIONS, conditionEdit, conditionLabel, conditionOf, conditionShort, finishEdit, languageEdit, type CardEdit } from '@/lib/cardEdit';
 import { finishChoices, imageFor, languageName, nextFinish, type Finish } from '@/lib/cards';
 import { cardBySetPath, loadLanguages, loadOneCard, loadSetIcons } from '@/lib/scryfall';
@@ -216,10 +216,14 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   // The card's name (with its Foil or Etched pill to the right of it) and, under
   // that, its set's symbol (in the color of its rarity) with the set's code and the
   // card's number. This goes under the card's picture.
+  // A reskinned card (Conqueror's Flail printed as "Ronin's Arsenal") shows the name
+  // printed on it as the title, and its real name in small letters just below.
+  const printedName = printedNameOf(card);
+  const reskinned = printedName !== card.name;
   const identity = (
     <View style={styles.identity}>
       <View style={styles.nameRow}>
-        <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">{card.name}</Text>
+        <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2} accessibilityRole="header">{printedName}</Text>
         {card.foil ? (
           <View style={styles.foilTag}>
             {finish === 'etched'
@@ -229,6 +233,9 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
           </View>
         ) : null}
       </View>
+      {reskinned ? (
+        <Text style={[styles.realName, { color: colors.muted }]} numberOfLines={1}>Real name: {card.name}</Text>
+      ) : null}
       {card.set ? (
         <View style={styles.setLine}>
           {setIcon ? <Image source={{ uri: setIcon }} style={styles.setIcon} contentFit="contain" tintColor={rarityTint} /> : null}
@@ -613,6 +620,8 @@ const styles = StyleSheet.create({
   infoGroup: { gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   cardName: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+  // The small line under a reskinned card's printed name, giving its real name
+  realName: { fontSize: 10.5 },
   setLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   setIcon: { width: 12, height: 12 },
   setText: { fontSize: 10, fontWeight: '600' },
