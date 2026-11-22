@@ -121,6 +121,70 @@ describe('bad sets are refused and nothing is saved', () => {
   });
 });
 
+describe('card names used as labels, and how much a set may hold', () => {
+  test('ordinary card names are fine as labels, dots and all', async () => {
+    const me = await prismPerson();
+    const res = await me.put('/prism/set-1', {
+      ...SET,
+      painted: { 'mr. orfeo, the boulder': [['deckAAAA']], "urza's saga": [[]], 'fire // ice': [['deckBBBB']] },
+      names: { 'mr. orfeo, the boulder': 'Mr. Orfeo, the Boulder' },
+    });
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.painted).sort()).toEqual(['fire // ice', 'mr. orfeo, the boulder', "urza's saga"]);
+  });
+
+  // The body is sent as written text, because writing "__proto__" as a label in JavaScript itself would not send it
+  test.each([
+    ['a label starting with $', '{"$where":[["deckAAAA"]]}'],
+    ['the label __proto__', '{"__proto__":[["deckAAAA"]]}'],
+    ['the label constructor', '{"constructor":[["deckAAAA"]]}'],
+    ['an empty label', '{"":[["deckAAAA"]]}'],
+    ['a label with a hidden control character', '{"sol\\u0000ring":[["deckAAAA"]]}'],
+  ])('%s is refused in painted, and nothing is saved', async (label, painted) => {
+    const me = await prismPerson();
+    const body = JSON.stringify({ ...SET, painted: {} }).replace('"painted":{}', `"painted":${painted}`);
+    const res = await request(app).put('/prism/set-1').set('Authorization', bearer(me.user)).set('Content-Type', 'application/json').send(body);
+    expect(res.status).toBe(400);
+    expect(await PrismSet.countDocuments()).toBe(0);
+  });
+
+  test('the same labels are refused in the names and scrape parts', async () => {
+    const me = await prismPerson();
+    const send = (part, value) => request(app).put('/prism/set-1').set('Authorization', bearer(me.user)).set('Content-Type', 'application/json')
+      .send(JSON.stringify({ ...SET, [part]: {} }).replace(`"${part}":{}`, `"${part}":${value}`));
+    expect((await send('names', '{"__proto__":"x"}')).status).toBe(400);
+    expect((await send('scrape', '{"$x":[[3]]}')).status).toBe(400);
+    expect(await PrismSet.countDocuments()).toBe(0);
+  });
+
+  // About "howMany" card names of 150 letters each: roughly 150 bytes a card
+  const namesOfSize = (howMany, tag = '') => Object.fromEntries(Array.from({ length: howMany }, (_, i) => [`card ${tag}${i}`, 'N'.repeat(150)]));
+
+  test('a set over 2 MB is refused; one just under is saved', async () => {
+    const me = await prismPerson();
+    expect((await me.put('/prism/big', { ...SET, names: namesOfSize(15000) })).status).toBe(400);
+    expect(await PrismSet.countDocuments()).toBe(0);
+    expect((await me.put('/prism/ok', { ...SET, names: namesOfSize(9000) })).status).toBe(200);
+  }, 60000);
+
+  test('all of one account\'s sets together stop at 20 MB, and another account is not affected', async () => {
+    const me = await prismPerson();
+    // Eleven sets of about 1.8 MB put straight into the database (19.8 MB), without going through the route
+    const names = namesOfSize(11000);
+    await PrismSet.insertMany(Array.from({ length: 11 }, (_, i) => ({ owner: me.user._id, clientId: `filler-${i}`, name: `Filler ${i}`, corner: 0, names, editedAt: 1 })));
+    // One more of about 1.5 MB would pass 20 MB
+    const over = await me.put('/prism/one-more', { ...SET, names: namesOfSize(9000) });
+    expect(over.status).toBe(400);
+    expect(over.body.error).toMatch(/20 MB/);
+    // A small one still fits, and so does replacing an existing set with a small one
+    expect((await me.put('/prism/small', SET)).status).toBe(200);
+    expect((await me.put('/prism/filler-0', SET)).status).toBe(200);
+    // Somebody else's sets are counted separately
+    const other = await prismPerson();
+    expect((await other.put('/prism/theirs', { ...SET, names: namesOfSize(9000) })).status).toBe(200);
+  }, 120000);
+});
+
 test('deleting the account deletes its PRISM sets too', async () => {
   const me = await prismPerson();
   await me.put('/prism/set-1', SET);

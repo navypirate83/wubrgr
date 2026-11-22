@@ -11,6 +11,7 @@
    ===================================================================== */
 
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import PrismSet from '../models/PrismSet.js';
 import { handleDbError } from '../middleware/errorHandler.js';
 
@@ -22,7 +23,20 @@ const MAX_SETS = 100;
 const MAX_PAINTED_CARDS = 20000;
 const MAX_PINS = 5000;
 
+// How much one account's PRISM sets may take up in the database. A real set (a few thousand painted cards) is
+// well under 1 MB; without limits one account could store about 1 GB, twice the size of the whole database.
+const MAX_SET_BYTES = 2 * 1024 * 1024;        // one set: 2 MB
+const MAX_ACCOUNT_BYTES = 20 * 1024 * 1024;   // all of one account's sets together: 20 MB
+
 const isText = (value, max) => typeof value === 'string' && value.length > 0 && value.length <= max;
+
+// A card's name used as a KEY (the label a card's painted marks are filed under). It is a lowercase card name,
+// so almost anything goes, dots included ("mr. orfeo, the boulder"). What is refused: nothing at all, more than
+// 200 characters, a "$" in front (that means a command to the database), hidden control characters, and the
+// three words that mean something special to JavaScript itself, which no card is called.
+const RESERVED_KEYS = ['__proto__', 'constructor', 'prototype'];
+const isCardKey = (key) => typeof key === 'string' && key.length > 0 && key.length <= 200
+  && !key.startsWith('$') && !/[\u0000-\u001f\u007f]/.test(key) && !RESERVED_KEYS.includes(key);
 const isObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 
 // Check one set the app sent. Returns { fields } with only the known
@@ -44,18 +58,18 @@ function checkSet(body) {
     return { error: 'The pins must be a list of decks with a card name and, if only one printing, which' };
   }
   if (!isObject(painted) || Object.keys(painted).length > MAX_PAINTED_CARDS
-    || !Object.entries(painted).every(([key, copies]) => key.length <= 200 && Array.isArray(copies)
+    || !Object.entries(painted).every(([key, copies]) => isCardKey(key) && Array.isArray(copies)
       && copies.length <= 1000 && copies.every((ids) => Array.isArray(ids) && ids.length <= 48 && ids.every((id) => isText(id, 80))))) {
     return { error: 'What is painted must be, for each card, a list of the decks painted on each copy' };
   }
   if (!isObject(scrape) || Object.keys(scrape).length > MAX_PAINTED_CARDS
-    || !Object.entries(scrape).every(([key, copies]) => key.length <= 200 && Array.isArray(copies)
+    || !Object.entries(scrape).every(([key, copies]) => isCardKey(key) && Array.isArray(copies)
       && copies.length <= 1000 && copies.every((slots) => Array.isArray(slots) && slots.length <= 48
         && slots.every((slot) => Number.isInteger(slot) && slot >= 1 && slot <= 48)))) {
     return { error: 'The marks to scrape must be, for each card, a list of slots (1 to 48) for each copy' };
   }
   if (!isObject(names) || Object.keys(names).length > MAX_PAINTED_CARDS
-    || !Object.entries(names).every(([key, shown]) => key.length <= 200 && isText(shown, 200))) {
+    || !Object.entries(names).every(([key, shown]) => isCardKey(key) && isText(shown, 200))) {
     return { error: 'The card names must be short text' };
   }
   return {
@@ -101,7 +115,18 @@ router.put('/:clientId', async (req, res) => {
   if (!isText(clientId, 80)) return res.status(400).json({ error: 'That set id is not valid' });
   const checked = checkSet(req.body);
   if (checked.error) return res.status(400).json({ error: checked.error });
+  // How big this set is (as text, which is close to what the database stores)
+  const setBytes = Buffer.byteLength(JSON.stringify(checked.fields));
+  if (setBytes > MAX_SET_BYTES) return res.status(400).json({ error: 'This PRISM set is too big to save (a set can be up to 2 MB)' });
   try {
+    // ...and how much the account's OTHER sets already take up (the database adds them up itself)
+    const [others] = await PrismSet.aggregate([
+      { $match: { owner: new mongoose.Types.ObjectId(req.user.sub), clientId: { $ne: clientId } } },
+      { $group: { _id: null, bytes: { $sum: { $bsonSize: '$$ROOT' } } } },
+    ]);
+    if ((others?.bytes ?? 0) + setBytes > MAX_ACCOUNT_BYTES) {
+      return res.status(400).json({ error: 'Your PRISM sets have reached the 20 MB limit. Delete a set you no longer need, then try again.' });
+    }
     // A new set: not past the limit
     const exists = await PrismSet.exists({ owner: req.user.sub, clientId });
     if (!exists && (await PrismSet.countDocuments({ owner: req.user.sub })) >= MAX_SETS) {

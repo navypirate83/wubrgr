@@ -114,8 +114,8 @@ app.post('/auth/refresh', makeAuthLimiter(config.authRateLimitMax * 2));
 app.put('/binders/:id/cards', requireAuth, express.json({ limit: '25mb' }));
 app.put('/lists/:id/cards', requireAuth, express.json({ limit: '10mb' }));
 app.put('/decks/:id/cards', requireAuth, express.json({ limit: '10mb' }));
-// A PRISM set with a lot painted can be large too
-app.put('/prism/:clientId', requireAuth, requirePrism, express.json({ limit: '10mb' }));
+// A PRISM set with a lot painted can be large too (the route itself refuses a set over 2 MB)
+app.put('/prism/:clientId', requireAuth, requirePrism, express.json({ limit: '3mb' }));
 app.post('/binders/import', requireAuth, express.json({ limit: '10mb' }));
 
 // Everything else: JSON bodies up to 100 KB
