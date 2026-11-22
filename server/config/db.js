@@ -26,6 +26,10 @@ export function loadConfig() {
       .split(',')
       .map((address) => address.trim())
       .filter((address) => address !== '' && address !== '*'),
+    // How many relays ("proxies") sit between a visitor and this server, counting the one that connects
+    // to us (see the note at "trust proxy" in app.js). 3 is what was measured on Render on 2026-11-21.
+    // Set TRUST_PROXY only if the server moves to a host with a different number of relays.
+    trustProxy: number(process.env.TRUST_PROXY, 3),
     // How many requests one visitor may make per minute
     rateLimitMax: number(process.env.RATE_LIMIT_MAX, 100),
     // How many tries one visitor gets per minute on the sign-in routes

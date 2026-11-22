@@ -34,10 +34,16 @@ const app = express();
 // Don't announce that we're an Express server
 app.disable('x-powered-by');
 
-// Behind a hosting service's proxy every visitor would look like the same
-// address, so trust the first proxy (needed for the rate limits to count
-// each visitor separately)
-app.set('trust proxy', 1);
+// WHOSE ADDRESS IS A REQUEST FROM? A request doesn't reach this server straight from the visitor: on
+// Render it is passed along by relays ("proxies"), and each one adds the address it got the request from
+// to a list. Measured on the live server on 2026-11-21, the path is:
+//   visitor -> Cloudflare -> Render's inside relay -> a relay on this machine -> this server
+// That is 3 relays, so the visitor's own address is 3 steps back. "trust proxy" tells Express how many
+// steps to go back. It used to be 1, which made every visitor look like Render's inside relay: the rate
+// limits then counted everybody together (5 sign-in tries a minute shared by all visitors).
+// The number must be exact. Too low: visitors share a counter. Too high: a visitor could write a made-up
+// address into the list and get a fresh counter every time.
+app.set('trust proxy', config.trustProxy);
 
 // A log line per request (not while the tests run)
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
