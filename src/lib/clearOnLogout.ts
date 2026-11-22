@@ -16,6 +16,7 @@
    Plain TypeScript with no React in it.
    ===================================================================== */
 
+import { clearScanList } from './scanner/scanListStore';
 import { askYesNo } from './dialogs';
 import { changedSinceSync } from './serverSync';
 import { resetPhoneMemory } from './driveSync';
@@ -37,5 +38,7 @@ export async function askToClearDevice(): Promise<boolean> {
 
 // Clear this device's saved binders, lists and decks (see the top of the file)
 export async function clearDeviceData(): Promise<void> {
+  // The scanner's waiting list goes too (cards scanned but not yet put in a binder)
+  clearScanList();
   await resetPhoneMemory();
 }

@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.4.0',
+    date: '2026-11-22',
+    lines: ["The scanner's Stack list now stays on your device when the page is refreshed or the app is reopened, and a new Clear all button empties it in one go."],
+  },
+  {
     version: '1.3.4',
     date: '2026-11-22',
     lines: ['Security fixes. Wrong passwords now only ever pause logging in for 30 minutes; you are never forced to change your password.'],

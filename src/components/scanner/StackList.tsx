@@ -6,7 +6,9 @@
    sure of has an orange dashed border and a PICK tag (a printing to choose) or a
    FIX tag (one that couldn't be read); tapping it opens the picker. Tapping any
    other row opens the confirm sheet to change it. The cross takes a row off the
-   list. At the bottom: "Keep scanning" and "Add N to binder".
+   list, and "Clear all" at the top right empties the whole list in one go (the
+   page that owns the list asks "are you sure?" first). At the bottom: "Keep
+   scanning" and "Add N to binder".
    ===================================================================== */
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -20,11 +22,12 @@ type Props = {
   items: ScanItem[];
   onOpen: (item: ScanItem) => void;       // a row was tapped
   onRemove: (item: ScanItem) => void;
+  onClear: () => void;                    // "Clear all" was tapped
   onAdd: () => void;
   onClose: () => void;
 };
 
-export default function StackList({ items, onOpen, onRemove, onAdd, onClose }: Props) {
+export default function StackList({ items, onOpen, onRemove, onClear, onAdd, onClose }: Props) {
   const colors = useColors();
   const copies = items.reduce((sum, item) => sum + item.count, 0);
   const flagged = items.filter((item) => item.flag).length;
@@ -35,6 +38,12 @@ export default function StackList({ items, onOpen, onRemove, onAdd, onClose }: P
           <Ionicons name="arrow-back" size={22} color={colors.muted} />
         </Pressable>
         <Text style={[styles.title, { color: colors.text }]}>Scanned · {copies}</Text>
+        {/* "Clear all", pushed to the right end of the bar. Only there when the list has something in it. */}
+        {items.length > 0 && (
+          <Pressable accessibilityRole="button" accessibilityLabel="Clear all: take every card off the list" hitSlop={10} onPress={onClear} style={styles.clear}>
+            <Text style={[styles.clearText, { color: colors.error }]}>Clear all</Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
@@ -85,6 +94,9 @@ const styles = StyleSheet.create({
   page: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 20 },
   header: { height: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   title: { fontSize: 16, fontWeight: '700' },
+  // "Clear all": at the right end of the top bar ("marginLeft: auto" pushes it there), in the warning color
+  clear: { marginLeft: 'auto', paddingVertical: 6, paddingHorizontal: 4 },
+  clearText: { fontSize: 14, fontWeight: '700' },
   list: { maxWidth: 700, width: '100%', alignSelf: 'center' },
   empty: { padding: 24, textAlign: 'center', fontSize: 14 },
   row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },

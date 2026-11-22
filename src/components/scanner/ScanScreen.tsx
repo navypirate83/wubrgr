@@ -46,6 +46,7 @@ import { useColors } from '@/hooks/useTheme';
 import { useScanOptions } from '@/hooks/useScanOptions';
 import { useAccount } from '@/hooks/useAccount';
 import { storageGet, storageSet } from '@/lib/storage';
+import { loadScanList, saveScanList } from '@/lib/scanner/scanListStore';
 import { aiModel } from '@/lib/scanner/ai/aiModel';
 import { aiStore } from '@/lib/scanner/ai/aiStore';
 import { aiReady } from '@/lib/scanner/ai/aiFiles';
@@ -91,8 +92,12 @@ const AI_ASKED_KEY = 'wubrgr.scanner.aiAsked';
 export default function ScanScreen() {
   const colors = useColors();
   const [catalogue, setCatalogue] = useState<CatalogueInfo | null | undefined>(undefined);
-  const [mode, setMode] = useState<'one' | 'stack'>('one');
-  const [items, setItems] = useState<ScanItem[]>([]);
+  // THE SCANNED LIST is also kept on this device (see lib/scanner/scanListStore.ts): it is read back here when
+  // the scanner opens, and saved again every time it changes, so refreshing the page or closing the app
+  // doesn't lose it. If cards are waiting on it, the scanner opens in Stack mode, where the list's button is.
+  const [items, setItems] = useState<ScanItem[]>(loadScanList);
+  const [mode, setMode] = useState<'one' | 'stack'>(() => (items.length > 0 ? 'stack' : 'one'));
+  useEffect(() => { saveScanList(items); }, [items]);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [listOpen, setListOpen] = useState(false);
@@ -223,6 +228,12 @@ export default function ScanScreen() {
     });
   }
   const changeInList = (item: ScanItem) => setItems((list) => list.map((other) => (other.id === item.id ? item : other)));
+  // "Clear all": empty the whole list in one go. It can't be undone, so it asks first.
+  async function clearList() {
+    const copies = items.reduce((sum, item) => sum + item.count, 0);
+    const sure = await askYesNo('Clear the scanned list?', `This takes ${copies === 1 ? 'the 1 card' : `all ${copies} cards`} off the list. Nothing is added to a binder. It can't be undone.`, 'Clear all');
+    if (sure) setItems([]);
+  }
 
   /* ----- a card was scanned ----- */
   // The camera hands over each reading here. The count of scans still being worked out goes up while this one
@@ -402,6 +413,7 @@ export default function ScanScreen() {
             else setSheet({ item, likely: false, fromList: true });
           }}
           onRemove={(item) => setItems((list) => list.filter((other) => other.id !== item.id))}
+          onClear={clearList}
           onAdd={() => addNow(items, () => { setItems([]); setListOpen(false); })}
           onClose={() => setListOpen(false)}
         />
