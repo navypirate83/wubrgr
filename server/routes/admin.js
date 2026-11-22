@@ -13,7 +13,9 @@
    admin can't lock themselves out), and the LAST admin can't be taken down or deleted
    (checked before the change and again after it, so two admins acting on each other at the
    same moment can never leave zero admins).
-   New rights reach a signed-in person within 15 minutes (the rights are in their login token).
+   A change of rights counts on the person's very next request (the server reads the rights from the
+   account each time: see middleware/auth.js). What the person's APP shows catches up when it next renews
+   its login, within 15 minutes, or when they sign in again.
    ===================================================================== */
 
 import { Router } from 'express';

@@ -1730,7 +1730,7 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <P>
               Tap a person to open their window. Tick the rights the person should have (PRISM, AIScan, Admin) and tap <Strong>Save</Strong>. Ticking Admin shows PRISM and AIScan as on and locked, because an Admin has them already, and it shows a warning first,
-              because an Admin can change everyone's rights. New rights reach the person within about 15 minutes, or when
+              because an Admin can change everyone's rights. A right you take away stops working for that person straight away. What their app shows (a new PRISM section, say, or one that should disappear) catches up within about 15 minutes, or when
               they sign in again. <Strong>You can't change your own rights</Strong> (so you can't lock yourself out), and
               <Strong> the last Admin can't be taken down</Strong>.
             </P>

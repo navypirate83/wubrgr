@@ -14,7 +14,8 @@
    name has to be typed before the red button turns on.
    The safety rules (the server checks them too): you can't change or delete your own
    account here, and the last Admin can't be taken down or deleted.
-   New rights reach the person within about 15 minutes, or when they sign in again.
+   A change of rights counts on the server at once; what the person's app shows catches up within
+   about 15 minutes, or when they sign in again.
    The file sits in the (tabs) folder so the bottom tabs (phones) or the side menu
    (wide windows) stay up on this page; it has no tab button of its own (see (tabs)/_layout.tsx).
    ===================================================================== */

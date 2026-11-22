@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.2.1',
+    date: '2026-11-22',
+    lines: ['Security fixes.'],
+  },
+  {
     version: '1.2.0',
     date: '2026-11-22',
     lines: ['The website has moved to its own address: wubrgr.navypirate83.com. The old address forwards to it. Log in again at the new address.'],

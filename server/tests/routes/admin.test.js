@@ -103,13 +103,14 @@ describe('changing rights', () => {
     expect((await as(second).patch(`/admin/users/${admin._id}`, { roles: [] })).status).toBe(200);
     const third = await makeUser({ roles: ['admin'] });
     expect((await as(third).patch(`/admin/users/${second._id}`, { roles: [] })).status).toBe(200);
-    // third is now the only admin; a stale token for the demoted second admin still says admin, and must not remove the last one
+    // third is now the only admin. The demoted second admin's token still says admin, but the server goes by
+    // the account, so they can't touch the last one (or anything else on the Admin page)
     const staleSecond = as(second);
     const res = await staleSecond.patch(`/admin/users/${third._id}`, { roles: ['prism'] });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect([...(await User.findById(third._id)).roles]).toEqual(['admin']);
-    // Keeping admin while changing other rights is fine for the last admin
-    expect((await staleSecond.patch(`/admin/users/${third._id}`, { roles: ['admin', 'prism'] })).status).toBe(200);
+    // (Nobody else is an admin now and nobody can change their own rights, so the "last admin" answer itself
+    // can only come up when two admins act at the same moment: see the two tests for that below.)
   });
 });
 
@@ -208,14 +209,20 @@ describe('deleting a person', () => {
     expect(await User.findById(second._id)).not.toBeNull();
   });
 
-  test('the last admin is protected even from another admin whose rights were just removed', async () => {
+  test('an admin whose rights were just removed is turned away at once, though their login token still says admin', async () => {
     const first = await makeUser({ roles: ['admin'], name: 'First' });
     const second = await makeUser({ roles: ['admin'], name: 'Second' });
-    // second demotes first; first's old token still says "admin" for up to 15 minutes
+    const third = await makeUser({ name: 'Third' });
+    // second demotes first. first's token was made while they were an admin and still says so.
     expect((await as(second).patch(`/admin/users/${first._id}`, { roles: [] })).status).toBe(200);
-    const res = await as(first).del(`/admin/users/${second._id}`, { name: 'Second' });
-    expect(res.status).toBe(409);
+    // Everything an admin could do is refused on the very next request
+    expect((await as(first).get('/admin/users')).status).toBe(403);
+    expect((await as(first).patch(`/admin/users/${third._id}`, { roles: ['admin'] })).status).toBe(403);
+    expect((await as(first).del(`/admin/users/${second._id}`, { name: 'Second' })).status).toBe(403);
+    expect([...(await User.findById(third._id)).roles]).toEqual([]);
     expect(await User.findById(second._id)).not.toBeNull();
+    // ...while the ordinary parts of the app still work for them
+    expect((await as(first).get('/binders')).status).toBe(200);
   });
 
   test('two admins deleting each other at the same moment never leaves zero admins', async () => {

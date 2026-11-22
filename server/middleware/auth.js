@@ -26,9 +26,17 @@ export async function requireAuth(req, res, next) {
     if (parts.length !== 2 || parts[0] !== 'Bearer' || parts[1] === '') return pleaseSignIn(res);
     const payload = jwt.verify(parts[1], process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (!Array.isArray(payload.roles)) return pleaseSignIn(res);
-    // A real token for an account that has been deleted must not work
-    if (typeof payload.sub !== 'string' || !(await User.exists({ _id: payload.sub }))) return pleaseSignIn(res);
-    req.user = { ...payload, id: payload.sub };
+    // Look the account up. A real token for an account that has been deleted must not work.
+    if (typeof payload.sub !== 'string') return pleaseSignIn(res);
+    const account = await User.findById(payload.sub).select('roles').lean();
+    if (!account) return pleaseSignIn(res);
+    // THE RIGHTS COME FROM THE ACCOUNT AS IT IS NOW, not from the token. The token was made up to 15 minutes
+    // ago, so going by it would let a right that has just been taken away (Admin, say) keep working until the
+    // token ran out: long enough for a demoted Admin to make somebody else one. Read from the account, a
+    // change of rights counts on the very next request. (The account is looked up here anyway, so it costs
+    // nothing extra.)
+    const roles = Array.isArray(account.roles) ? account.roles.filter((role) => typeof role === 'string') : [];
+    req.user = { ...payload, id: payload.sub, roles };
     return next();
   } catch {
     // Missing, malformed, wrong signature, expired, or no secret set
@@ -36,8 +44,8 @@ export async function requireAuth(req, res, next) {
   }
 }
 
-// Only admins may pass (the rights come from the 15-minute token, so a
-// change reaches a signed-in person within 15 minutes)
+// Only admins may pass (the rights are the account's own, read fresh by requireAuth on every
+// request, so giving or taking away a right counts at once)
 export function requireAdmin(req, res, next) {
   if (!hasRight(req.user?.roles, 'admin')) return res.status(403).json({ error: 'Admin access required' });
   return next();

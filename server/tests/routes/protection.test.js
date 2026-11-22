@@ -10,6 +10,7 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../../app.js';
 import Binder from '../../models/Binder.js';
+import User from '../../models/User.js';
 import List from '../../models/List.js';
 import { connectTestDb, clearTestDb, disconnectTestDb } from '../helpers/db.js';
 import { makeUser, bearer, tokenFor, aCard } from '../helpers/users.js';
@@ -110,6 +111,28 @@ describe('the prism right', () => {
     expect((await request(app).get('/prism').set('Authorization', bearer(admin))).status).toBe(200);
     expect((await request(app).get('/ai/model.onnx').set('Authorization', bearer(admin))).status).not.toBe(403);
     expect((await request(app).get('/admin/users').set('Authorization', bearer(admin))).status).toBe(200);
+  });
+
+  test('PRISM and AIScan taken away stop working at once; a right just given works at once', async () => {
+    const user = await makeUser({ roles: ['prism', 'aiscan'] });
+    const auth = bearer(user);   // (made now: it says prism and aiscan)
+    expect((await request(app).get('/prism').set('Authorization', auth)).status).toBe(200);
+    await User.updateOne({ _id: user._id }, { $set: { roles: [] } });
+    expect((await request(app).get('/prism').set('Authorization', auth)).status).toBe(403);
+    expect((await request(app).get('/ai/model.onnx').set('Authorization', auth)).status).toBe(403);
+    // Given back: the same old token works again, with no need to sign in again
+    await User.updateOne({ _id: user._id }, { $set: { roles: ['prism'] } });
+    expect((await request(app).get('/prism').set('Authorization', auth)).status).toBe(200);
+    expect((await request(app).get('/ai/model.onnx').set('Authorization', auth)).status).toBe(403);
+  });
+
+  test('a token that claims rights the account does not have gets none of them', async () => {
+    const user = await makeUser();
+    // Properly signed, but saying "admin" for an ordinary account (as a token from before a demotion would)
+    const claims = jwt.sign({ sub: String(user._id), email: user.email, roles: ['admin', 'prism', 'aiscan'] }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    expect((await request(app).get('/admin/users').set('Authorization', `Bearer ${claims}`)).status).toBe(403);
+    expect((await request(app).get('/prism').set('Authorization', `Bearer ${claims}`)).status).toBe(403);
+    expect((await request(app).get('/binders').set('Authorization', `Bearer ${claims}`)).status).toBe(200);
   });
 
   test('a token with no roles list is refused with 401, even if signed properly', async () => {
