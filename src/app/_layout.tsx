@@ -32,7 +32,6 @@ import { useAutoSync } from '@/hooks/useAutoSync';
 import { RequestError } from '@/lib/http';
 import { useColors, useTheme } from '@/hooks/useTheme';
 import AppHeader from '@/components/AppHeader';
-import HelpButton from '@/components/HelpButton';
 import SyncChoiceHost from '@/components/SyncChoiceHost';
 import MergeChoiceHost from '@/components/MergeChoiceHost';
 import DialogHost from '@/components/DialogHost';
@@ -167,8 +166,8 @@ function ThemedStack() {
         {/* Screens that slide in on top of the tabs */}
         <Stack.Screen name="help" options={{ title: 'Help' }} />
         <Stack.Screen name="login" options={{ title: 'Account' }} />
-        {/* The Admin page (people and their rights): only for admins */}
-        <Stack.Screen name="admin" options={{ title: 'People', headerRight: () => <HelpButton topic="admin" /> }} />
+        {/* (The Admin page, People, is not here: it lives with the tabs, so the
+            bottom tabs or side menu stay up on it. See (tabs)/_layout.tsx.) */}
       </Stack>
       {/* The "Phone and Google Drive don't match" window: invisible until
           the sync code asks which way to sync (see lib/driveSync.ts) */}

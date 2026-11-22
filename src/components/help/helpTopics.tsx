@@ -1705,7 +1705,8 @@ export const helpTopics: HelpTopic[] = [
     lead: (
       <>
         The <Strong>Admin</Strong> page is where you give people rights and, if you have to, delete an account. It only
-        shows for accounts with the Admin right: <Strong>Settings → Admin → Manage people</Strong>.
+        shows for accounts with the Admin right: <Strong>Settings → Admin → Manage people</Strong>. The tabs along the
+        bottom (or the menu down the side on a wide screen) stay up on it, with Settings lit, so you can go anywhere else from it.
       </>
     ),
     sections: [

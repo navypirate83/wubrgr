@@ -15,11 +15,13 @@
    The safety rules (the server checks them too): you can't change or delete your own
    account here, and the last Admin can't be taken down or deleted.
    New rights reach the person within about 15 minutes, or when they sign in again.
+   The file sits in the (tabs) folder so the bottom tabs (phones) or the side menu
+   (wide windows) stay up on this page; it has no tab button of its own (see (tabs)/_layout.tsx).
    ===================================================================== */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Button from '@/components/Button';
 import PopupWindow from '@/components/PopupWindow';
@@ -86,7 +88,9 @@ export default function AdminScreen() {
       setProblem((err as Error).message);
     }
   }, []);
-  useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
+  // Read the list every time the page is come to (a tab screen stays in memory after the first visit,
+  // so without this, coming back later would show the list as it was then)
+  useFocusEffect(useCallback(() => { if (isAdmin) load(); }, [isAdmin, load]));
 
   const myId = serverUser?.id;
   // Does this person fit the chosen button? ("No extra rights" = an empty list)

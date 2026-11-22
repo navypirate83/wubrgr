@@ -2,7 +2,8 @@
    THE TABS ALONG THE BOTTOM
    The app's five main screens, one tab each: Home, The Shelf (your
    binders), Card Finder (searching Scryfall), Scan (the card scanner) and
-   Settings. Tapping a
+   Settings. (One more screen lives here without a tab of its own: the
+   Admin's People page, so the tabs or side menu stay up on it.) Tapping a
    tab switches screens; each screen stays as you left it (scrolled
    down, a search typed in) when you switch back. The Shelf tab takes you
    back to the last place you were in the shelf, or, if you're already inside
@@ -41,6 +42,8 @@ export default function TabsLayout() {
   const menu = useMenuStyle();
   // The address now, so the Shelf tab knows whether you're already in the shelf
   const pathname = usePathname();
+  // Are we on the Admin's People page? (It has no tab of its own, so the Settings tab is lit up for it.)
+  const onPeople = pathname === '/admin';
   return (
     <Tabs
       // On a wide window, draw our own side menu instead of the bottom
@@ -112,13 +115,30 @@ export default function TabsLayout() {
         // starts loading (so a crash while it loads leaves a trace)
         listeners={{ tabPress: () => mark('scan tab pressed') }}
       />
-      {/* Settings */}
+      {/* Settings. Its icon is also lit up (filled in, orange) while you're on
+          the People page, since that page is reached from Settings. */}
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: tabIcon('settings-outline', 'settings'),
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused || onPeople ? 'settings' : 'settings-outline'} size={size} color={onPeople ? colors.accent : (color as string)} />
+          ),
           headerRight: () => <HelpButton topic="settings" />,
+        }}
+      />
+      {/* People (/admin): the Admin page, only for admins (the page sends
+          everyone else home). It is one of the tab screens so the bottom tabs
+          or the side menu stay up on it, but its own tab button is hidden
+          (display: 'none'): the way in is still the button in Settings.
+          (Not "href: null": in this version of Expo Router that makes the
+          page itself unreachable, sending you Home instead.) */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'People',
+          tabBarItemStyle: { display: 'none' },
+          headerRight: () => <HelpButton topic="admin" />,
         }}
       />
     </Tabs>

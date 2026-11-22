@@ -101,7 +101,8 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
   const onBinders = path.startsWith('/binders') && !onLists && !onDecks && !onPrism;
   const onSearch = path === '/search';
   const onScan = path === '/scan';
-  const onSettings = path === '/settings';
+  // (The Admin's People page is reached from Settings and has no line of its own, so Settings is lit up for it too)
+  const onSettings = path === '/settings' || path === '/admin';
   // The main page of the part of the shelf you're in (the shelf of binders,
   // the lists page or the decks page), or null when you're not in the shelf
   const mainHere = shelfRootHref(path);
