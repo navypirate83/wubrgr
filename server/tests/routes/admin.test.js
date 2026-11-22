@@ -114,6 +114,25 @@ describe('changing rights', () => {
 });
 
 describe('listing people', () => {
+  test('two admins taking each other down at the same moment never leaves zero admins', async () => {
+    for (let round = 0; round < 5; round += 1) {
+      await User.deleteMany({});
+      const a = await makeUser({ roles: ['admin', 'prism'] });
+      const b = await makeUser({ roles: ['admin'] });
+      const answers = await Promise.all([
+        as(a).patch(`/admin/users/${b._id}`, { roles: [] }),
+        as(b).patch(`/admin/users/${a._id}`, { roles: [] }),
+      ]);
+      expect(await User.countDocuments({ roles: 'admin' })).toBeGreaterThanOrEqual(1);
+      // Whoever was undone was told so, and has ALL the rights they had before (not just admin)
+      for (const [index, person] of [[0, b], [1, a]]) {
+        if (answers[index].status === 409) {
+          expect([...(await User.findById(person._id)).roles].sort()).toEqual([...person.roles].sort());
+        }
+      }
+    }
+  });
+
   test('an admin sees everyone, never passwords', async () => {
     const admin = await makeUser({ roles: ['admin'] });
     await makeUser();
@@ -197,6 +216,19 @@ describe('deleting a person', () => {
     const res = await as(first).del(`/admin/users/${second._id}`, { name: 'Second' });
     expect(res.status).toBe(409);
     expect(await User.findById(second._id)).not.toBeNull();
+  });
+
+  test('two admins deleting each other at the same moment never leaves zero admins', async () => {
+    for (let round = 0; round < 5; round += 1) {
+      await User.deleteMany({});
+      const a = await makeUser({ roles: ['admin'] });
+      const b = await makeUser({ roles: ['admin'] });
+      await Promise.all([
+        as(a).del(`/admin/users/${b._id}`, { name: b.name }),
+        as(b).del(`/admin/users/${a._id}`, { name: a.name }),
+      ]);
+      expect(await User.countDocuments({ roles: 'admin' })).toBeGreaterThanOrEqual(1);
+    }
   });
 
   test('a missing person and a bad id are 404', async () => {
