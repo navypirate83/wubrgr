@@ -20,6 +20,8 @@ import type { CardList, ListCard } from './listStorage';
 const LIST_COLUMNS = [
   'Name', 'Set code', 'Set name', 'Collector number', 'Foil', 'Rarity', 'Quantity',
   'Scryfall ID', 'Language', 'Added', 'Side', 'Mana cost', 'Type', 'List',
+  // The price on the day the card was added (see addedPrice.ts). At the end, so older files still line up.
+  'Purchase price', 'Purchase price currency',
 ];
 
 // One value made safe for a .csv file: a value with a comma, a quote mark
@@ -57,6 +59,9 @@ export function listToCsv(list: CardList): string {
       'Mana cost': card.manaCost,
       'Type': card.typeLine,
       'List': list.name,
+      'Purchase price': extra['Purchase price'] ?? '',
+      // (Only written beside a price: USD unless the card says otherwise)
+      'Purchase price currency': extra['Purchase price'] ? extra['Purchase price currency'] ?? 'USD' : '',
     };
     lines.push(LIST_COLUMNS.map((column) => csvValue(values[column])).join(','));
   }
@@ -100,6 +105,11 @@ export function listCardsFromCsv(text: string): ListCard[] {
     const extra: Record<string, string> = {};
     if (get('Set name')) extra['Set name'] = get('Set name');
     if (get('Rarity')) extra.Rarity = get('Rarity');
+    // The price it was added at (USD is the usual currency, so only another one is kept)
+    if (get('Purchase price')) {
+      extra['Purchase price'] = get('Purchase price');
+      if (get('Purchase price currency') && get('Purchase price currency') !== 'USD') extra['Purchase price currency'] = get('Purchase price currency');
+    }
     if (Object.keys(extra).length) card.extra = extra;
     cards.push(card);
   }

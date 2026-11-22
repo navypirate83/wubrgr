@@ -26,6 +26,7 @@ import {
   type Binder, type BinderCard,
 } from '@/lib/binderStorage';
 import { createBinderFile, isSignedIn, signInWithGoogle, syncBinder } from '@/lib/googleDrive';
+import { fillAddedPrices } from '@/lib/addedPrice';
 import { coverLook } from '@/lib/covers';
 import { useColors } from '@/hooks/useTheme';
 import { PickerSheet, ROW_HEIGHT } from '@/components/search/PickerSheet';
@@ -112,7 +113,10 @@ export default function MoveCardDialog({ binderId, card, onMoved, onCancel, mode
           saveBinderList(loadBinderList().map((b) => (b.id === targetId ? { ...b, pages } : b)));
           spot = { page: pages, slot: 1 };
         }
-        cards[pocketKey(spot.page, spot.slot)] = withCount(card, amount);
+        // A card being ADDED (not moved) gets today's price written on it, as the price it was added at
+        // (see addedPrice.ts). A moved card already has its own and keeps it.
+        const placed = mode === 'add' ? (await fillAddedPrices([card]))[0] : card;
+        cards[pocketKey(spot.page, spot.slot)] = withCount(placed, amount);
         page = spot.page;
       }
       saveBinder(cards, targetId);   // keep it on this device (marked "needs saving")...

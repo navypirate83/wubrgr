@@ -30,6 +30,7 @@ import {
 } from '@/lib/cards';
 import type { BinderCard } from '@/lib/binderStorage';
 import { detailsOf, flavorNameOf } from '@/lib/cardDetails';
+import { addedPriceNotes } from '@/lib/addedPrice';
 import type { ListCard } from '@/lib/listStorage';
 import { openLink, shareLink } from '@/lib/links';
 import { hapticTap } from '@/lib/haptics';
@@ -274,7 +275,8 @@ export default function CardPanel(props: Props) {
   // (the smaller "normal" size is plenty, and downloads faster), when
   // it's added (now), and the details saved with every card: the set's
   // name, rarity, colors, type, mana value and release date (see
-  // cardDetails.ts and the binder file's columns in binderCsv.ts).
+  // cardDetails.ts and the binder file's columns in binderCsv.ts), and
+  // today's price, kept as the price it was added at (see addedPrice.ts).
   function cardEntry(): BinderCard {
     const side = isDoubleSided(print!) ? face : 0;
     return {
@@ -286,7 +288,7 @@ export default function CardPanel(props: Props) {
       foil: finish !== 'nonfoil' ? true : undefined,                // only saved if foil (or etched)
       image: imageFor(shown!, side, ['normal', 'large']) ?? CARD_BACK,
       added: new Date().toISOString(),
-      extra: { ...detailsOf(print!), ...(finish === 'etched' ? { Foil: 'etched' } : {}) },
+      extra: { ...detailsOf(print!), ...(finish === 'etched' ? { Foil: 'etched' } : {}), ...addedPriceNotes(print!, finish) },
     };
   }
 

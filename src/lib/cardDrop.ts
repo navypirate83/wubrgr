@@ -21,6 +21,7 @@
 
 import type { BinderCard } from './binderStorage';
 import { detailsOf } from './cardDetails';
+import { addedPriceNotes } from './addedPrice';
 import { CARD_BACK, finishChoices, imageFor, isDoubleSided } from './cards';
 import type { ScryfallCard } from './scryfall';
 
@@ -100,7 +101,8 @@ export function lookupFromDrop(dataTransfer: DataTransfer): { path: string; face
 // Card Finder does: its name, set, number, side, language (if not
 // English), the pocket-sized picture, foil if it ONLY comes in foil, when
 // it's added (now), and the details saved with every card: the set's name,
-// rarity, colors, type, mana value and release date (see cardDetails.ts).
+// rarity, colors, type, mana value and release date (see cardDetails.ts),
+// and today's price, kept as the price it was added at (see addedPrice.ts).
 export function binderCardFrom(card: ScryfallCard, wantedFace: number): BinderCard {
   const face = isDoubleSided(card) ? wantedFace : 0;
   // Foil only if that's the only way it was made (and etched if only etched)
@@ -115,6 +117,6 @@ export function binderCardFrom(card: ScryfallCard, wantedFace: number): BinderCa
     foil: finish !== 'nonfoil' ? true : undefined,
     image: imageFor(card, face, ['normal', 'large']) ?? CARD_BACK,
     added: new Date().toISOString(),
-    extra: { ...detailsOf(card), ...(finish === 'etched' ? { Foil: 'etched' } : {}) },
+    extra: { ...detailsOf(card), ...(finish === 'etched' ? { Foil: 'etched' } : {}), ...addedPriceNotes(card, finish) },
   };
 }

@@ -18,14 +18,16 @@ import { MAX_COPIES, firstEmptyPocket, pocketKey, samePrinting, type BinderCard,
 import { changeListCards, findList, type ListCard } from './listStorage';
 import { cardsFor, type ImportSummary } from './deckImportRun';
 import type { ImportedDeck } from './deckImport';
+import { fillAddedPrices } from './addedPrice';
 
 // The cards in a decklist, as plain cards with their counts (no zones), and
-// the names not found
+// the names not found. Each card gets today's price written on it, as the
+// price it was added at (see addedPrice.ts).
 export async function cardsForCollection(imported: ImportedDeck): Promise<{ cards: ListCard[]; notFound: string[] }> {
   const flat: ImportedDeck = { ...imported, lines: imported.lines.map((line) => ({ ...line, zone: 'main' as const })) };
   // (The format only matters for the command zone, which isn't used here)
   const { cards, notFound } = await cardsFor(flat, 'commander');
-  return { cards: cards.map(({ zone: _zone, slot: _slot, ...card }) => card as ListCard), notFound };
+  return { cards: await fillAddedPrices(cards.map(({ zone: _zone, slot: _slot, ...card }) => card as ListCard)), notFound };
 }
 
 // One card with this many copies (one copy is saved as no count at all)

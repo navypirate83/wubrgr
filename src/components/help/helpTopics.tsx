@@ -481,9 +481,20 @@ export const helpTopics: HelpTopic[] = [
               <Strong>From ManaBox</Strong>: export a collection or binder as a .CSV in ManaBox,
               then upload it here. Its cards fill the pockets in the order they're listed (10
               pages to start, with more added if it needs them), and the binder is named after
-              the file. Details WUBRG'r doesn't show (like condition or purchase price) are
+              the file. Details WUBRG'r doesn't show (like its proxy mark) are
               kept, so they're still there when you download it again. Older
               WUBRG'r <Strong>.JSON</Strong> binder files can be uploaded too.
+            </P>
+            <P>
+              <Strong>The price when a card was added</Strong>: each time you add a card to a binder or a list,
+              its price that day is saved with it, in the file's <Strong>Purchase price</Strong> column (with{' '}
+              <Strong>Purchase price currency</Strong> beside it). It is there for comparing with today's price
+              later; no screen shows it yet. The price comes from the store chosen in Settings: Cardmarket's in
+              euros, otherwise TCGplayer's in dollars (Card Kingdom also records TCGplayer's). A price that is
+              already there is never changed: a card from an uploaded file keeps the file's price, a moved card
+              keeps its own, and more copies of a printing you already have keep the first copy's. Cards added
+              before this was built have no price, and neither does a card added with no internet or one the
+              store has no price for.
             </P>
             <P>
               Binders saved before were .JSON files. The first time you open The Shelf, each one

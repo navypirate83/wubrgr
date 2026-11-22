@@ -25,9 +25,12 @@
        came out, and its casting cost like "{1}{U}{U}"). They're
        saved with every card (see cardDetails.ts); a file without them gets
        them filled in when the binder is opened.
-   Columns WUBRG'r doesn't use itself (like Condition or Purchase price)
-   are kept with each card, so a ManaBox file can go in and come back
-   out without losing anything.
+   "Purchase price" (with "Purchase price currency") holds the card's
+   price on the day it was added: WUBRG'r writes it when a card is added
+   (see addedPrice.ts), and a file's own value is kept as it came.
+   Columns WUBRG'r doesn't use itself (like Proxy) are kept with each
+   card, so a ManaBox file can go in and come back out without losing
+   anything.
    Plain TypeScript with no React in it.
    ===================================================================== */
 

@@ -19,6 +19,7 @@ import {
   binderPages, isLocalMode, loadBinderList, saveBinder, saveBinderList, type BinderCard,
 } from '@/lib/binderStorage';
 import { placeInBinder } from '@/lib/collectionImport';
+import { fillAddedPrices } from '@/lib/addedPrice';
 import { isSignedIn, signInWithGoogle, syncBinder } from '@/lib/googleDrive';
 import type { Finish } from '@/lib/cards';
 import type { Printing } from './core/catalogueTypes';
@@ -101,7 +102,8 @@ export async function addScansToBinder(binderId: string, items: ScanItem[]): Pro
   // The binder's latest cards (and send this device's changes to it first)
   const existing = await syncBinder(binderId);
   const pagesBefore = binderPages(binderId);
-  const placed = placeInBinder(existing, pagesBefore, items.map(binderCardFrom));
+  // Each new card gets today's price written on it, as the price it was added at (see addedPrice.ts)
+  const placed = placeInBinder(existing, pagesBefore, await fillAddedPrices(items.map(binderCardFrom)));
   // A binder that needed more pages has them now
   if (placed.pages !== pagesBefore) {
     saveBinderList(loadBinderList().map((b) => (b.id === binderId ? { ...b, pages: placed.pages } : b)));

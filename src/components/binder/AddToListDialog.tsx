@@ -14,6 +14,7 @@ import { useColors } from '@/hooks/useTheme';
 import { cardCountText, isLocalMode, type BinderCard } from '@/lib/binderStorage';
 import { costAndTypeOf } from '@/lib/cardDetails';
 import { addCardsToList } from '@/lib/collectionImport';
+import { fillAddedPrices } from '@/lib/addedPrice';
 import { isSignedIn, syncList } from '@/lib/googleDrive';
 import { loadLists, type CardList, type ListCard } from '@/lib/listStorage';
 
@@ -29,10 +30,11 @@ export default function AddToListDialog({ card, onDone, onCancel }: Props) {
   // Something to tell the person (a list that wouldn't save)
   const [message, setMessage] = useState('');
 
-  // A list was picked: add one copy (a list's card also keeps its cost and type)
-  function addTo(list: CardList) {
+  // A list was picked: add one copy (a list's card also keeps its cost and type). A card with no price
+  // written on it yet gets today's, as the price it was added at (see addedPrice.ts).
+  async function addTo(list: CardList) {
     const { count: _count, ...single } = card;
-    const listCard: ListCard = { ...single, ...costAndTypeOf(card) };
+    const [listCard] = await fillAddedPrices<ListCard>([{ ...single, ...costAndTypeOf(card) }]);
     if (!addCardsToList(list.id, [listCard])) {
       setMessage('That list couldn\'t be saved on this device.');
       return;

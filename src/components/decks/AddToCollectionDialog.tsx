@@ -23,6 +23,7 @@ import { useColors } from '@/hooks/useTheme';
 import type { DeckCard } from '@/lib/deckStorage';
 import { loadLists, type CardList, type ListCard } from '@/lib/listStorage';
 import { addCardsToList } from '@/lib/collectionImport';
+import { fillAddedPrices } from '@/lib/addedPrice';
 import { cardCountText, isLocalMode } from '@/lib/binderStorage';
 import { isSignedIn, syncList } from '@/lib/googleDrive';
 import SymbolText from '@/components/SymbolText';
@@ -52,9 +53,11 @@ export default function AddToCollectionDialog({ card, haveOtherVersion, onDone, 
   // The card as a list keeps it
   const listCard: ListCard = (({ zone: _zone, slot: _slot, ...rest }) => rest)(card);
 
-  // A list was picked: add the copies to it (and save it to Drive in the background)
-  function addToList(list: CardList) {
-    if (!addCardsToList(list.id, [listCard])) {
+  // A list was picked: add the copies to it (and save it to Drive in the background). The card first gets
+  // today's price written on it, as the price it was added at (see addedPrice.ts).
+  async function addToList(list: CardList) {
+    const [priced] = await fillAddedPrices([listCard]);
+    if (!addCardsToList(list.id, [priced])) {
       setMessage('That list couldn\'t be saved on this device.');
       return;
     }
