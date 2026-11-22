@@ -22,6 +22,7 @@
 import { storageGet, storageKeys, storageRemove, storageSet } from './storage';
 import { samePrinting, type BinderCard } from './binderStorage';
 import { needsDetails, withDetails } from './cardDetails';
+import { withAddedPrice } from './addedPrice';
 import { applyEdit, type CardEdit } from './cardEdit';
 import type { ScryfallCard } from './scryfall';
 import { movedBy } from './shelfSort';
@@ -199,17 +200,20 @@ export function updateListCard(id: string, index: number, edit: CardEdit): boole
 
 // Save the details sorting needs (colors, type, rarity, mana value, release
 // date: see cardDetails.ts) with the cards of a list that don't have them
-// yet, from their printings (by "set/number" in lowercase). Returns true if
-// anything was filled in.
+// yet, from their printings (by "set/number" in lowercase). A card with no
+// "price when added" (from before prices were recorded) gets today's price
+// at the same time (see addedPrice.ts). Returns true if anything was filled in.
 export function fillListDetails(id: string, printings: Map<string, ScryfallCard>): boolean {
   const list = findList(id);
   if (!list) return false;
   let changed = false;
   const cards = list.cards.map((card) => {
-    const print = needsDetails(card) ? printings.get(`${card.set}/${card.number}`.toLowerCase()) : undefined;
+    const print = printings.get(`${card.set}/${card.number}`.toLowerCase());
     if (!print) return card;
-    changed = true;
-    return withDetails(card, print) as ListCard;
+    const detailed = needsDetails(card) ? (withDetails(card, print) as ListCard) : card;
+    const next = withAddedPrice(detailed, print);
+    if (next !== card) changed = true;
+    return next;
   });
   return changed && changeList(id, (l) => ({ ...l, cards }));
 }

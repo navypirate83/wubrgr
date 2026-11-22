@@ -492,9 +492,10 @@ export const helpTopics: HelpTopic[] = [
               later; no screen shows it yet. The price comes from the store chosen in Settings: Cardmarket's in
               euros, otherwise TCGplayer's in dollars (Card Kingdom also records TCGplayer's). A price that is
               already there is never changed: a card from an uploaded file keeps the file's price, a moved card
-              keeps its own, and more copies of a printing you already have keep the first copy's. Cards added
-              before this was built have no price, and neither does a card added with no internet or one the
-              store has no price for.
+              keeps its own, and more copies of a printing you already have keep the first copy's. A card that
+              has no price yet (it was added before prices were saved, or with no internet) gets the price of
+              the day its binder or list is next opened, so its tracking starts then. A card the store has no
+              price for stays empty.
             </P>
             <P>
               Binders saved before were .JSON files. The first time you open The Shelf, each one

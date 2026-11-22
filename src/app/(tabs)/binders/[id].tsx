@@ -84,6 +84,7 @@ import { GRID_ZOOM_WIDTHS, binderGridZoom, binderSort, binderSortReversed, binde
 import { headerFor, sortEntries } from '@/lib/binderSort';
 import { isSearching, makeNameFilter } from '@/lib/nameFilter';
 import { fillDetails, finishParam } from '@/lib/cardDetails';
+import { fillMissingPrices } from '@/lib/addedPrice';
 import { rememberBinderPage, rememberedBinderPage } from '@/lib/shelfMemory';
 import { useContentWidth } from '@/hooks/useMenuStyle';
 import { askYesNo, showMessage } from '@/lib/dialogs';
@@ -298,10 +299,14 @@ function BinderView({ binderId }: { binderId: string }) {
     [mode, headersOn, sort, prices.printings],
   );
   // Once the lookup arrives, save the missing details with the cards (once:
-  // after that they have them, so there's nothing left to fill in)
+  // after that they have them, so there's nothing left to fill in). A card
+  // with no "price when added" (from before prices were recorded) gets
+  // today's price the same way, so its price tracking starts now (see
+  // addedPrice.ts).
   useEffect(() => {
     if (!prices.printings) return;
-    const filled = fillDetails(cardsRef.current, prices.printings);
+    const detailed = fillDetails(cardsRef.current, prices.printings);
+    const filled = fillMissingPrices(detailed ?? cardsRef.current, prices.printings) ?? detailed;
     if (filled && commit(filled)) scheduleDriveSave();
   }, [prices.printings, cards]);
 

@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.3.1',
+    date: '2026-11-22',
+    lines: ["Cards you already had get today's price saved the next time you open their binder or list, so price tracking starts now for them too."],
+  },
+  {
     version: '1.3.0',
     date: '2026-11-22',
     lines: ["Each card now remembers its price on the day you add it to a binder or a list. It is saved in the .csv file's Purchase price column, ready for comparing prices later."],
