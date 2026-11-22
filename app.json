@@ -65,8 +65,7 @@
       "expo-web-browser"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "baseUrl": "/wubrgr"
+      "typedRoutes": true
     },
     "extra": {
       "router": {

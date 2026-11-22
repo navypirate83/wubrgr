@@ -3,7 +3,8 @@
 # Every time new code reaches the "main" branch on GitHub, GitHub runs
 # these steps on one of its own computers: it builds the finished site
 # ("npm run build", which makes the "dist" folder) and publishes it at
-# https://navypirate83.com/wubrgr/ (the folder name comes from "baseUrl" in app.json)
+# https://wubrgr.navypirate83.com/ (its own address, set as the "custom domain" in the
+# repository's Settings → Pages; the old navypirate83.com/wubrgr/ forwards to it)
 # (It can also be started by hand, from the repository's "Actions" tab.)
 # =====================================================================
 

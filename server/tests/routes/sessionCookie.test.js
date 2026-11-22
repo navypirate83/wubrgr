@@ -116,3 +116,59 @@ describe('signing out from the website', () => {
     expect((await fromWebsite('post', '/auth/refresh').set('Cookie', cookiePair(first)).send({})).status).toBe(401);
   });
 });
+
+// The same, the way the LIVE server sees it: the request arrived over https (the relays in front of the
+// server say so with this header). Then the cookie gets its "__Host-" name, which browsers only accept from
+// this exact address over https, so no other page under the same domain can plant or overwrite it.
+describe('over https the cookie is named __Host-', () => {
+  const overHttps = (method, path) => fromWebsite(method, path).set('X-Forwarded-Proto', 'https');
+  const hostLine = (res) => (res.headers['set-cookie'] ?? []).find((line) => line.startsWith('__Host-wubrgr_refresh=')) ?? '';
+  const hostPair = (res) => hostLine(res).split(';')[0];
+
+  test('signing in sets __Host-wubrgr_refresh for the whole address, https only, and drops the older cookie', async () => {
+    const res = await overHttps('post', '/auth/signup').send(good);
+    expect(res.status).toBe(201);
+    const line = hostLine(res);
+    expect(line).toMatch(/^__Host-wubrgr_refresh=.{40,}/);
+    // What a browser demands of a "__Host-" cookie: Secure, Path=/ and no Domain
+    expect(line).toContain('Secure');
+    expect(line).toContain('Path=/;');
+    expect(line).not.toMatch(/Domain=/i);
+    expect(line).toContain('HttpOnly');
+    expect(line).toContain('SameSite=Strict');
+    // The cookie kept under the older name is told to go
+    expect(cookieLine(res)).toContain('Max-Age=0');
+    expect(res.body.refreshToken).toBeUndefined();
+  });
+
+  test('renewing reads the __Host- cookie and hands out a new one', async () => {
+    const first = await overHttps('post', '/auth/signup').send(good);
+    const res = await overHttps('post', '/auth/refresh').set('Cookie', hostPair(first)).send({});
+    expect(res.status).toBe(200);
+    expect(hostPair(res)).toMatch(/^__Host-wubrgr_refresh=.+/);
+    expect(hostPair(res)).not.toBe(hostPair(first));
+  });
+
+  test('a login kept under the older name is read once and moved to the new name', async () => {
+    const old = await fromWebsite('post', '/auth/signup').send(good);     // (plain http: the older name)
+    const res = await overHttps('post', '/auth/refresh').set('Cookie', cookiePair(old)).send({});
+    expect(res.status).toBe(200);
+    expect(hostPair(res)).toMatch(/^__Host-wubrgr_refresh=.+/);
+    expect(cookieLine(res)).toContain('Max-Age=0');
+  });
+
+  test('when both cookies are sent, the __Host- one is the one believed', async () => {
+    const first = await overHttps('post', '/auth/signup').send(good);
+    const res = await overHttps('post', '/auth/refresh').set('Cookie', `wubrgr_refresh=planted-by-someone-else; ${hostPair(first)}`).send({});
+    expect(res.status).toBe(200);
+  });
+
+  test('logging out throws both cookies away', async () => {
+    const first = await overHttps('post', '/auth/signup').send(good);
+    const res = await overHttps('post', '/auth/logout').set('Cookie', hostPair(first)).send({});
+    expect(res.status).toBe(204);
+    expect(hostLine(res)).toContain('Max-Age=0');
+    expect(cookieLine(res)).toContain('Max-Age=0');
+    expect((await overHttps('post', '/auth/refresh').set('Cookie', hostPair(first)).send({})).status).toBe(401);
+  });
+});

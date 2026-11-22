@@ -16,7 +16,7 @@
      script ever got onto the page, the browser would refuse to run it, or to let it send
      anything away. The list is written out below (see RULE); anything not on it is blocked.
    - 404.html: a copy of index.html. GitHub Pages shows 404.html for any
-     address it has no file for (like /wubrgr/binders/abc), and since
+     address it has no file for (like /binders/abc), and since
      it's the app itself, the app opens and shows the right page instead
      of "page not found".
    - .nojekyll: an empty file that tells GitHub Pages not to run Jekyll
@@ -32,14 +32,14 @@ const crypto = require('crypto');
 const dist = path.join(__dirname, '..', 'dist');
 
 // Add the "install as an app" tags to index.html, just before </head>
-// (the addresses start with /wubrgr/ because the site lives in that folder)
+// (the addresses start with "/" because the site lives at the top of its own address)
 const indexPath = path.join(dist, 'index.html');
 // The few lines that start the service worker once the page has loaded (so it never slows the first draw).
 // They are written into the page itself, so the content rule below has to name them exactly (see scriptMark).
-const startWorker = 'if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/wubrgr/sw.js",{scope:"/wubrgr/"}).catch(function(){})})}';
+const startWorker = 'if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(){})})}';
 const appTags = [
-  '<link rel="manifest" href="/wubrgr/manifest.json">',
-  '<link rel="apple-touch-icon" href="/wubrgr/icon-192.png">',
+  '<link rel="manifest" href="/manifest.json">',
+  '<link rel="apple-touch-icon" href="/icon-192.png">',
   '<meta name="mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="WUBRG\'r">',

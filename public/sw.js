@@ -27,7 +27,7 @@
 const BUILD = '__BUILD__';
 const SHELL = `wubrgr-shell-${BUILD}`;
 const BIG_FILES = 'wubrgr-big-files-v1';
-// The folder the site lives in ("/wubrgr/" on GitHub Pages), from where this worker is
+// The folder the site lives in ("/": the top of its own address), from where this worker is
 const BASE = new URL(self.registration.scope).pathname;
 
 self.addEventListener('install', (event) => {

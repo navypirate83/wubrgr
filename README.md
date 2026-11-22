@@ -1,6 +1,6 @@
 # WUBRG'r Binder
 
-**Website: [navypirate83.com/wubrgr](https://navypirate83.com/wubrgr/)**
+**Website: [wubrgr.navypirate83.com](https://wubrgr.navypirate83.com/)**
 (the phone app's web version, published with GitHub Pages)
 
 **Server: [wubrgr-server.onrender.com](https://wubrgr-server.onrender.com/api/health)**
