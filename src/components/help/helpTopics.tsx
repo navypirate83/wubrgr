@@ -281,7 +281,8 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>
               <Strong>Search</Strong>: the search bar on the Decks page looks through your decks' names <Strong>and</Strong> the
-              cards inside them (small typos are fine). Tap a match to open that deck.
+              cards inside them (small typos are fine). Tap a match to open that deck. Once you have typed something, a
+              little <Strong>X</Strong> appears at the far right of the box (in a deck's search bar too); tap it to empty the box.
             </Bullet>
             <P>
               Inside a deck, the search bar has a <Strong>switch</Strong> to its right, with a label above it that says what the

@@ -112,9 +112,19 @@ export default function DeckSearch({ onPick }: { onPick: (id: string) => void })
           autoCapitalize="none"
           style={styles.input}
         />
-        <View style={styles.searchIcon} pointerEvents="none">
-          <Ionicons name="search" size={20} color={colors.muted} />
-        </View>
+        {/* At the far right: a little X that empties the box once something is typed,
+            otherwise the magnifying glass. */}
+        {text.length > 0 ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Clear the search box" hitSlop={6}
+                     onPress={() => { clearTimeout(typingTimer.current); setText(''); setResults(null); }}
+                     style={styles.searchIcon}>
+            <Ionicons name="close-circle" size={22} color={colors.muted} />
+          </Pressable>
+        ) : (
+          <View style={styles.searchIcon} pointerEvents="none">
+            <Ionicons name="search" size={20} color={colors.muted} />
+          </View>
+        )}
       </View>
 
       {/* The matches, dropping down over whatever is below */}

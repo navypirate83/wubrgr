@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.4.1',
+    date: '2026-11-22',
+    lines: ['The search boxes on the Decks page and inside a deck now show a little X at the far right once you type something; tap it to empty the box.'],
+  },
+  {
     version: '1.4.0',
     date: '2026-11-22',
     lines: ["The scanner's Stack list now stays on your device when the page is refreshed or the app is reopened, and a new Clear all button empties it in one go."],

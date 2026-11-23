@@ -105,9 +105,19 @@ export default function DeckSearchBar({ mode, onMode, filter, onFilter, open, on
             autoCapitalize="none"
             style={styles.input}
           />
-          <View style={styles.searchIcon} pointerEvents="none">
-            <Ionicons name="search" size={20} color={colors.muted} />
-          </View>
+          {/* At the far right: a little X that empties the box once something is typed,
+              otherwise the magnifying glass. */}
+          {(adding ? text : filter).length > 0 ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Clear the search box" hitSlop={6}
+                       onPress={() => { if (adding) { setText(''); onOpenChange(false); } else onFilter(''); }}
+                       style={styles.searchIcon}>
+              <Ionicons name="close-circle" size={22} color={colors.muted} />
+            </Pressable>
+          ) : (
+            <View style={styles.searchIcon} pointerEvents="none">
+              <Ionicons name="search" size={20} color={colors.muted} />
+            </View>
+          )}
         </View>
         {/* The label above the switch says what the box is doing now */}
         <View style={styles.modeBox}>
