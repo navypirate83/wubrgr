@@ -7,8 +7,12 @@
      the casting cost (Scryfall's own mana symbols), the set's symbol, the
      set code and number, with a "*" after the number for a foil or "**"
      for an etched foil; then the type line. To the right: the "− 3 +"
-     copies bar (− and + change how many copies you have), and what ONE copy
-     is worth at the store chosen in Settings (a dash when it has no price).
+     copies bar (− and + change how many copies you have), centered up and
+     down in the row, and a column of three price lines for ONE copy: what
+     it is worth today at the store chosen in Settings (a dash when it has no
+     price), how many percent that has moved since the card was added (green
+     with a + going up, red with a - going down), and the price it had on the
+     day it was added.
    Above both, one quiet line: how many cards, how many different, and the
    total value.
    - GRID: card pictures side by side (a foil has a rainbow border), each
@@ -44,6 +48,7 @@ import { pictureSource } from '@/lib/http';
 import { cardCount, sameNameCount, type BinderCard } from '@/lib/binderStorage';
 import { useQuery } from '@tanstack/react-query';
 import { formatPrice } from '@/lib/prices';
+import { directionOf, percentText, priceChangeOf } from '@/lib/priceChange';
 import { costAndTypeOf, finishOf } from '@/lib/cardDetails';
 import { loadSetIcons } from '@/lib/scryfall';
 import ManaCost from '@/components/lists/ManaCost';
@@ -402,8 +407,13 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
   const about = `${card.set.toUpperCase()} · #${card.number}${finish === 'etched' ? '**' : finish === 'foil' ? '*' : ''}`;
   // The casting cost and the type line (either can be empty, like a land's cost)
   const { manaCost, typeLine } = costAndTypeOf(card);
+  // How the price has moved since the card was added (null when it has no added price), and the color
+  // for that: green for up, red for down, plain grey for no change
+  const change = priceChangeOf(card.extra, price, currency);
+  const direction = change && change.percent !== null ? directionOf(change.percent) : 'same';
+  const changeColor = direction === 'up' ? colors.success : direction === 'down' ? colors.error : colors.muted;
   return (
-    <View style={[styles.row, { borderBottomColor: border }, highlighted && { backgroundColor: `${colors.accent}2e` }]}>
+    <View style={[styles.row,{ borderBottomColor: border }, highlighted && { backgroundColor: `${colors.accent}2e` }]}>
       {/* The picture and name: tap them for the card's menu */}
       <Pressable
         accessibilityRole="button"
@@ -439,9 +449,17 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
       {/* How many copies: the "− 3 +" bar */}
       <CopiesBar name={card.name} count={count} style={styles.rowBar}
                  onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
-      {/* What ONE copy is worth, not the whole stack (a dash if the store has no price). The total
-          for everything is in the summary line above the cards. */}
-      <Text style={[styles.price, { color: colors.muted }]}>{price === undefined ? '' : formatPrice(price, currency)}</Text>
+      {/* The prices of ONE copy, not the whole stack, in three lines: today's price (a dash if the store
+          has no price), then how far the price has moved since the card was added (green with a +
+          going up, red with a - going down), then the price it had when it was added. A card with no
+          added price shows just today's price. The total for everything is in the summary line above. */}
+      <View style={styles.priceBox}>
+        <Text style={[styles.price, { color: colors.muted }]} numberOfLines={1}>{price === undefined ? '' : formatPrice(price, currency)}</Text>
+        {change && change.percent !== null ? (
+          <Text style={[styles.price, { color: changeColor }]} numberOfLines={1} adjustsFontSizeToFit>{percentText(change.percent)}</Text>
+        ) : null}
+        {change ? <Text style={[styles.price, { color: colors.muted }]} numberOfLines={1}>{formatPrice(change.added, change.addedCurrency)}</Text> : null}
+      </View>
     </View>
   );
 });
@@ -515,7 +533,9 @@ const styles = StyleSheet.create({
   setIcon: { width: 13, height: 13 },
   type: { fontSize: 12, lineHeight: 15 },
   rowBar: { width: 84 },
-  price: { width: 62, textAlign: 'right', fontSize: 13, fontVariant: ['tabular-nums'] },
+  // The three price lines stacked, right-aligned; wide enough for a percent like "+1234.56%"
+  priceBox: { width: 76, alignItems: 'flex-end', justifyContent: 'center' },
+  price: { textAlign: 'right', fontSize: 13, lineHeight: 15, fontVariant: ['tabular-nums'] },
   summary: { fontSize: 13, paddingBottom: SPACE.s, paddingTop: 2 },
   pressed: { opacity: 0.6 },
   // A grid tile's bar sits over the bottom of the card

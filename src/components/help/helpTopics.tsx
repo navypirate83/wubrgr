@@ -208,7 +208,7 @@ export const helpTopics: HelpTopic[] = [
             <P>
               Inside a list, the cards are shown the way a binder shows its cards, as a <Strong>List</Strong> (a
               small picture, the name, the set and number, a <Strong>− 3 +</Strong> bar for how many copies you
-              want, and the price) or a <Strong>Grid</Strong> of card pictures. The small list and grid icon buttons under the search
+              want, and the price: today's, how many percent it has changed since the card was added, and the price when it was added) or a <Strong>Grid</Strong> of card pictures. The small list and grid icon buttons under the search
               box switch between them, and the app remembers your choice (one for a phone-sized window, one for a
               wide screen, saved with your account). A list has no pockets, so there's no Binder view. The sort button
               at the right works like a binder's (tap the sort in use again to reverse it), foil cards have the rainbow
@@ -489,8 +489,11 @@ export const helpTopics: HelpTopic[] = [
             <P>
               <Strong>The price when a card was added</Strong>: each time you add a card to a binder or a list,
               its price that day is saved with it, in the file's <Strong>Purchase price</Strong> column (with{' '}
-              <Strong>Purchase price currency</Strong> beside it). It is there for comparing with today's price
-              later; no screen shows it yet. The price comes from the store chosen in Settings: Cardmarket's in
+              <Strong>Purchase price currency</Strong> beside it). The List view shows it for comparing with today's
+              price: three lines at the right of each card, today's price on top, the percent it has changed in the
+              middle (green with a + if it went up, red with a - if it went down, to two digits after the point), and
+              the price the card had when it was added at the bottom. A card with no added price shows only today's
+              price, and no percent is shown if the two prices are in different money (dollars and euros). The price comes from the store chosen in Settings: Cardmarket's in
               euros, otherwise TCGplayer's in dollars (Card Kingdom also records TCGplayer's). A price that is
               already there is never changed: a card from an uploaded file keeps the file's price, a moved card
               keeps its own, and more copies of a printing you already have keep the first copy's. A card that
@@ -757,8 +760,8 @@ export const helpTopics: HelpTopic[] = [
         A binder opens as its pages of pockets (the <Strong>Binder</Strong> view, below). The
         three small picture buttons under the search bar switch between <Strong>Binder</Strong> (the open
         binder drawing), <Strong>List</Strong> (the list icon: a
-        small picture, the name, the set and number, how many copies you have and what one copy
-        is worth) and <Strong>Grid</Strong> (the grid icon: card pictures side by side). The app remembers your choice
+        small picture, the name, the set and number, how many copies you have, and three price lines for one copy: what it is worth today, how
+        many percent that has changed since you added the card (green +, red -), and its price when added) and <Strong>Grid</Strong> (the grid icon: card pictures side by side). The app remembers your choice
         for the next binder you open, one for a phone-sized window and one for a wide screen, and
         saves it with your account so it follows you to your other devices.
         In the list and grid, the button at the right (it shows the sort in use, like <Strong>A–Z</Strong>) drops
