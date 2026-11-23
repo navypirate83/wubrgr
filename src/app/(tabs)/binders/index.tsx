@@ -5,7 +5,8 @@
    (it opens the New binder window: name, cover symbol and color, or
    upload a .CSV), then the binders themselves: a closed binder for each,
    side by side, as many across as the screen has room for (more rows as
-   more are made), with its card count under it. Then a message line.
+   more are made), with its card count under it, then a dot, the price store's icon and
+   what its cards are worth. Then a message line.
    Touching the binders:
    - tap a binder to open it
    - DRAG a binder to move it to another spot on the shelf (the others
@@ -40,7 +41,12 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { useAccount } from '@/hooks/useAccount';
+import { useSettings } from '@/hooks/useSettings';
+import { useBinderPrices } from '@/hooks/useBinderPrices';
+import { STORE_ICONS } from '@/components/settings/PriceStorePicker';
+import { formatPrice } from '@/lib/prices';
 import { useAnnouncer } from '@/hooks/useAnnouncer';
 import { useContentWidth } from '@/hooks/useMenuStyle';
 import { useColors } from '@/hooks/useTheme';
@@ -210,6 +216,26 @@ export default function ShelfScreen() {
 
   // The card count of every binder, from this device's copy
   const counts = Object.fromEntries(binders.map((b) => [b.id, binderCardCount(b.id)]));
+
+  // What each binder's cards are worth at the store chosen in Settings. All the binders' cards go into ONE
+  // price lookup (each card's key starts with its binder's id, so none can be mixed up), then each binder's
+  // cards are added up. A binder's worth stays missing until the prices have arrived.
+  const { priceStore } = useSettings();
+  const priceEntries = useMemo(() => binders.flatMap((b) =>
+    Object.entries(loadBinder(b.id)).map(([key, card]) => ({ key: `${b.id}|${key}`, card }))),
+  [binders, cardsChanged]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const shelfPrices = useBinderPrices(priceEntries);
+  const worths = useMemo(() => {
+    const out: Record<string, string> = {};
+    if (shelfPrices.total === null) return out;
+    const sums: Record<string, number> = {};
+    for (const { key } of priceEntries) {
+      const id = key.slice(0, key.indexOf('|'));
+      sums[id] = (sums[id] ?? 0) + (shelfPrices.byKey.get(key) ?? 0);
+    }
+    for (const b of binders) out[b.id] = formatPrice(Math.round((sums[b.id] ?? 0) * 100) / 100, shelfPrices.currency);
+    return out;
+  }, [priceEntries, shelfPrices, binders]);
 
   // The binders in the order chosen with the Sort button. In "My own order" (the
   // start) this is the saved order itself, and binders can be moved by hand;
@@ -800,6 +826,8 @@ export default function ShelfScreen() {
             <BinderTile
               binder={binder}
               count={counts[binder.id] ?? 0}
+              worth={worths[binder.id]}
+              store={priceStore}
               width={tile}
               position={`${index + 1} of ${shown.length}`}
               withMouse={withMouse}
@@ -946,6 +974,8 @@ export default function ShelfScreen() {
 function BinderTile(props: {
   binder: Binder;
   count: number;
+  worth: string | undefined;  // what its cards are worth, like "$34.50" (missing until prices arrive)
+  store: keyof typeof STORE_ICONS;   // the price store chosen in Settings, for its icon
   width: number;
   position: string;           // "2 of 5", for screen readers
   withMouse: boolean;
@@ -965,7 +995,7 @@ function BinderTile(props: {
   onDelete: () => void;
   onMove: (by: -1 | 1) => void;
 }) {
-  const { binder, count, width, position, withMouse, shiftX, shiftY, lifted, selected, cursor } = props;
+  const { binder, count, worth, store, width, position, withMouse, shiftX, shiftY, lifted, selected, cursor } = props;
   const colors = useColors();
 
   // The drag. With a finger it only starts once the finger has rested
@@ -1044,7 +1074,18 @@ function BinderTile(props: {
               </View>
             )}
           </View>
-          <Text style={[styles.caption, { color: colors.muted }]} numberOfLines={1}>{cardCountText(count)}</Text>
+          {/* The card count, then a dot, the price store's icon and what the binder's cards are worth
+              (left off for an empty binder, and until the prices have arrived) */}
+          <View style={styles.captionRow}>
+            <Text style={[styles.caption, { color: colors.muted }]} numberOfLines={1}>{cardCountText(count)}</Text>
+            {worth !== undefined && count > 0 ? (
+              <>
+                <Text style={[styles.caption, { color: colors.muted }]}>·</Text>
+                <Image source={STORE_ICONS[store]} style={styles.storeIcon} contentFit="contain" />
+                <Text style={[styles.caption, { color: colors.muted }]} numberOfLines={1}>{worth}</Text>
+              </>
+            ) : null}
+          </View>
         </Pressable>
       </View>
     </GestureDetector>
@@ -1085,6 +1126,9 @@ const styles = StyleSheet.create({
   // A binder and its card count, stacked
   tile: { alignItems: 'center', gap: 8 },
   caption: { fontSize: 13 },
+  // The count, dot, store icon and worth in one line
+  captionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  storeIcon: { width: 13, height: 13, padding: 1, borderRadius: 3, backgroundColor: '#ffffff' },
   pressed: { opacity: 0.7 },
   // The dragged binder's spot: faded, showing where it will land
   landing: { opacity: 0.3 },

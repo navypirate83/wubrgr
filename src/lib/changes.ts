@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.6.0',
+    date: '2026-11-23',
+    lines: ["On the Shelf, each binder now shows a dot, your price store's icon and what its cards are worth, after its card count."],
+  },
+  {
     version: '1.5.0',
     date: '2026-11-23',
     lines: ["In the List view of a binder, list or deck, each card's price is now three lines: today's price, then how many percent it has changed since the card was added (green with a + when it went up, red with a - when it went down), then the price it had when it was added. The − 3 + bar stays in the middle of the row."],
