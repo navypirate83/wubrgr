@@ -38,7 +38,7 @@ export const CHANGES: Change[] = [
     version: '1.7.3',
     date: '2026-11-24',
     lines: [
-      "On the Shelf, a held binder now has five small boxes along the bottom: Edit, Copy, Reset value, Delete and Select multiple. Dropping a binder on Select multiple starts picking several binders (tap more to pick them), with a floating bar at the top for Edit, Copy, Reset value and Delete. The Lists and Decks pages have Select multiple too, in a held list's or deck's options.",
+      "On the Shelf, a held binder now has five small boxes along the top: Edit, Copy, Reset value, Delete and Select multiple. Dropping a binder on Select multiple starts picking several binders (tap more to pick them), with a floating bar at the top for Edit, Copy, Reset value and Delete. The Lists and Decks pages have Select multiple too, in a held list's or deck's options.",
       "Reset value makes the price every card in a binder or list was added at become today's price, so the % change starts again from 0. It asks first and can't be undone.",
       "Holding a binder near the top or bottom edge of the Shelf now scrolls the shelf by itself.",
     ],

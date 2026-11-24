@@ -16,7 +16,7 @@
      (the start, and the only one where dragging moves them), name, recently
      opened, newest or most cards (see shelfSort.ts)
    - press and HOLD a binder still for its options: five small boxes along
-     the bottom (Edit, Copy, Reset value, Delete, Select multiple; the phone
+     the top (Edit, Copy, Reset value, Delete, Select multiple; the phone
      gives a little buzz). A right-click with a mouse shows them too.
    - dropping a binder on Select multiple (or, on a computer, holding CTRL
      and clicking) picks it (a frame and a tick); then a tap picks more, and a
@@ -87,7 +87,7 @@ import { cardsForCollection, placeInBinder } from '@/lib/collectionImport';
 import { readImportSource, summaryText } from '@/lib/deckImportRun';
 import { RADIUS } from '@/theme/colors';
 
-// The five small boxes along the bottom of the screen that a binder picked up
+// The five small boxes along the TOP of the screen (over the search box and Add binder) that a binder picked up
 // with a finger can be dropped on: Edit, Copy, Reset value (every card's added price
 // becomes today's price), Delete, and Select multiple (starts picking several binders)
 type Zone = 'edit' | 'copy' | 'reset' | 'delete' | 'select';
@@ -210,7 +210,7 @@ export default function ShelfScreen() {
     return () => window.removeEventListener('touchmove', stopScrolling);
   }, [holding]);
   // While a binder is held up, scroll the shelf by itself when it is near the top or bottom edge
-  // (never while it's over one of the boxes along the bottom)
+  // (never while it's over one of the boxes along the top)
   const lifted = drag?.lifted === true;
   useEffect(() => {
     if (!lifted) return;
@@ -218,10 +218,12 @@ export default function ShelfScreen() {
       const d = dragRef.current;
       if (!d || !d.lifted || zoneAt(d)) return;
       const y = d.absY - screenAt.current.y;
-      // The bottom edge is the top of the boxes (a mouse has none: the screen's bottom)
-      const bottom = withMouse || barTop.current === 0 ? screenHeight.current : barTop.current - 8;
+      // The top edge is just under the boxes (a mouse has none: the top of the screen); the bottom edge is the screen's bottom
+      const top = withMouse ? 0 : barBottom.current;
+      const bottom = screenHeight.current;
       let speed = 0;
-      if (y < EDGE) speed = -MAX_SCROLL * Math.min(1, (EDGE - y) / EDGE);
+      if (y <= top) return;
+      if (y < top + EDGE) speed = -MAX_SCROLL * Math.min(1, (top + EDGE - y) / EDGE);
       else if (bottom > 0 && y > bottom - EDGE) speed = MAX_SCROLL * Math.min(1, (y - (bottom - EDGE)) / EDGE);
       if (speed === 0) return;
       const to = Math.max(0, scrollY.current + speed);
@@ -238,9 +240,10 @@ export default function ShelfScreen() {
   // countdown, and where the screen sits on the device's screen
   // (measured when a drag starts, for the floating binder)
   const tileHeight = useRef(0);
-  // Where the Edit / Copy / Delete boxes are along the bottom while a binder
+  // Where the Edit / Copy / Delete boxes are along the top while a binder
   // is picked up with a finger: the bar's top, and each box's place in it
   const barTop = useRef(0);
+  const barBottom = useRef(0);   // where the boxes end, from the top of the screen
   const zoneBoxes = useRef<Partial<Record<Zone, { x: number; y: number; w: number; h: number }>>>({});
   const dragEnded = useRef(0);
   // How far the shelf is scrolled, and how far it was when the drag began (the shelf scrolls by itself
@@ -777,7 +780,7 @@ export default function ShelfScreen() {
   // A finger has rested on a binder (or the mouse has started moving
   // with the button held down): get ready to move it. A finger picks the
   // binder up straight away (with a small buzz), and the Edit, Copy and
-  // Delete boxes appear along the bottom. A mouse picks it up once it moves.
+  // Delete boxes appear along the top. A mouse picks it up once it moves.
   function startDrag(id: string, from: number, absX: number, absY: number) {
     screenRef.current?.measureInWindow((x, y) => { screenAt.current = { x, y }; });
     scrollAtStart.current = scrollY.current;
@@ -796,8 +799,8 @@ export default function ShelfScreen() {
       const box = zoneBoxes.current[zone];
       if (!box) continue;
       const top = barTop.current + box.y;
-      // A little extra room above, so a thumb needn't be exact
-      if (x >= box.x && x <= box.x + box.w && y >= top - 24 && y <= top + box.h) return zone;
+      // A little extra room below, so a thumb needn't be exact
+      if (x >= box.x && x <= box.x + box.w && y >= top && y <= top + box.h + 24) return zone;
     }
     return null;
   }
@@ -968,12 +971,13 @@ export default function ShelfScreen() {
         />
       )}
 
-      {/* While a binder is held with a finger: five small boxes along the bottom,
+      {/* While a binder is held with a finger: five small boxes along the top,
           Edit on the left, Copy in the middle and a red Delete on the right.
           Let go over one to do it (Delete still asks "Are you sure?"); the
           box under the binder lights up. */}
       {drag?.lifted && !withMouse && (
-        <View style={styles.zoneBar} onLayout={(event) => { barTop.current = event.nativeEvent.layout.y; }}>
+        <View style={[styles.zoneBar, { backgroundColor: colors.bg, minHeight: SHELF_PADDING + coverH + 4 }]}
+              onLayout={(event) => { const l = event.nativeEvent.layout; barTop.current = l.y; barBottom.current = l.y + l.height; }}>
           {ZONES.map(({ zone, label, icon }) => {
             const over = zoneAt(drag) === zone;
             const red = zone === 'delete';
@@ -1050,8 +1054,8 @@ export default function ShelfScreen() {
    symbol), and its card count under it. Tap it to open it.
    Moving it: with a finger, rest it on the binder for a moment (REST_MS)
    and it is picked up; then slide it (moving sooner scrolls the shelf
-   instead). While it is held, Edit, Copy and Delete boxes show along the
-   bottom of the screen to drop it on. With a mouse, press the button and
+   instead). While it is held, boxes (Edit, Copy, Reset value, Delete, Select multiple) show along the
+   top of the screen to drop it on. With a mouse, press the button and
    move. Holding the mouse button still for half a second shows its
    options instead, and so does a right-click.
    While a binder is being dragged, each one is drawn "shiftX / shiftY"
@@ -1234,8 +1238,8 @@ const styles = StyleSheet.create({
   grab: { cursor: 'grab' },
   // The floating copy of a dragged binder
   floating: { position: 'absolute', zIndex: 50 },
-  // The Edit / Copy / Delete boxes along the bottom while a binder is held
-  zoneBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 6, padding: 10, zIndex: 60 },
+  // The Edit / Copy / Delete boxes along the top while a binder is held
+  zoneBar: { position: 'absolute', left: 0, right: 0, top: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 8, zIndex: 60 },
   zone: { flex: 1, minHeight: 64, borderRadius: RADIUS, borderWidth: 2, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 2 },
   zoneOver: { transform: [{ scale: 1.06 }] },
   zoneText: { fontSize: 10.5, fontWeight: '700', textAlign: 'center' },

@@ -158,7 +158,7 @@ export const helpTopics: HelpTopic[] = [
               brings you back to the shelf (or a swipe in from the left edge on an iPhone).</Bullet>
             <Bullet>
               <Strong>Its options</Strong>: on a phone or tablet, rest your finger on a binder until it
-              lifts (with a small buzz). Five small boxes appear along the bottom: <Strong>Edit</Strong>,{' '}
+              lifts (with a small buzz). Five small boxes appear along the top, over the search box and Add binder button: <Strong>Edit</Strong>,{' '}
               <Strong>Copy</Strong> (a duplicate with the same cards, named like "Black (1)", at the end
               of the shelf), <Strong>Reset value</Strong> (every card's added price becomes today's price, so the
               % change starts again from 0; it asks first and can't be undone), a red <Strong>Delete</Strong> and{' '}
@@ -413,7 +413,7 @@ export const helpTopics: HelpTopic[] = [
           <>
             <P>
               Rest your finger on the binder until it lifts, then slide it onto <Strong>Edit</Strong> at
-              the bottom of the screen (with a mouse: hold it still, or right-click, then choose
+              the top of the screen (with a mouse: hold it still, or right-click, then choose
               <Strong>Edit</Strong>). <Strong>Binder properties</Strong> opens, where you can change:
             </P>
             <Bullet>its <Strong>name</Strong>,</Bullet>
@@ -455,7 +455,7 @@ export const helpTopics: HelpTopic[] = [
           <>
             <P>
               Rest your finger on the binder on The Shelf until it lifts, then slide it onto the red
-              <Strong>Delete</Strong> at the bottom of the screen (with a mouse: right-click it, then
+              <Strong>Delete</Strong> at the top of the screen (with a mouse: right-click it, then
               choose <Strong>Delete</Strong>).
               You'll be asked if you're sure (with how many cards are in it).
               Tap <Strong>Yes, delete</Strong> to delete it, or <Strong>No</Strong> to keep it.
