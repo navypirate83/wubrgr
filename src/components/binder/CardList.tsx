@@ -120,6 +120,8 @@ type Row =
 const CARD_RATIO = 88 / 63;
 // The space between grid pictures
 const GRID_GAP = 10;
+// Below this width (points) the List view is "narrow" (a phone): the copies bar moves under the card's text
+const NARROW_LIST = 520;
 
 export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
   const colors = useColors();
@@ -315,7 +317,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         // The List view: one card to a row
         if (mode === 'list') {
           const item = row.entries[0];
-          return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.eachByKey.get(item.key)} currency={prices.currency}
+          return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.eachByKey.get(item.key)} currency={prices.currency} narrow={width < NARROW_LIST}
                           setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />;
         }
         // The Grid view: a row of pictures side by side
@@ -389,7 +391,7 @@ export function Summary({ entries, prices, searchOf, hint, note, warn, alsoCount
 /* ---------------------------------------------------------------------
    ONE LINE OF THE LIST. "memo" redraws it only when its card changes.
    --------------------------------------------------------------------- */
-const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, setIcon, highlighted, missing, banned, gold }: {
+const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, narrow, setIcon, highlighted, missing, banned, gold }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; border: string;
   setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
   highlighted: boolean;                // just added: tinted for a moment
@@ -398,6 +400,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
   gold: boolean;                       // a Game Changer: yellow border
   price: number | null | undefined;    // one copy's price. undefined: not loaded yet; null: the store has none
   currency: 'USD' | 'EUR';
+  narrow: boolean;                     // a phone-sized screen: the copies bar goes on its own line under the card's text
 }) {
   const colors = useColors();
   const { card, key } = entry;
@@ -412,54 +415,78 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
   const change = priceChangeOf(card.extra, price, currency);
   const direction = change && change.percent !== null ? directionOf(change.percent) : 'same';
   const changeColor = direction === 'up' ? colors.success : direction === 'down' ? colors.error : colors.muted;
-  return (
-    <View style={[styles.row,{ borderBottomColor: border }, highlighted && { backgroundColor: `${colors.accent}2e` }]}>
-      {/* The picture and name: tap them for the card's menu */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)} each` : ''}${gold ? ', Game Changer' : ''}. Opens its menu.`}
-        onPress={() => onPick(key)}
-        style={({ pressed }) => [styles.rowMain, pressed && { backgroundColor: colors.surfaceHover }]}
-      >
-        <View>
-          <FoilFrame foil={card.foil === true} width={34} height={48} radius={4}>
-            <Image source={pictureSource(card.image)} style={styles.thumbPicture} contentFit="cover" />
-          </FoilFrame>
-          {banned && <BannedSlash radius={4} />}
-          {gold && <MissingOutline radius={4} width={2} yellow />}
-          {missing && <MissingOutline radius={4} width={2} dashed={missing === 'printing'} inset={gold ? 2 : 0} />}
-          {gold && <GameChangerBadge size={7} />}
-        </View>
-        <View style={styles.rowText}>
-          {/* The name, with a small gold "GC" tag after it for a Game Changer */}
-          <View style={styles.nameRow}>
-            <Text style={[styles.name, styles.nameText, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
-            {gold && <Text style={[styles.gcTag, { backgroundColor: colors.gameChanger }]}>GC</Text>}
-          </View>
-          {/* The casting cost, then the set's symbol, then the set code and number */}
-          <View style={styles.aboutRow}>
-            {manaCost ? <ManaCost cost={manaCost} size={13} /> : null}
-            {setIcon ? <Image source={{ uri: setIcon }} style={styles.setIcon} contentFit="contain" tintColor={colors.iconTint} /> : null}
-            <Text style={[styles.about, { color: colors.muted }]} numberOfLines={1}>{about}</Text>
-          </View>
-          {/* The type line (one line, with "…" if it's too long) */}
-          {typeLine ? <Text style={[styles.type, { color: colors.muted }]} numberOfLines={1}>{typeLine}</Text> : null}
-        </View>
-      </Pressable>
-      {/* How many copies: the "− 3 +" bar */}
-      <CopiesBar name={card.name} count={count} style={styles.rowBar}
-                 onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
-      {/* The prices of ONE copy, not the whole stack, in three lines: today's price (a dash if the store
-          has no price), then how far the price has moved since the card was added (green with a +
-          going up, red with a - going down), then the price it had when it was added. A card with no
-          added price shows just today's price. The total for everything is in the summary line above. */}
-      <View style={styles.priceBox}>
-        <Text style={[styles.price, { color: colors.muted }]} numberOfLines={1}>{price === undefined ? '' : formatPrice(price, currency)}</Text>
-        {change && change.percent !== null ? (
-          <Text style={[styles.price, { color: changeColor }]} numberOfLines={1} adjustsFontSizeToFit>{percentText(change.percent)}</Text>
-        ) : null}
-        {change ? <Text style={[styles.price, { color: colors.muted }]} numberOfLines={1}>{formatPrice(change.added, change.addedCurrency)}</Text> : null}
+  // The picture and name: tap them for the card's menu
+  const mainPart = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)} each` : ''}${gold ? ', Game Changer' : ''}. Opens its menu.`}
+      onPress={() => onPick(key)}
+      style={({ pressed }) => [styles.rowMain, pressed && { backgroundColor: colors.surfaceHover }]}
+    >
+      <View>
+        <FoilFrame foil={card.foil === true} width={34} height={48} radius={4}>
+          <Image source={pictureSource(card.image)} style={styles.thumbPicture} contentFit="cover" />
+        </FoilFrame>
+        {banned && <BannedSlash radius={4} />}
+        {gold && <MissingOutline radius={4} width={2} yellow />}
+        {missing && <MissingOutline radius={4} width={2} dashed={missing === 'printing'} inset={gold ? 2 : 0} />}
+        {gold && <GameChangerBadge size={7} />}
       </View>
+      <View style={styles.rowText}>
+        {/* The name, with a small gold "GC" tag after it for a Game Changer */}
+        <View style={styles.nameRow}>
+          <Text style={[styles.name, styles.nameText, { color: colors.text }]} numberOfLines={1}>{card.name}</Text>
+          {gold && <Text style={[styles.gcTag, { backgroundColor: colors.gameChanger }]}>GC</Text>}
+        </View>
+        {/* The casting cost, then the set's symbol, then the set code and number */}
+        <View style={styles.aboutRow}>
+          {manaCost ? <ManaCost cost={manaCost} size={13} /> : null}
+          {setIcon ? <Image source={{ uri: setIcon }} style={styles.setIcon} contentFit="contain" tintColor={colors.iconTint} /> : null}
+          <Text style={[styles.about, { color: colors.muted }]} numberOfLines={1}>{about}</Text>
+        </View>
+        {/* The type line (one line, with "…" if it's too long) */}
+        {typeLine ? <Text style={[styles.type, { color: colors.muted }]} numberOfLines={1}>{typeLine}</Text> : null}
+      </View>
+    </Pressable>
+  );
+  // How many copies: the "− 3 +" bar
+  const copiesPart = (
+    <CopiesBar name={card.name} count={count} style={styles.rowBar}
+               onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
+  );
+  // The prices of ONE copy, not the whole stack, in three lines: today's price (a dash if the store
+  // has no price), then how far the price has moved since the card was added (green with a +
+  // going up, red with a - going down), then the price it had when it was added. A card with no
+  // added price shows just today's price. The total for everything is in the summary line above.
+  const pricesPart = (
+    <View style={styles.priceBox}>
+      <Text style={[styles.price, { color: colors.muted }]} numberOfLines={1}>{price === undefined ? '' : formatPrice(price, currency)}</Text>
+      {change && change.percent !== null ? (
+        <Text style={[styles.price, { color: changeColor }]} numberOfLines={1} adjustsFontSizeToFit>{percentText(change.percent)}</Text>
+      ) : null}
+      {change ? <Text style={[styles.price, { color: colors.muted }]} numberOfLines={1}>{formatPrice(change.added, change.addedCurrency)}</Text> : null}
+    </View>
+  );
+  // On a wide screen everything is on one line. On a phone-sized screen the card's picture and text take the
+  // left and the prices the right, and the copies bar goes on its own line under the text, so the card's
+  // name isn't squeezed into the little room left between the bar and the prices.
+  const rowStyle = [styles.row, { borderBottomColor: border }, highlighted && { backgroundColor: `${colors.accent}2e` }];
+  if (narrow) {
+    return (
+      <View style={[rowStyle, styles.rowNarrow]}>
+        <View style={styles.rowTop}>
+          {mainPart}
+          {pricesPart}
+        </View>
+        <View style={styles.barUnder}>{copiesPart}</View>
+      </View>
+    );
+  }
+  return (
+    <View style={rowStyle}>
+      {mainPart}
+      {copiesPart}
+      {pricesPart}
     </View>
   );
 });
@@ -533,6 +560,10 @@ const styles = StyleSheet.create({
   setIcon: { width: 13, height: 13 },
   type: { fontSize: 12, lineHeight: 15 },
   rowBar: { width: 84 },
+  // The phone-sized List row: picture, text and prices on top, the copies bar under the text (lined up with it)
+  rowNarrow: { flexDirection: 'column', alignItems: 'stretch', gap: 6 },
+  rowTop: { flexDirection: 'row', alignItems: 'center', gap: SPACE.m },
+  barUnder: { paddingLeft: 34 + SPACE.m },
   // The three price lines stacked, right-aligned; wide enough for a percent like "+1234.56%"
   priceBox: { width: 76, alignItems: 'flex-end', justifyContent: 'center' },
   price: { textAlign: 'right', fontSize: 13, lineHeight: 15, fontVariant: ['tabular-nums'] },

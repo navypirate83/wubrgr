@@ -1014,6 +1014,8 @@ function BinderTile(props: {
   onDelete: () => void;
   onMove: (by: -1 | 1) => void;
 }) {
+  // A narrow tile (a phone's 100-point binders): the caption goes on two lines
+  const stacked = props.width < 140;
   const { binder, count, worth, store, width, position, withMouse, shiftX, shiftY, lifted, selected, cursor } = props;
   const colors = useColors();
 
@@ -1094,14 +1096,17 @@ function BinderTile(props: {
             )}
           </View>
           {/* The card count, then a dot, the price store's icon and what the binder's cards are worth
-              (left off for an empty binder, and until the prices have arrived) */}
-          <View style={styles.captionRow}>
+              (left off for an empty binder, and until the prices have arrived). On a narrow tile (a phone)
+              they don't fit side by side, so the count goes on one line and the icon and worth on the next. */}
+          <View style={[styles.captionRow, stacked && styles.captionStacked]}>
             <Text style={[styles.caption, { color: colors.muted }]} numberOfLines={1}>{cardCountText(count)}</Text>
             {worth !== undefined && count > 0 ? (
               <>
-                <Text style={[styles.caption, { color: colors.muted }]}>·</Text>
-                <Image source={STORE_ICONS[store]} style={styles.storeIcon} contentFit="contain" />
-                <Text style={[styles.caption, { color: colors.muted }]} numberOfLines={1}>{worth}</Text>
+                {!stacked && <Text style={[styles.caption, { color: colors.muted }]}>·</Text>}
+                <View style={styles.worthLine}>
+                  <Image source={STORE_ICONS[store]} style={styles.storeIcon} contentFit="contain" />
+                  <Text style={[styles.caption, { color: colors.muted }]} numberOfLines={1}>{worth}</Text>
+                </View>
               </>
             ) : null}
           </View>
@@ -1147,6 +1152,9 @@ const styles = StyleSheet.create({
   caption: { fontSize: 13 },
   // The count, dot, store icon and worth in one line
   captionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  // On a narrow tile: the count above, the icon and worth below, both centered
+  captionStacked: { flexDirection: 'column', gap: 2 },
+  worthLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   storeIcon: { width: 13, height: 13, padding: 1, borderRadius: 3, backgroundColor: '#ffffff' },
   pressed: { opacity: 0.7 },
   // The dragged binder's spot: faded, showing where it will land
