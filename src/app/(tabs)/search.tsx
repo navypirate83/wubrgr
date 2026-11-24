@@ -4,7 +4,11 @@
    the exact set, version and language. Two tabs sit at the very top:
    CARDS (everything below: the search box and its cards) and SETS (a list
    of every set; tap one to see all its cards, then tap a card to open it
-   here, with a "Back to <set>" button above it). See SetsTab.tsx.
+   here). See SetsTab.tsx. Which tab is showing and which set is open are
+   in the page's address ("?tab=sets&show=trc"), so the header's back arrow
+   steps back through them like any other page: from a card to its set, from
+   a set to the list of sets. Opening the Card Finder from a binder, list or
+   deck (its "+") always starts on the Cards tab, because that address has no tab.
    The search box is under the tabs.
    Type even one letter and the area under it fills with pictures of
    matching cards, A to Z (CardGrid). Tap one and its details show in the
@@ -145,12 +149,14 @@ export default function CardFinderScreen() {
   // A note from the grid for under the search box (like "showing the closest names")
   const [gridHint, setGridHint] = useState('');
 
-  // Which tab is showing: the card search or the list of sets. The card search stays drawn
-  // (hidden) while the Sets tab shows, so it's as you left it.
-  const [tab, setTab] = useState<FinderTab>('cards');
-  // The name of the set the card on show was opened from (a card tapped in the Sets tab): then
-  // "Back to <set>" is shown above it
-  const [fromSet, setFromSet] = useState<string | null>(null);
+  // Which tab is showing (the card search or the list of sets) and which set's cards are open in
+  // the Sets tab: both come from the page's address, so the back arrow steps through them. No
+  // "tab" in the address means the Cards tab. The card search stays drawn (hidden) while the Sets
+  // tab shows, so it's as you left it.
+  const tab: FinderTab = addressValue(params.tab) === 'sets' ? 'sets' : 'cards';
+  const showParam = addressValue(params.show) ?? null;
+  // Go to a tab: a new step for the back arrow
+  const goTab = (next: FinderTab) => router.setParams({ tab: next === 'sets' ? 'sets' : undefined });
 
   // A message from adding to a binder (like "That binder is full."),
   // shown under the search box instead of the usual one until the next
@@ -173,8 +179,6 @@ export default function CardFinderScreen() {
       // A card sent from elsewhere shows the card itself, not the picture grid
       setMode('card');
       setFromGrid(false);
-      setFromSet(null);
-      setTab('cards');
     }
   }
 
@@ -269,7 +273,6 @@ export default function CardFinderScreen() {
     setText(value);
     typedText.current = value;
     setMode('grid');
-    setFromSet(null);
     clearTimeout(gridTimer.current);
     gridTimer.current = setTimeout(() => setGridText(value), value.trim() ? 60 : 0);
   }
@@ -278,26 +281,19 @@ export default function CardFinderScreen() {
   function pickCard(card: ScryfallCard) {
     if (Platform.OS !== 'web') Keyboard.dismiss();
     setFromGrid(true);
-    setFromSet(null);
     searchFor(card.name, true);
   }
 
-  // A card in a set's list (the Sets tab) was tapped: open that exact printing on the Cards tab
+  // A card in a set's list (the Sets tab) was tapped: open that exact printing on the Cards tab. The
+  // address changes (the set stays in it), so the back arrow comes back to the set's cards.
   function openFromSet(card: ScryfallCard) {
     if (Platform.OS !== 'web') Keyboard.dismiss();
-    setAddMessage(null);
-    setLookup(lookupFromAddress(card.set, card.collector_number, null, null));
-    setFinish('nonfoil');
-    setFromGrid(false);
-    setFromSet(card.set_name);
-    setMode('card');
-    setTab('cards');
+    router.setParams({ tab: undefined, set: card.set, number: card.collector_number, face: undefined, lang: undefined, foil: undefined });
   }
 
-  // "Back to <set>": the set's cards again, on the Sets tab
-  function backToSet() {
-    setFromSet(null);
-    setTab('sets');
+  // A set was opened in the Sets tab (or closed: null): a new step for the back arrow
+  function showSet(code: string | null) {
+    router.setParams({ tab: 'sets', show: code ?? undefined });
   }
 
   // The Search key (Enter): go to the picture grid for what's in the box,
@@ -307,7 +303,6 @@ export default function CardFinderScreen() {
     setGridText(value);
     typedText.current = value;
     setMode('grid');
-    setFromSet(null);
     if (Platform.OS !== 'web') Keyboard.dismiss();
   }
 
@@ -370,17 +365,17 @@ export default function CardFinderScreen() {
   // would jump to the Home tab instead.) "useFocusEffect" listens only
   // while this screen is in view; returning true says "handled".
   // (A card picked from the picture grid goes back to the grid first.)
-  const backToResults = mode === 'card' && tab === 'cards' && (fromGrid || fromSet !== null);
+  const backToResults = mode === 'card' && tab === 'cards' && fromGrid;
   useFocusEffect(useCallback(() => {
     if (!backTo && !backToResults) return undefined;
     const listener = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (backToResults) { if (fromSet !== null) backToSet(); else backToGrid(); }
+      if (backToResults) backToGrid();
       else router.navigate(backTo as never);
       return true;
     });
     return () => listener.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backTo, backToResults, fromSet]));
+  }, [backTo, backToResults]));
 
   /* ----- Shortcut keys that work even before a card is shown (computers) ----- */
 
@@ -407,7 +402,7 @@ export default function CardFinderScreen() {
       keyboardVerticalOffset={headerHeight}
     >
       {/* The two tabs: Cards (below) and Sets */}
-      <FinderTabs tab={tab} onChange={setTab} />
+      <FinderTabs tab={tab} onChange={goTab} />
 
       {/* THE CARDS TAB (hidden, not removed, while the Sets tab shows) */}
       <View style={[styles.fill, tab !== 'cards' && styles.hidden]}>
@@ -434,16 +429,16 @@ export default function CardFinderScreen() {
           onHint={setGridHint}
         />
 
-        {/* "Back to results" (a card picked from the grid) or "Back to <set>" (a card picked in the Sets tab) */}
-        {mode === 'card' && (fromGrid || fromSet !== null) && (
+        {/* "Back to results": only for a card picked from the grid */}
+        {mode === 'card' && fromGrid && (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={fromSet !== null ? `Back to ${fromSet}` : 'Back to the search results'}
-            onPress={fromSet !== null ? backToSet : backToGrid}
+            accessibilityLabel="Back to the search results"
+            onPress={backToGrid}
             style={({ pressed }) => [styles.backRow, pressed && { backgroundColor: colors.surfaceHover }]}
           >
             <Ionicons name="chevron-back" size={20} color={colors.accent} />
-            <Text style={[styles.backText, { color: colors.accent }]} numberOfLines={1}>{fromSet !== null ? `Back to ${fromSet}` : 'Back to results'}</Text>
+            <Text style={[styles.backText, { color: colors.accent }]} >Back to results</Text>
           </Pressable>
         )}
 
@@ -502,7 +497,7 @@ export default function CardFinderScreen() {
       </View>
 
       {/* THE SETS TAB */}
-      <SetsTab visible={tab === 'sets'} onPickCard={openFromSet} />
+      <SetsTab visible={tab === 'sets'} shownCode={showParam} onShow={showSet} onPickCard={openFromSet} />
 
       <ShortcutsDialog
         open={shortcutsOpen}

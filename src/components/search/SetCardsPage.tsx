@@ -9,13 +9,13 @@
    card hands it to the screen, which opens it in the Card Finder.
    The view and the sort are remembered while the app is open, so going
    from set to set keeps what you chose.
+   There's no "back" button here: the header's back arrow does that (the open set is in the page's address).
    Everything the sorts and prices need is in the downloaded cards already,
    so it's put where the price lookup looks first, instead of asking again.
    ===================================================================== */
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useTheme';
@@ -53,11 +53,10 @@ function asBinderCard(card: ScryfallCard): BinderCard {
 
 type Props = {
   set: { code: string; name: string; count: number; icon: string | undefined };
-  onBack: () => void;
   onPickCard: (card: ScryfallCard) => void;
 };
 
-export default function SetCardsPage({ set, onBack, onPickCard }: Props) {
+export default function SetCardsPage({ set, onPickCard }: Props) {
   const colors = useColors();
   const queryClient = useQueryClient();
   const contentWidth = Math.min(useContentWidth(), MAX_CONTENT_WIDTH + 2 * SPACE.l);
@@ -106,13 +105,8 @@ export default function SetCardsPage({ set, onBack, onPickCard }: Props) {
 
   return (
     <View style={styles.fill}>
-      {/* The way back to the list of sets, with this set's symbol and name */}
+      {/* This set's symbol and name (the header's back arrow returns to the list of sets) */}
       <View style={styles.titleRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to the list of sets" onPress={onBack} hitSlop={8}
-                   style={({ pressed }) => [styles.back, pressed && { opacity: 0.6 }]}>
-          <Ionicons name="chevron-back" size={22} color={colors.accent} />
-          <Text style={[styles.backText, { color: colors.accent }]}>Sets</Text>
-        </Pressable>
         {set.icon ? <Image source={{ uri: set.icon }} style={styles.symbol} contentFit="contain" tintColor={colors.iconTint} /> : null}
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={1} accessibilityRole="header">{set.name}</Text>
       </View>
@@ -153,8 +147,6 @@ export default function SetCardsPage({ set, onBack, onPickCard }: Props) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: SPACE.l, paddingTop: 10, paddingBottom: 8 },
-  back: { flexDirection: 'row', alignItems: 'center', minHeight: 36, paddingRight: 6 },
-  backText: { fontSize: 16, fontWeight: '600' },
   symbol: { width: 22, height: 22 },
   title: { flex: 1, minWidth: 0, fontSize: 18, fontWeight: '700' },
   tools: { paddingHorizontal: SPACE.l, paddingBottom: 8 },

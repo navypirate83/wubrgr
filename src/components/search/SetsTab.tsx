@@ -4,7 +4,8 @@
    tap, with the set's symbol on the left as tall as the two lines of text:
        Set name (CODE)
        123 cards                     Release date
-   Tapping a row opens that set's cards (see SetCardsPage.tsx). Only the
+   Tapping a row opens that set's cards (see SetCardsPage.tsx); which set is open is in
+   the page's address, so the header's back arrow (and Android's Back) returns to the list. Only the
    main set's own cards are counted, not its tokens or Commander cards.
    A search box above the list finds sets with a forgiving ("fuzzy") match
    (see lib/setList.ts): small typos, part of a word, or the letters of a
@@ -26,6 +27,7 @@ import { BackHandler, FlatList, Pressable, StyleSheet, Text, View } from 'react-
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
+import { goBackInApp } from '@/lib/navHistory';
 import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useTheme';
 import TextField from '@/components/TextField';
@@ -45,20 +47,27 @@ function dateText(day: string): string {
 
 type Props = {
   visible: boolean;                       // is this tab showing? (It stays drawn, hidden, while the Cards tab shows.)
+  shownCode: string | null;               // the code of the set whose cards are open (from the page's address), if any
+  onShow: (code: string | null) => void;  // a set was tapped (the screen puts it in the address)
   onPickCard: (card: ScryfallCard) => void;   // a card in a set was tapped
 };
 
-export default function SetsTab({ visible, onPickCard }: Props) {
+export default function SetsTab({ visible, shownCode, onShow, onPickCard }: Props) {
   const colors = useColors();
-  // What's typed in the search box, which sets have their extras open, and the set whose cards are showing
+  // What's typed in the search box and which sets have their extras open
   const [typed, setTyped] = useState('');
   const [opened, setOpened] = useState<Set<string>>(new Set());
-  const [shown, setShown] = useState<SetInfo | null>(null);
 
   const sets = useQuery({ queryKey: ['set-list'], queryFn: loadSetList, staleTime: 24 * 60 * 60 * 1000 });
   const icons = useQuery({ queryKey: ['set-icons'], queryFn: loadSetIcons });
   const nodes = useMemo(() => (sets.data ? buildSetList(sets.data) : []), [sets.data]);
   const results = useMemo(() => filterSets(nodes, typed), [nodes, typed]);
+  // The set whose cards are open: the one the address names (any set, a main one or an extra)
+  const shown = useMemo<SetInfo | null>(
+    () => (shownCode ? sets.data?.find((set) => set.code === shownCode) ?? null : null),
+    [shownCode, sets.data],
+  );
+  const open = useCallback((set: SetInfo) => onShow(set.code), [onShow]);
 
   const toggle = useCallback((code: string) => {
     setOpened((now) => {
@@ -68,10 +77,10 @@ export default function SetsTab({ visible, onPickCard }: Props) {
     });
   }, []);
 
-  // Android's own Back, while a set's cards show: back to the list of sets
+  // Android's own Back, while a set's cards show: the same as the header's back arrow
   useFocusEffect(useCallback(() => {
     if (!visible || !shown) return undefined;
-    const listener = BackHandler.addEventListener('hardwareBackPress', () => { setShown(null); return true; });
+    const listener = BackHandler.addEventListener('hardwareBackPress', () => { goBackInApp(); return true; });
     return () => listener.remove();
   }, [visible, shown]));
 
@@ -109,7 +118,7 @@ export default function SetsTab({ visible, onPickCard }: Props) {
             contentContainerStyle={styles.list}
             ListEmptyComponent={<Text style={[styles.note, { color: colors.muted }]}>No set matches "{typed.trim()}".</Text>}
             renderItem={({ item }) => (
-              <SetRow result={item} icons={icons.data} open={item.open || opened.has(item.node.code)} onToggle={toggle} onOpen={setShown} />
+              <SetRow result={item} icons={icons.data} open={item.open || opened.has(item.node.code)} onToggle={toggle} onOpen={open} />
             )}
           />
         )}
@@ -120,7 +129,6 @@ export default function SetsTab({ visible, onPickCard }: Props) {
         <SetCardsPage
           key={shown.code}
           set={{ code: shown.code, name: shown.name, count: shown.count, icon: icons.data?.get(shown.code) ?? shown.icon }}
-          onBack={() => setShown(null)}
           onPickCard={onPickCard}
         />
       )}

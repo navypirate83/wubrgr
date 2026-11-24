@@ -1131,8 +1131,9 @@ export const helpTopics: HelpTopic[] = [
             <P>
               Tap a set to see every card in it, as a <Strong>List</Strong> or a <Strong>Grid</Strong>, with the same
               <Strong> Sort</Strong> button as an opened binder (without Newest added, and without Set, since every card is
-              from the same set). Tap a card to open it in the Card Finder, with <Strong>Back to (the set)</Strong> above it.
-              <Strong> Sets</Strong> at the top left of the set's cards goes back to the list.
+              from the same set). Tap a card to open it in the Card Finder. The <Strong>back arrow</Strong> at the top left works as
+              everywhere else: from a card it goes back to the set's cards, and from the set's cards back to the list of sets.
+              Opening the Card Finder with the <Strong>+</Strong> in a binder, list or deck always starts on the Cards tab.
             </P>
             <P>
               A set that came with extras (its tokens, Commander decks, Timeshifts, promos, art cards) has a small arrow at
