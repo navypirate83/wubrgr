@@ -19,7 +19,7 @@ const deckCardSchema = new mongoose.Schema(
     position: { type: Number, required: true, min: 0, validate: { validator: Number.isInteger, message: 'position must be a whole number' } },
     manaCost: { type: String, default: '', maxlength: 100 },
     typeLine: { type: String, default: '', maxlength: 200 },
-    zone: { type: String, enum: ['side', 'command'] },
+    zone: { type: String, enum: ['side', 'command', 'maybe'] },
     slot: { type: Number, enum: [0, 1] },
     ...cardFields,
   },

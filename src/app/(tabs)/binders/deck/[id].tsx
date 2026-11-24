@@ -69,7 +69,7 @@ import CardScreen, { BINDER_ICON } from '@/components/binder/CardScreen';
 import AddToCollectionDialog from '@/components/decks/AddToCollectionDialog';
 import PopupWindow from '@/components/PopupWindow';
 import Button from '@/components/Button';
-import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToSideboard, placeInCommandZone, setDeckBracket, setDeckCardCount, setDeckCards, updateDeckCard, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
+import { addCardToDeck, commandCard, copiesOf, fillDeckDetails, findDeck, moveToMain, moveToZone, placeInCommandZone, setDeckBracket, setDeckCardCount, setDeckCards, updateDeckCard, zoneOf, type Deck, type DeckCard } from '@/lib/deckStorage';
 import CommandZone from '@/components/decks/CommandZone';
 import SlotSearchDialog from '@/components/decks/SlotSearchDialog';
 import { allowedInSlot, deckCardFromPrint, secondSpotShows, slotHint, slotName, slotQuery, zoneExtraOf } from '@/lib/deckZones';
@@ -77,7 +77,7 @@ import { deckFormat, skipsCopyWarning } from '@/lib/deckFormats';
 import { BRACKETS, bracketAllowed, bracketText, countGameChangers, effectiveBracket, hasBrackets, lowestBracket } from '@/lib/deckBrackets';
 import { useGameChangers } from '@/lib/gameChangers';
 import { isBanned, useBanned } from '@/lib/bannedCards';
-import { deckProblems } from '@/lib/deckLegality';
+import { deckProblems, overLimitIfAdded } from '@/lib/deckLegality';
 import { assignPrinting, choicesFor, loadOwned, marksFor, normalizeOwnership, type Mark, type OwnedPrint } from '@/lib/deckOwnership';
 import { Image } from 'expo-image';
 import { pictureSource } from '@/lib/http';
@@ -112,6 +112,10 @@ function finderLinkFor(deckId: string, index: number, card: DeckCard): string {
   return `/search?${params}`;
 }
 
+// How each place reads in "X is now ..."
+const ZONE_WORDS = { main: 'in the main deck', side: 'in the sideboard', maybe: 'on the maybe board' } as const;
+const ZONE_NAMES = { main: 'Main deck', side: 'Sideboard', maybe: 'Maybe board' } as const;
+
 export default function DeckScreen() {
   const colors = useColors();
   const { announce } = useAnnouncer();
@@ -128,12 +132,15 @@ export default function DeckScreen() {
   const [addOpen, setAddOpen] = useState(false);
   // Which list shows (the main deck or the sideboard), and which command zone
   // spot's search window is open (null: none)
-  const [tab, setTab] = useState<'main' | 'side'>('main');
+  const [tab, setTab] = useState<'main' | 'side' | 'maybe'>('main');
   const [slotSearch, setSlotSearch] = useState<0 | 1 | null>(null);
   // The format and what it asks for outside the main deck (formats with no
   // sideboard always show the main deck)
   const format = deckFormat(deck?.format);
-  const shownZone = format.sideboard > 0 ? tab : 'main';
+  // (The maybe board is in every format; the sideboard only in those that have one)
+  const shownZone: 'main' | 'side' | 'maybe' = tab === 'maybe' ? 'maybe' : format.sideboard > 0 ? tab : 'main';
+  // Picking several cards at once to move them (the maybe board's "Pick" button): their spots in the deck, as text
+  const [picked, setPicked] = useState<Set<string> | null>(null);
   // A card is being looked up: don't start a second add until it's done
   const busy = useRef(false);
   // The held card's window (its spot in the deck), and the card being moved
@@ -285,6 +292,8 @@ export default function DeckScreen() {
   // copies of it as the format allows (unless it's a basic land, a
   // snow-covered basic or Wastes). True to go ahead and add it.
   async function okToAdd(name: string): Promise<boolean> {
+    // Nothing is checked for the maybe board: it's only for thinking about cards
+    if (shownZone === 'maybe') return true;
     const format = deckFormat(deck!.format);
     if (await isBanned(format.code, name)) {
       const sure = await askYesNo(`${name} is banned`, `${name} is banned in ${format.name}. Are you sure you want to add it?`, 'Add anyway', 'Cancel');
@@ -308,7 +317,7 @@ export default function DeckScreen() {
       const card = await cardToAdd(name, ownedOnly);
       addCardToDeck(id, card, shownZone);
       setDeck(findDeck(id));
-      setNote(`Added ${card.name}${shownZone === 'side' ? ' to the sideboard' : ''}.`);
+      setNote(`Added ${card.name}${shownZone === 'side' ? ' to the sideboard' : shownZone === 'maybe' ? ' to the maybe board' : ''}.`);
     } catch (err) {
       showMessage('Couldn\'t add the card', (err as Error).message);
     } finally {
@@ -493,14 +502,41 @@ export default function DeckScreen() {
     setDeck(findDeck(id));
   }
 
-  // "Move to sideboard" / "Move to main deck" in a card's window
-  function moveCardTo(index: number, where: 'main' | 'side') {
+  // "Move to ..." in a card's window: the card goes to the main deck, the
+  // sideboard or the maybe board. Only a move INTO the main deck can go over
+  // its size limit, and that asks first ("Add anyway" does it).
+  async function moveCardTo(index: number, where: 'main' | 'side' | 'maybe') {
     const card = deck?.cards[index];
     setMenuIndex(null);
     if (!card) return;
-    if (where === 'side') moveToSideboard(id, index); else moveToMain(id, index);
+    if (!(await okToMove(where, cardCount(card), card.name))) return;
+    if (where === 'main') moveToMain(id, index); else moveToZone(id, index, where);
     setDeck(findDeck(id));
-    announce(`${card.name} is now in the ${where === 'side' ? 'sideboard' : 'main deck'}.`);
+    announce(`${card.name} is now ${ZONE_WORDS[where]}.`);
+  }
+
+  // Moving into the main deck: would it be over the format's limit? If so ask
+  // first (true to go ahead)
+  async function okToMove(where: 'main' | 'side' | 'maybe', more: number, what: string): Promise<boolean> {
+    if (where !== 'main' || !deck) return true;
+    const over = overLimitIfAdded(findDeck(id) ?? deck, format, more);
+    if (!over) return true;
+    return askYesNo('Over the limit', `Moving ${what} into the main deck would make it ${over.total} cards. A ${format.name} deck has at most ${over.limit}.`, 'Add anyway', 'Cancel');
+  }
+
+  // Move every picked card (from the maybe board's "Pick" button) to one place
+  async function movePicked(where: 'main' | 'side' | 'maybe') {
+    if (!deck || !picked || picked.size === 0) return;
+    const spots = [...picked].map(Number).filter((i) => deck.cards[i]);
+    const copies = spots.reduce((sum, i) => sum + cardCount(deck.cards[i]), 0);
+    if (!(await okToMove(where, copies, `${spots.length} cards`))) return;
+    // Move from the last spot to the first so the spots still to move don't shift
+    for (const spot of [...spots].sort((a, b) => b - a)) {
+      if (where === 'main') moveToMain(id, spot); else moveToZone(id, spot, where);
+    }
+    setDeck(findDeck(id));
+    setPicked(null);
+    announce(`${spots.length} cards are now ${ZONE_WORDS[where]}.`);
   }
 
   // Is the card whose window is open allowed in the command zone? The "Make
@@ -651,23 +687,43 @@ export default function DeckScreen() {
             </>
           )}
         />
-        {/* Formats with a sideboard: switch between the main deck and the sideboard */}
-        {format.sideboard > 0 && (
-          <View style={styles.tabs}>
-            {(['main', 'side'] as const).map((which) => {
-              const count = deck.cards.filter((c) => zoneOf(c) === which).reduce((sum, c) => sum + cardCount(c), 0);
-              const chosen = shownZone === which;
-              return (
-                <Pressable key={which} accessibilityRole="button" accessibilityState={{ selected: chosen }}
-                           onPress={() => setTab(which)}
-                           style={[styles.tab, { borderColor: chosen ? colors.accent : colors.border, backgroundColor: chosen ? colors.accent : 'transparent' }]}>
-                  <Text style={[styles.tabText, { color: chosen ? colors.accentText : colors.text }]}>
-                    {which === 'main' ? `Main deck ${count}` : `Sideboard ${count} of ${format.sideboard}`}
-                  </Text>
+        {/* Switch between the main deck, the sideboard (formats that have one) and the maybe board.
+*/}
+        <View style={styles.tabs}>
+          {(format.sideboard > 0 ? (['main', 'side', 'maybe'] as const) : (['main', 'maybe'] as const)).map((which) => {
+            const count = deck.cards.filter((c) => zoneOf(c) === which).reduce((sum, c) => sum + cardCount(c), 0);
+            const chosen = shownZone === which;
+            return (
+              <Pressable key={which} accessibilityRole="button" accessibilityState={{ selected: chosen }}
+                         onPress={() => { setTab(which); setPicked(null); }}
+                         style={[styles.tab, { borderColor: chosen ? colors.accent : colors.border, backgroundColor: chosen ? colors.accent : 'transparent' }]}>
+                <Text style={[styles.tabText, { color: chosen ? colors.accentText : colors.text }]}>
+                  {which === 'main' ? `Main deck ${count}` : which === 'side' ? `Sideboard ${count} of ${format.sideboard}` : `Maybe ${count}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {/* The maybe board: "Pick" lets you tick several cards and move them all at once */}
+        {shownZone === 'maybe' && deck.cards.some((c) => zoneOf(c) === 'maybe') && (
+          picked === null ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Pick several cards to move" onPress={() => setPicked(new Set())}
+                       style={[styles.pickRow, { borderColor: colors.border }]}>
+              <Ionicons name="checkmark-circle-outline" size={18} color={colors.accent} />
+              <Text style={{ color: colors.accent, fontWeight: '600' }}>Pick cards to move</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.pickRow}>
+              <Text style={{ color: colors.text, fontWeight: '600', flex: 1 }}>{picked.size === 0 ? 'Tap cards to pick them' : `${picked.size} picked`}</Text>
+              {picked.size > 0 && (['main', 'side'] as const).filter((w) => w !== 'side' || format.sideboard > 0).map((where) => (
+                <Pressable key={where} accessibilityRole="button" accessibilityLabel={`Move ${picked.size} to ${ZONE_NAMES[where]}`} onPress={() => movePicked(where)}
+                           style={[styles.pickMove, { backgroundColor: colors.accent }]}>
+                  <Text style={{ color: colors.accentText, fontWeight: '700' }}>To {ZONE_NAMES[where].toLowerCase()}</Text>
                 </Pressable>
-              );
-            })}
-          </View>
+              ))}
+              <Pressable accessibilityRole="button" onPress={() => setPicked(null)}><Text style={{ color: colors.muted, fontWeight: '600' }}>Cancel</Text></Pressable>
+            </View>
+          )
         )}
       </View>
 
@@ -678,7 +734,11 @@ export default function DeckScreen() {
           flashKey={flashKey}
           mode={mode}
           width={contentWidth}
-          onPick={(key) => setMenuIndex(Number(key))}
+          onPick={(key) => {
+            if (picked === null) { setMenuIndex(Number(key)); return; }
+            setPicked((now) => { const next = new Set(now); if (!next.delete(key)) next.add(key); return next; });
+          }}
+          selectedKeys={picked ?? undefined}
           onCopies={onCopies}
           minTile={GRID_ZOOM_WIDTHS[gridZoom]}
           prices={prices}
@@ -707,9 +767,9 @@ export default function DeckScreen() {
           // No cards yet (or none matching the search)
           empty={(
             <View style={[styles.empty, { borderColor: colors.border }]}>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>{onlyGameChangers && !searching ? 'No Game Changers here' : searching ? 'No cards match' : shownZone === 'side' ? 'No sideboard cards yet' : 'No cards yet'}</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>{onlyGameChangers && !searching ? 'No Game Changers here' : searching ? 'No cards match' : shownZone === 'side' ? 'No sideboard cards yet' : shownZone === 'maybe' ? 'Nothing on the maybe board' : 'No cards yet'}</Text>
               <Text style={[styles.emptyText, { color: colors.muted }]}>
-                {onlyGameChangers && !searching ? 'None of the cards in this list is a Game Changer. Tap Game Changers only to show every card again.' : searching ? `None of the ${allEntries.length} cards match "${filter.trim()}".` : shownZone === 'side' ? 'The sideboard is empty. Flip the switch to Add, search for a card and tap the + on it, or move a card here from its window.' : 'Flip the switch to Add, search for a card and tap the + on it.'}
+                {onlyGameChangers && !searching ? 'None of the cards in this list is a Game Changer. Tap Game Changers only to show every card again.' : searching ? `None of the ${allEntries.length} cards match "${filter.trim()}".` : shownZone === 'side' ? 'The sideboard is empty. Flip the switch to Add, search for a card and tap the + on it, or move a card here from its window.' : shownZone === 'maybe' ? 'Cards you are only thinking about go here, and scanned cards land here. They do not count towards the size, legality, bracket or price of the deck.' : 'Flip the switch to Add, search for a card and tap the + on it.'}
               </Text>
             </View>
           )}
@@ -748,11 +808,12 @@ export default function DeckScreen() {
                 : 'Make commander',
               icon: 'star-outline' as const, onPress: () => makeCommander(menuIndex),
             }] : []),
-            /* The sideboard */
-            ...(format.sideboard > 0 && zoneOf(menuCard) === 'main'
-              ? [{ label: 'Move to sideboard', icon: 'arrow-down-outline' as const, onPress: () => moveCardTo(menuIndex, 'side') }] : []),
-            ...(zoneOf(menuCard) === 'side'
-              ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => moveCardTo(menuIndex, 'main') }] : []),
+            /* Moving between the main deck, the sideboard (formats that have one) and the maybe board: one button for each place the card isn't in */
+            ...(zoneOf(menuCard) !== 'command'
+              ? (['main', 'side', 'maybe'] as const)
+                .filter((where) => where !== zoneOf(menuCard) && (where !== 'side' || format.sideboard > 0))
+                .map((where) => ({ label: `Move to ${ZONE_NAMES[where].toLowerCase()}`, icon: (where === 'main' ? 'arrow-up-outline' : where === 'side' ? 'arrow-down-outline' : 'help-circle-outline') as 'arrow-up-outline', onPress: () => moveCardTo(menuIndex, where) }))
+              : []),
             ...(zoneOf(menuCard) === 'command'
               ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); } }] : []),
             /* A card you don't own (a solid red border), or a printing or finish (say foil) you don't own (a dashed border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */
@@ -865,6 +926,8 @@ const styles = StyleSheet.create({
   listArea: { flex: 1 },
   // The Main deck / Sideboard buttons
   tabs: { flexDirection: 'row', gap: 8 },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  pickMove: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   tab: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 7, alignItems: 'center' },
   tabText: { fontSize: 14, fontWeight: '600' },
   // The power bracket button, and the window's choices

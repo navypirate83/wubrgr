@@ -25,13 +25,15 @@ import type { ListCard } from './listStorage';
 import { movedBy } from './shelfSort';
 
 // Where a card is kept: in the main deck (the start), in the sideboard, or in
-// the command zone (a commander, a partner, an Oathbreaker...). A command zone
+// the command zone (a commander, a partner, an Oathbreaker...), or the maybe
+// board (cards you're thinking about: they don't count towards the deck's size,
+// legality, bracket or price). A command zone
 // card also has its "slot": 0 is the first spot (the commander or Oathbreaker),
 // 1 the second (the partner, Background or signature spell).
-export type Zone = 'main' | 'side' | 'command';
+export type Zone = 'main' | 'side' | 'command' | 'maybe';
 
 // One card in a deck: the same as a card in a list, and where it's kept
-export type DeckCard = ListCard & { zone?: 'side' | 'command'; slot?: 0 | 1 };
+export type DeckCard = ListCard & { zone?: 'side' | 'command' | 'maybe'; slot?: 0 | 1 };
 
 // A card's zone (a card with none is in the main deck)
 export const zoneOf = (card: DeckCard): Zone => card.zone ?? 'main';
@@ -152,11 +154,11 @@ export function copiesOf(deck: Deck | undefined, name: string): number {
   return (deck?.cards ?? []).reduce((sum, card) => sum + (card.name.trim().toLowerCase() === wanted ? card.count ?? 1 : 0), 0);
 }
 
-// Add one copy of a card, to the main deck or (with "zone") the sideboard.
-// The same printing already there gets one more copy; otherwise the card
-// goes on the end.
-export function addCardToDeck(id: string, card: DeckCard, zone: 'main' | 'side' = 'main'): boolean {
-  const wanted = zone === 'side' ? { ...card, zone: 'side' as const } : stripZone(card);
+// Add one copy of a card, to the main deck or (with "zone") the sideboard or
+// the maybe board. The same printing already there gets one more copy;
+// otherwise the card goes on the end.
+export function addCardToDeck(id: string, card: DeckCard, zone: 'main' | 'side' | 'maybe' = 'main'): boolean {
+  const wanted = zone === 'main' ? stripZone(card) : { ...stripZone(card), zone };
   return changeDeck(id, (d) => {
     const at = d.cards.findIndex((c) => samePrinting(c, wanted) && zoneOf(c) === zone);
     if (at < 0) return { ...d, cards: [...d.cards, oneCopyIsNoCount(wanted)] };
@@ -295,13 +297,24 @@ export function moveToMain(id: string, index: number): boolean {
 
 // Move the card at this spot into the sideboard (all its copies)
 export function moveToSideboard(id: string, index: number): boolean {
+  return moveToZone(id, index, 'side');
+}
+
+// Move the card at this spot into the maybe board (all its copies)
+export function moveToMaybe(id: string, index: number): boolean {
+  return moveToZone(id, index, 'maybe');
+}
+
+// Move the card at this spot into the sideboard or the maybe board (all its
+// copies), joining the same printing there if there is one
+export function moveToZone(id: string, index: number, zone: 'side' | 'maybe'): boolean {
   const deck = findDeck(id);
   const card = deck?.cards[index];
   if (!deck || !card) return false;
-  const there = { ...stripZone(card), zone: 'side' as const };
+  const there = { ...stripZone(card), zone };
   return changeDeck(id, (d) => {
     const without = d.cards.filter((_, i) => i !== index);
-    const at = without.findIndex((c) => samePrinting(c, there) && zoneOf(c) === 'side');
+    const at = without.findIndex((c) => samePrinting(c, there) && zoneOf(c) === zone);
     const copies = card.count ?? 1;
     if (at < 0) return { ...d, cards: [...without, copies > 1 ? { ...there, count: copies } : oneCopyIsNoCount(there)] };
     return { ...d, cards: without.map((c, i) => (i === at ? { ...c, count: Math.min(MAX_COPIES, (c.count ?? 1) + copies) } : c)) };

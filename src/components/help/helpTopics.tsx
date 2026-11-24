@@ -354,6 +354,14 @@ export const helpTopics: HelpTopic[] = [
               <Strong>Sideboard.</Strong> Formats with a sideboard (the 60-card formats hold up to 15, Tiny Leaders up to 10) show
               <Strong> Main deck</Strong> and <Strong>Sideboard</Strong> buttons under the search bar. The + and a dragged picture add to
               the one showing, and a card's screen has <Strong>Move to sideboard</Strong> and <Strong>Move to main deck</Strong>.
+            </P>
+            <P>
+              <Strong>Maybe board.</Strong> Every deck has a third button, <Strong>Maybe</Strong>, for cards you are only thinking about. Cards
+              there do not count towards the deck's size, legality, power bracket or price, and a card scanned into a deck lands here. A card's
+              screen has a <Strong>Move to</Strong> button for each place the card is not in (main deck, sideboard, maybe board). Moving a card
+              into the main deck can take it over the format's limit: a window says so, and <Strong>Add anyway</Strong> goes ahead or <Strong>Cancel</Strong> stops.
+              On the Maybe button, <Strong>Pick cards to move</Strong> lets you tap several cards (they are highlighted) and move them all at once
+              with <Strong>To main deck</Strong> or <Strong>To sideboard</Strong>.
               Tap a card to open its card screen, the same as in a binder or list: a big picture (tap it to open the card in
               the Card Finder), the card's name and set, a bar with its language, condition, the deck's name and how many copies you own in your binders, the <Strong>pencil</Strong> (Edit: version, copies, finish, language, condition),
               the rules (slide up from the strip at the bottom), and the red <Strong>trash can</Strong> (Delete from deck, it asks first). A deck is not part of your
@@ -584,14 +592,14 @@ export const helpTopics: HelpTopic[] = [
               Move the card away, or to a new spot, or put a different card down in its place, to scan another. Tap Track card to switch it off and line the card up in a guide instead. The phone app has Track card too (new in the latest Android build): it follows the card in the live picture, and when the card has held still it takes a photo and cuts the card out of it. There, Track card and Auto scan are two separate buttons and only one is on at a time; with both off, a card that is not lined up in the corners when you tap the round button is still looked for in the whole photo. It reads the card's name and the small print at the bottom left, finds the exact
               printing in the <Strong>Card catalogue</Strong> you download in <HelpLink to="settings-catalogue">Settings</HelpLink>, and
               slides up a sheet with the card's picture, set and number, how many (− 1 +), the finish button (foil, like in the Card
-              Finder), the language (just its letters; the list has the full names) and <Strong>Add to binder</Strong>, which asks
-              which binder: the card goes into the first empty pocket, and pages are added if the binder is full.
+              Finder), the language (just its letters; the list has the full names) and <Strong>Add to collection</Strong>, which asks
+              where it should go: pictures of a binder, a list and a deck sit at the top (tap one to choose which), and each list starts with <Strong>+ Binder</Strong> (or + List, + Deck) to make a new one. A binder takes the card into the first empty pocket, and pages are added if it is full; a list adds a copy; a deck puts it on its Maybe board.
               <Strong>Wrong printing?</Strong> lets you pick another printing. A card with no readable small print (older cards)
               is found from its name, and every printing is scored on how well its artwork (the strongest clue), border, copyright year
               and set symbol fit your photo. The best one is offered as a likely answer only when it is clearly ahead; otherwise you pick
               from the list (it's never added by itself), with the printings that fit best first, then an <Strong>Other printings</Strong> divider and the card's remaining printings, in case a clue was misread. Beside the <Strong>Use</Strong> button on that screen is the finish button (not foil, foil or etched), because a photo can rarely show whether a card is foil: pick the printing, set the finish, then tap Use, and the card goes on the list with both. A printing that comes in only one finish can't be changed. <Strong>Stack</Strong> mode scans one card after another into a list
               (a card scanned again adds a copy); ones it wasn't sure of are marked PICK or FIX to sort out at the end, and the
-              list's <Strong>Add N to binder</Strong> adds them all. The list is kept on this device, so it is still there after the page is refreshed or the app is closed and opened again (the scanner then opens in Stack mode); it is not sent to your account, so it doesn't show on your other devices. Tap a row to change that card: its window opens in front of the list (tap outside it to close just the window). The cross on a row takes that card off, and <Strong>Clear all</Strong> at the top right empties the whole list after asking once. In Stack mode the phone doesn't wait for one card to be worked out before
+              list's <Strong>Add N to collection</Strong> adds them all. The list is kept on this device, so it is still there after the page is refreshed or the app is closed and opened again (the scanner then opens in Stack mode); it is not sent to your account, so it doesn't show on your other devices. Tap a row to change that card: its window opens in front of the list (tap outside it to close just the window). The cross on a row takes that card off, and <Strong>Clear all</Strong> at the top right empties the whole list after asking once. In Stack mode the phone doesn't wait for one card to be worked out before
               it takes the next photo (a few can be waiting at once, shown beside the count as, say, <Strong>12+2</Strong>), so a pile goes
               faster. The small <Strong>gear</Strong> button beside the scan button opens the <Strong>scanner options</Strong>, all optional and kept on
               this device: <Strong>Lock to a set</Strong> (pick the set you're sorting through, like Dominaria, and the scanner only looks for

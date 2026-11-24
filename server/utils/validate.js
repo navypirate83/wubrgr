@@ -223,7 +223,7 @@ export function validateDeckCard(card) {
   const result = validateListCard(card);
   if (result.error) return result;
   if (card.zone !== undefined && card.zone !== null) {
-    if (card.zone !== 'side' && card.zone !== 'command') return { error: 'zone must be "side" or "command"' };
+    if (card.zone !== 'side' && card.zone !== 'command' && card.zone !== 'maybe') return { error: 'zone must be "side", "command" or "maybe"' };
     result.value.zone = card.zone;
   }
   if (card.slot !== undefined && card.slot !== null) {

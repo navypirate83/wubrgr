@@ -53,7 +53,7 @@ export default function PinDialog({ set, decks, name, onClose, onSaved }: Props)
       if (!deck) continue;
       const prints = new Map<string, { key: string; card: DeckCard; count: number }>();
       for (const card of deck.cards) {
-        if (zoneOf(card) === 'side' || nameKey(card.name) !== name) continue;
+        if (zoneOf(card) === 'side' || zoneOf(card) === 'maybe' || nameKey(card.name) !== name) continue;
         const key = printKey(card);
         const have = prints.get(key);
         prints.set(key, { key, card: have?.card ?? card, count: (have?.count ?? 0) + (card.count ?? 1) });

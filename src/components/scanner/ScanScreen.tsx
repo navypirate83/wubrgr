@@ -40,7 +40,7 @@ import ScanSettingsSheet from './ScanSettingsSheet';
 import ConfirmSheet from './ConfirmSheet';
 import PrintingPicker from './PrintingPicker';
 import StackList from './StackList';
-import AddToBinderDialog from './AddToBinderDialog';
+import AddScansDialog from './AddScansDialog';
 import CrashTrailNotice from './CrashTrailNotice';
 import { useColors } from '@/hooks/useTheme';
 import { useScanOptions } from '@/hooks/useScanOptions';
@@ -401,7 +401,7 @@ export default function ScanScreen() {
           behind={picker !== null}
           item={sheet.item}
           likely={sheet.likely}
-          primaryLabel={sheet.fromList ? 'Done' : 'Add to binder'}
+          primaryLabel={sheet.fromList ? 'Done' : 'Add to collection'}
           onChange={(item) => setSheet({ ...sheet, item })}
           onPrimary={() => {
             if (sheet.fromList) { changeInList(sheet.item); setSheet(null); return; }
@@ -434,7 +434,7 @@ export default function ScanScreen() {
       )}
 
       {adding && (
-        <AddToBinderDialog
+        <AddScansDialog
           items={adding.items}
           onDone={(note) => { adding.after(); setAdding(null); say(note); }}
           onCancel={() => setAdding(null)}

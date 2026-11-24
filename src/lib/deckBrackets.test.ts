@@ -37,7 +37,7 @@ test('a deck with no bracket has the same sync fingerprint pieces as before brac
 const gc = (name: string) => ['sol ring', 'rhystic study'].includes(name.toLowerCase());
 
 test('Game Changers are counted by copy, in the main deck and command zone, but not the sideboard', () => {
-  const cards = [{ name: 'Sol Ring' }, { name: 'Rhystic Study', count: 1, zone: 'command' }, { name: 'Sol Ring', zone: 'side' }, { name: 'Forest', count: 20 }];
+  const cards = [{ name: 'Sol Ring' }, { name: 'Rhystic Study', count: 1, zone: 'command' }, { name: 'Sol Ring', zone: 'side' }, { name: 'Sol Ring', zone: 'maybe' }, { name: 'Forest', count: 20 }];
   assert.equal(countGameChangers(cards, gc), 2);
   assert.equal(countGameChangers([], gc), 0);
 });

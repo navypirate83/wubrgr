@@ -297,12 +297,12 @@ export function looksLikeDeckLink(source: string): boolean {
 
 // A deck's cards as text the other sites can read back: a heading (Commander,
 // Deck, Sideboard), then "1 Sol Ring (CMM) 400" (with " *F*" for a foil)
-export function deckToText(deck: { cards: { name: string; set: string; number: string; count?: number; foil?: boolean; zone?: 'side' | 'command' }[] }): string {
-  const part = (heading: string, zone: 'command' | 'side' | undefined) => {
+export function deckToText(deck: { cards: { name: string; set: string; number: string; count?: number; foil?: boolean; zone?: 'side' | 'command' | 'maybe' }[] }): string {
+  const part = (heading: string, zone: 'command' | 'side' | 'maybe' | undefined) => {
     const cards = deck.cards.filter((card) => card.zone === zone);
     if (cards.length === 0) return '';
     const rows = cards.map((card) => `${card.count ?? 1} ${card.name} (${card.set.toUpperCase()}) ${card.number}${card.foil ? ' *F*' : ''}`);
     return `${heading}\n${rows.join('\n')}\n`;
   };
-  return [part('Commander', 'command'), part('Deck', undefined), part('Sideboard', 'side')].filter(Boolean).join('\n');
+  return [part('Commander', 'command'), part('Deck', undefined), part('Sideboard', 'side'), part('Maybeboard', 'maybe')].filter(Boolean).join('\n');
 }

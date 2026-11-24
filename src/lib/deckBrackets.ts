@@ -59,7 +59,7 @@ export function bracketPart(n: unknown): number[] {
 // How many Game Changers a deck holds (every copy counted; the sideboard doesn't count).
 // "isGameChanger" says whether a card name is one.
 export function countGameChangers(cards: { name: string; count?: number; zone?: string }[], isGameChanger: (name: string) => boolean): number {
-  return cards.reduce((sum, card) => (card.zone !== 'side' && isGameChanger(card.name) ? sum + (card.count ?? 1) : sum), 0);
+  return cards.reduce((sum, card) => (card.zone !== 'side' && card.zone !== 'maybe' && isGameChanger(card.name) ? sum + (card.count ?? 1) : sum), 0);
 }
 
 // The lowest bracket a deck with this many Game Changers may have: 1 (none), 3 (one to three) or 4 (four or more)

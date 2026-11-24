@@ -44,7 +44,7 @@ export function deckToCsv(deck: Deck): string {
       'Type': card.typeLine,
       'Deck': deck.name,
       'Format': format,
-      'Zone': card.zone === 'side' ? 'sideboard' : card.zone === 'command' ? 'command' : 'main',
+      'Zone': card.zone === 'side' ? 'sideboard' : card.zone === 'maybe' ? 'maybe' : card.zone === 'command' ? 'command' : 'main',
     };
     lines.push(DECK_COLUMNS.map((column) => csvValue(values[column])).join(','));
   }

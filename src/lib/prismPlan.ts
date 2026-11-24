@@ -33,9 +33,9 @@ export type PlanCard = {
 
 export const nameKey = (name: string): string => name.trim().toLowerCase();
 
-// The cards of a deck that count (the sideboard doesn't)
+// The cards of a deck that count (the sideboard and the maybe board don't)
 function playedCards(deck: Deck): DeckCard[] {
-  return deck.cards.filter((card) => zoneOf(card) !== 'side');
+  return deck.cards.filter((card) => zoneOf(card) !== 'side' && zoneOf(card) !== 'maybe');
 }
 
 // The plan for a set: its decks, found among all your decks (a deck that no

@@ -146,7 +146,7 @@ function fingerprintOf(value: unknown): string {
 
 // What the server sends for a binder or list
 type ServerItem = { _id: string; name: string; color?: string | null; cover?: string; pages?: number; format?: string; bracket?: number | null; updatedAt: string };
-type ServerCard = BinderCard & { page: number; pocket: number; manaCost?: string; typeLine?: string; zone?: 'side' | 'command'; slot?: 0 | 1 };
+type ServerCard = BinderCard & { page: number; pocket: number; manaCost?: string; typeLine?: string; zone?: 'side' | 'command' | 'maybe'; slot?: 0 | 1 };
 
 // This device's cards in the account's layout (what the server stores),
 // and back. The pockets are counted page by page, so each card keeps its
@@ -698,7 +698,7 @@ async function syncDecks(memory: Memory): Promise<void> {
 // A deck card from the server: a list card, and where it is kept
 function deckCardFromServer(card: ServerCard): DeckCard {
   const out: DeckCard = listCardFromServer(card);
-  if (card.zone === 'side' || card.zone === 'command') out.zone = card.zone;
+  if (card.zone === 'side' || card.zone === 'command' || card.zone === 'maybe') out.zone = card.zone;
   if (card.zone === 'command' && (card.slot === 0 || card.slot === 1)) out.slot = card.slot;
   return out;
 }

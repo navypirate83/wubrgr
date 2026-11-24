@@ -100,6 +100,16 @@ test('one bad card or a bad zone rejects the whole save and keeps the old cards'
   expect((await me.get(`/decks/${_id}/cards`)).body.map((c) => c.name)).toEqual(['Keep']);
 });
 
+test('a card on the maybe board is saved and read back with its zone', async () => {
+  const me = await setup();
+  const { _id } = (await me.post('/decks', { name: 'Thinking' })).body;
+  const saved = await me.put(`/decks/${_id}/cards`, { cards: [dc('Main Card'), dc('Maybe Card', { zone: 'maybe' })] });
+  expect(saved.status).toBe(200);
+  const read = (await me.get(`/decks/${_id}/cards`)).body;
+  expect(read[0].zone).toBeUndefined();
+  expect(read[1].zone).toBe('maybe');
+});
+
 test('the deck shows its card count, and deleting it deletes its cards', async () => {
   const me = await setup();
   const { _id } = (await me.post('/decks', { name: 'Counted' })).body;

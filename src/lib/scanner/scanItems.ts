@@ -20,7 +20,10 @@ import {
 } from '@/lib/binderStorage';
 import { placeInBinder } from '@/lib/collectionImport';
 import { fillAddedPrices } from '@/lib/addedPrice';
-import { isSignedIn, signInWithGoogle, syncBinder } from '@/lib/googleDrive';
+import { isSignedIn, signInWithGoogle, syncBinder, syncList } from '@/lib/googleDrive';
+import { addCardsToList } from '@/lib/collectionImport';
+import type { ListCard } from '@/lib/listStorage';
+import { addCardsToDeck, type DeckCard } from '@/lib/deckStorage';
 import type { Finish } from '@/lib/cards';
 import type { Printing } from './core/catalogueTypes';
 import type { ScanReading } from './core/scannerTypes';
@@ -111,4 +114,27 @@ export async function addScansToBinder(binderId: string, items: ScanItem[]): Pro
   saveBinder(placed.cards, binderId);   // kept on this device (marked "needs saving")...
   await syncBinder(binderId);           // ...and saved to Drive
   return { copies: items.reduce((sum, item) => sum + item.count, 0), pagesAdded: placed.pages - pagesBefore };
+}
+
+// The card as a list (or a deck) keeps it: a binder card with its mana cost and type line
+function listCardFrom(item: ScanItem): ListCard {
+  return { ...binderCardFrom(item), manaCost: item.printing.manaCost, typeLine: item.printing.typeLine };
+}
+
+// Put the scanned cards on a list: a printing already on it gets more copies. Gives back how many copies went on.
+export async function addScansToList(listId: string, items: ScanItem[]): Promise<{ copies: number }> {
+  const cards = await fillAddedPrices(items.map(listCardFrom));
+  if (!addCardsToList(listId, cards)) throw new Error("That list could not be saved on this device.");
+  // Saved to Drive in the background when signed in (the list is kept on this device either way)
+  if (!isLocalMode() && isSignedIn()) syncList(listId).catch(() => { /* kept on the device; saved next time the list opens */ });
+  return { copies: items.reduce((sum, item) => sum + item.count, 0) };
+}
+
+// Put the scanned cards on a deck's MAYBE BOARD (they don't count towards the
+// deck's size or legality until you move them into the main deck). A printing
+// already there gets more copies. Gives back how many copies went on.
+export async function addScansToDeckMaybe(deckId: string, items: ScanItem[]): Promise<{ copies: number }> {
+  const cards = await fillAddedPrices(items.map((item) => ({ ...listCardFrom(item), zone: 'maybe' as const }) as DeckCard));
+  if (!addCardsToDeck(deckId, cards)) throw new Error("That deck could not be saved on this device.");
+  return { copies: items.reduce((sum, item) => sum + item.count, 0) };
 }

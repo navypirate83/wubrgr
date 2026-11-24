@@ -5,7 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deckProblems as problemsOf, sizeProblems as sizeOf } from './deckLegality.ts';
+import { deckProblems as problemsOf, overLimitIfAdded, sizeProblems as sizeOf } from './deckLegality.ts';
 import { deckFormat } from './deckFormats.ts';
 
 // The checks below read as "the problems of this deck", with the deck's own format
@@ -13,7 +13,7 @@ const sizeProblems = (d: { format: string; cards: never[] }) => sizeOf(d, deckFo
 const deckProblems = (d: { format: string; cards: never[] }, banned: (name: string) => boolean) => problemsOf(d, deckFormat(d.format), banned);
 
 // A deck of "n" different cards in the main deck, plus optional extras
-const deck = (format: string, n: number, extra: { name: string; count?: number; zone?: 'side' | 'command' }[] = []) => ({
+const deck = (format: string, n: number, extra: { name: string; count?: number; zone?: 'side' | 'command' | 'maybe' }[] = []) => ({
   format,
   cards: [...Array.from({ length: n }, (_, i) => ({ name: `Card ${i}` })), ...extra] as never[],
 });
@@ -51,4 +51,17 @@ test('a banned card makes it not legal, and says how many', () => {
   assert.deepEqual(deckProblems(deck('commander', 100), (name) => name === 'Card 1'), ['1 banned card']);
   assert.deepEqual(deckProblems(deck('commander', 101), banned), ['101 cards, at most 100', '2 banned cards']);
   assert.deepEqual(deckProblems(deck('commander', 100), () => false), []);
+});
+
+test('the maybe board counts towards nothing: not the size, not the banned cards', () => {
+  assert.deepEqual(sizeProblems(deck('commander', 100, [{ name: 'Sol Ring', count: 5, zone: 'maybe' }])), []);
+  assert.deepEqual(deckProblems(deck('commander', 3, [{ name: 'Banned One', zone: 'maybe' }]), (name) => name === 'Banned One'), []);
+});
+
+test('moving cards into the main deck: over the limit gives the new total, fitting gives nothing', () => {
+  const full = deck('modern', 60);
+  assert.equal(overLimitIfAdded(full, deckFormat('modern'), 1), null);   // Modern has no top limit
+  const commander = deck('commander', 100, [{ name: 'Maybe card', zone: 'maybe' }]);
+  assert.deepEqual(overLimitIfAdded(commander, deckFormat('commander'), 1), { total: 101, limit: 100 });
+  assert.equal(overLimitIfAdded(deck('commander', 98), deckFormat('commander'), 2), null);
 });

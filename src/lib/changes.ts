@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.6.0',
+    date: '2026-11-24',
+    lines: [
+      "Decks have a new Maybe board, a third button beside Main deck and Sideboard, for cards you are only thinking about. Cards on it do not count towards the deck's size, legality, power bracket or price. A card's screen can move it between the main deck, the sideboard and the maybe board, a move into a full main deck asks first, and Pick cards to move lets you move several at once.",
+      "In the scanner, Add to collection now has pictures of a binder, a list and a deck at the top, and each list starts with + Binder, + List or + Deck to make a new one. Scanned cards go to a binder or list as before, or onto a deck's Maybe board.",
+    ],
+  },
+  {
     version: '1.5.3',
     date: '2026-11-23',
     lines: ["In the scanner's Stack list, tapping a card now opens its window in front of the list instead of behind it, so a card can be changed without leaving the list. Tapping outside the window closes just the window."],

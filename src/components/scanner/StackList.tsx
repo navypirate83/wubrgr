@@ -81,7 +81,7 @@ export default function StackList({ items, onOpen, onRemove, onClear, onAdd, onC
       <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <Button label="Keep scanning" kind="secondary" onPress={onClose} />
         <View style={styles.grow}>
-          <Button label={`Add ${copies} to binder`} disabled={items.length === 0} onPress={onAdd} />
+          <Button label={`Add ${copies} to collection`} disabled={items.length === 0} onPress={onAdd} />
         </View>
       </View>
       {flagged > 0 && <Text style={[styles.note, { color: colors.muted, backgroundColor: colors.surface }]}>{flagged} {flagged === 1 ? 'card needs' : 'cards need'} a look. Tap {flagged === 1 ? 'it' : 'them'}, or add the list as it is.</Text>}
