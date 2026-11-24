@@ -83,6 +83,8 @@ export default function ListsScreen() {
   // Lists picked together ("Select multiple" in a held list's options): their ids. While any are picked, a tap
   // picks or un-picks a list instead of opening it, and a floating bar at the top has Rename, Reset value and Delete.
   const [selected, setSelected] = useState<string[]>([]);
+  // How tall the search box and the Add / Import buttons are (measured), for the floating bar to cover
+  const [coverH, setCoverH] = useState(170);
   const toggleSelected = (id: string) => setSelected((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
 
   // Something went wrong talking to Google Drive: say what, in plain words
@@ -263,9 +265,11 @@ export default function ListsScreen() {
         // drop-down can cover them), and Add list
         ListHeaderComponent={
           <View style={styles.header}>
-            <ListSearch onPick={openList} />
-            <Button label="Add list" icon="add" onPress={add} disabled={adding} />
-            <Button label="Import a list" icon="cloud-upload-outline" kind="secondary" onPress={() => setImporting(true)} disabled={adding} />
+            <View style={styles.headerTop} onLayout={(event) => setCoverH(event.nativeEvent.layout.height)}>
+              <ListSearch onPick={openList} />
+              <Button label="Add list" icon="add" onPress={add} disabled={adding} />
+              <Button label="Import a list" icon="cloud-upload-outline" kind="secondary" onPress={() => setImporting(true)} disabled={adding} />
+            </View>
             <ShelfSortBar area="lists" />
           </View>
         }
@@ -312,7 +316,7 @@ export default function ListsScreen() {
       {/* While lists are picked: the floating bar over the top */}
       {selected.length > 0 && (
         <ShelfSelectionBar
-          count={selected.length} noun="list" editLabel="Rename" busy={adding}
+          count={selected.length} noun="list" editLabel="Rename" busy={adding} coverHeight={coverH}
           onEdit={() => { const list = lists.find((l) => l.id === selected[0]); setSelected([]); if (list) setRenaming({ id: list.id, name: list.name }); }}
           onReset={() => { const ids = selected; setSelected([]); resetPicked(ids); }}
           onDelete={() => { const ids = selected; setSelected([]); deletePicked(ids); }}
@@ -389,6 +393,8 @@ const styles = StyleSheet.create({
   page: { padding: PAGE_PADDING, gap: 12, width: '100%', maxWidth: PAGE_MAX_WIDTH, alignSelf: 'center', flexGrow: 1 },
   header: { gap: 10, marginBottom: 4 },
   headerOnTop: { zIndex: 10 },
+  // The search box and the Add / Import buttons (the floating selection bar is laid over these)
+  headerTop: { gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: RADIUS * 1.2, borderWidth: 1 },
   rowText: { flex: 1, gap: 2 },
   rowName: { fontSize: 18, fontWeight: '700' },

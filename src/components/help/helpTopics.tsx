@@ -171,7 +171,7 @@ export const helpTopics: HelpTopic[] = [
             <Bullet>
               <Strong>Pick several at once</Strong>: drop a held binder on <Strong>Select multiple</Strong> (or, on a computer, hold{' '}
               <Strong>Ctrl</Strong> or <Strong>Cmd</Strong> and click). Picked binders get a frame and a tick, and a plain tap
-              now picks or un-picks other binders instead of opening them. A bar floats over the top of the shelf with <Strong>Edit</Strong>{' '}
+              now picks or un-picks other binders instead of opening them. A bar floats over the search box and Add binder button with <Strong>Edit</Strong>{' '}
               (only when one is picked), <Strong>Copy</Strong>, <Strong>Reset value</Strong> and a red <Strong>Delete</Strong>, which
               work on every picked binder; the cross (or <Strong>Esc</Strong>) drops the picks. With only the
               keyboard: the <Key>arrow keys</Key> move an outline from binder to binder and{' '}

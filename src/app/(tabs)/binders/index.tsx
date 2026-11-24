@@ -173,6 +173,8 @@ export default function ShelfScreen() {
   // or Ctrl-click on a computer. While any are picked, a tap picks or un-picks instead of opening, and
   // a floating bar at the top has Edit, Copy, Reset value and Delete.
   const [selected, setSelected] = useState<string[]>([]);
+  // How tall the search box and Add binder button are (measured), for the floating bar to cover
+  const [coverH, setCoverH] = useState(120);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   // The binder the keyboard is on (its id), drawn with an outline: the arrow
@@ -849,11 +851,13 @@ export default function ShelfScreen() {
   // (the Binders / Lists / Decks switch is up in the screen's header)
   const header = (
     <View style={styles.header}>
-      <BinderSearch />
+      <View style={styles.headerTop} onLayout={(event) => setCoverH(event.nativeEvent.layout.height)}>
+        <BinderSearch />
 
-      {/* Add binder: opens the New binder window (name, cover symbol and
-          color, or Upload .CSV) */}
-      <Button label="Add binder" icon="add" onPress={() => setNewOpen(true)} disabled={adding} />
+        {/* Add binder: opens the New binder window (name, cover symbol and
+            color, or Upload .CSV) */}
+        <Button label="Add binder" icon="add" onPress={() => setNewOpen(true)} disabled={adding} />
+      </View>
       <ShelfSortBar area="binders" />
       {showKeyHints && (
         <Button label="Keyboard shortcuts" kind="plain" icon="keypad-outline" onPress={() => setShortcutsOpen(true)}
@@ -955,7 +959,7 @@ export default function ShelfScreen() {
       {/* While binders are picked: the floating bar over the top (Edit with one picked, Copy, Reset value, Delete) */}
       {selected.length > 0 && !drag?.lifted && (
         <ShelfSelectionBar
-          count={selected.length} noun="binder" busy={adding}
+          count={selected.length} noun="binder" busy={adding} coverHeight={coverH}
           onEdit={() => { setEditingId(selected[0]); setSelected([]); }}
           onCopy={() => { const ids = selected; setSelected([]); copyBinders(ids); }}
           onReset={() => { const ids = selected; setSelected([]); resetValue(ids); }}
@@ -1208,6 +1212,8 @@ const styles = StyleSheet.create({
   list: { padding: SHELF_PADDING, width: '100%', maxWidth: SHELF_MAX_WIDTH, alignSelf: 'center', flexGrow: 1 },
   header: { gap: 10, marginBottom: 4 },
   headerOnTop: { zIndex: 10 },
+  // The search box and Add binder button (the floating selection bar is laid over these)
+  headerTop: { gap: 10 },
   moreButton: { alignSelf: 'flex-start', minHeight: 36 },
   message: { fontSize: 15, textAlign: 'center', marginTop: 8 },
   // One row of binders: as wide as the binders in it, centered

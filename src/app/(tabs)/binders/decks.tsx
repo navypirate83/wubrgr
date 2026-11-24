@@ -85,6 +85,8 @@ export default function DecksScreen() {
   // Decks picked together ("Select multiple" in a held deck's options): their ids. While any are picked, a tap
   // picks or un-picks a deck instead of opening it, and a floating bar at the top has Rename and Delete.
   const [selected, setSelected] = useState<string[]>([]);
+  // How tall the search box and Add deck button are (measured), for the floating bar to cover
+  const [coverH, setCoverH] = useState(120);
   const toggleSelected = (id: string) => setSelected((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
 
   // Every time this page comes into view (a deck's cards may have changed)
@@ -267,8 +269,10 @@ export default function DecksScreen() {
         // drop-down can cover them), and Add deck
         ListHeaderComponent={
           <View style={styles.header}>
-            <DeckSearch onPick={openDeck} />
-            <Button label="Add deck" icon="add" onPress={() => setMaking(true)} />
+            <View style={styles.headerTop} onLayout={(event) => setCoverH(event.nativeEvent.layout.height)}>
+              <DeckSearch onPick={openDeck} />
+              <Button label="Add deck" icon="add" onPress={() => setMaking(true)} />
+            </View>
             <ShelfSortBar area="decks" />
           </View>
         }
@@ -327,7 +331,7 @@ export default function DecksScreen() {
       {/* While decks are picked: the floating bar over the top */}
       {selected.length > 0 && (
         <ShelfSelectionBar
-          count={selected.length} noun="deck" editLabel="Rename"
+          count={selected.length} noun="deck" editLabel="Rename" coverHeight={coverH}
           onEdit={() => { const deck = decks.find((d) => d.id === selected[0]); setSelected([]); if (deck) setRenaming({ id: deck.id, name: deck.name }); }}
           onDelete={() => { const ids = selected; setSelected([]); deletePicked(ids); }}
           onCancel={() => setSelected([])}
@@ -384,6 +388,8 @@ const styles = StyleSheet.create({
   page: { padding: PAGE_PADDING, gap: 12, width: '100%', maxWidth: PAGE_MAX_WIDTH, alignSelf: 'center', flexGrow: 1 },
   header: { gap: 10, marginBottom: 4 },
   headerOnTop: { zIndex: 10 },
+  // The search box and the Add deck button (the floating selection bar is laid over these)
+  headerTop: { gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: RADIUS * 1.2, borderWidth: 1 },
   rowText: { flex: 1, gap: 2 },
   rowName: { fontSize: 18, fontWeight: '700' },
