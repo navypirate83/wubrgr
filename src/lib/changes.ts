@@ -30,24 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
-    version: '1.8.0',
-    date: '2026-11-23',
-    lines: ["The binder's Clean-up button now opens a menu: Just close the gaps (as before), or close the gaps and arrange the cards by name, price, price change, color, set, type, rarity, mana value or newest added. An Undo bar appears afterwards and puts every card back."],
-  },
-  {
-    version: '1.7.0',
-    date: '2026-11-23',
-    lines: ['New sort: Price change. In a binder, list or deck, the sort button has Gainers (the card whose price has gone up the most, in percent, since you added it comes first) and, tapped again, Losers. On the Shelf, binders can be sorted the same way by how much all their cards have moved.'],
-  },
-  {
-    version: '1.6.0',
-    date: '2026-11-23',
-    lines: ["On the Shelf, each binder now shows a dot, your price store's icon and what its cards are worth, after its card count."],
-  },
-  {
     version: '1.5.0',
     date: '2026-11-23',
-    lines: ["In the List view of a binder, list or deck, each card's price is now three lines: today's price, then how many percent it has changed since the card was added (green with a + when it went up, red with a - when it went down), then the price it had when it was added. The − 3 + bar stays in the middle of the row."],
+    lines: [
+      "In the List view of a binder, list or deck, each card's price is now three lines: today's price, then how many percent it has changed since the card was added (green with a + when it went up, red with a - when it went down), then the price it had when it was added. The − 3 + bar stays in the middle of the row.",
+      "On the Shelf, each binder now shows a dot, your price store's icon and what its cards are worth, after its card count.",
+      'New sort: Price change. In a binder, list or deck, the sort button has Gainers (the card whose price has gone up the most, in percent, since you added it comes first) and, tapped again, Losers. On the Shelf, binders can be sorted the same way by how much all their cards have moved.',
+      "The binder's Clean-up button now opens a menu: Just close the gaps (as before), or close the gaps and arrange the cards by name, price, price change, color, set, type, rarity, mana value or newest added. An Undo bar appears afterwards and puts every card back.",
+    ],
   },
   {
     version: '1.4.1',
