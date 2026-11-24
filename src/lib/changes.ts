@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.8.2',
+    date: '2026-11-24',
+    lines: ["In the Card Finder's Sets tab, the List or Grid view and the sort you pick on a set's cards are now remembered on this device, so every set opens the way you left the last one, even after closing the app."],
+  },
+  {
     version: '1.8.1',
     date: '2026-11-24',
     lines: [

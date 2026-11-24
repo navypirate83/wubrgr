@@ -7,14 +7,14 @@
    The cards are set up like binder cards (so the same List and Grid drawing
    is used), but they're not yours, so there are no copies bars. Tapping a
    card hands it to the screen, which opens it in the Card Finder.
-   The view and the sort are remembered while the app is open, so going
-   from set to set keeps what you chose.
+   The view and the sort are remembered (on this device, like a binder's), so every
+   set opens the way you left the last one (see lib/setView.ts).
    There's no "back" button here: the header's back arrow does that (the open set is in the page's address).
    Everything the sorts and prices need is in the downloaded cards already,
    so it's put where the price lookup looks first, instead of asking again.
    ===================================================================== */
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,22 +24,15 @@ import { useContentWidth } from '@/hooks/useMenuStyle';
 import CardList, { type CardEntry } from '@/components/binder/CardList';
 import ViewSwitch from '@/components/binder/ViewSwitch';
 import { SearchError } from '@/components/search/SearchStates';
-import { BINDER_SORTS, canReverse, headerFor, sortEntries, type BinderSort } from '@/lib/binderSort';
-import { GRID_ZOOM_WIDTHS, binderGridZoom, listViewMode, onBinderViewChange, onGridZoomChange, sortHeadersOn } from '@/lib/binderView';
-import type { BinderViewMode } from '@/lib/binderViewTypes';
+import { headerFor, sortEntries } from '@/lib/binderSort';
+import { GRID_ZOOM_WIDTHS, binderGridZoom, onBinderViewChange, onGridZoomChange, sortHeadersOn } from '@/lib/binderView';
+import { SET_SORTS, chooseSetSort, chooseSetView, onSetViewChange, setCardsSort, setCardsSortReversed, setCardsView } from '@/lib/setView';
 import type { BinderCard } from '@/lib/binderStorage';
 import { PRICE_NOTE, CURRENCY_NOTE } from '@/lib/addedPrice';
 import { binderCardFrom } from '@/lib/cardDrop';
 import { loadSetCards, type ScryfallCard } from '@/lib/scryfall';
 import { plural } from '@/lib/cards';
 import { MAX_CONTENT_WIDTH, SPACE } from '@/theme/colors';
-
-// The sorts offered here: the binder's, without "Newest added" and "Set"
-const SORTS = BINDER_SORTS.filter((sort) => sort.value !== 'added' && sort.value !== 'set');
-
-// The view and sort last chosen (kept while the app is open)
-let lastView: BinderViewMode | null = null;
-let lastSort: { sort: BinderSort; reversed: boolean } = { sort: 'name', reversed: false };
 
 // A set's card, set up like a binder card for the List and Grid. Its "added" day and price are left
 // off, because the card was never added: no "price when added" line, no percent change.
@@ -63,16 +56,10 @@ export default function SetCardsPage({ set, onPickCard }: Props) {
   const gridZoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
   const headersOn = useSyncExternalStore(onBinderViewChange, sortHeadersOn, sortHeadersOn);
 
-  // List or grid, and the sort
-  const [mode, setMode] = useState<BinderViewMode>(lastView ?? (listViewMode() === 'grid' ? 'grid' : 'list'));
-  const [{ sort, reversed }, setSort] = useState(lastSort);
-  function chooseView(next: BinderViewMode) { lastView = next; setMode(next); }
-  // Tapping the sort already in use turns it round (if it can be); another one starts the usual way
-  function chooseSort(next: BinderSort) {
-    const flip = next === sort && canReverse(next);
-    lastSort = flip ? { sort, reversed: !reversed } : { sort: next, reversed: false };
-    setSort(lastSort);
-  }
+  // List or grid, and the sort (saved: see lib/setView.ts)
+  const mode = useSyncExternalStore(onSetViewChange, setCardsView, setCardsView);
+  const sort = useSyncExternalStore(onSetViewChange, setCardsSort, setCardsSort);
+  const reversed = useSyncExternalStore(onSetViewChange, setCardsSortReversed, setCardsSortReversed);
 
   // The set's cards. They already hold their details and prices, so they're put where the price
   // lookup (useBinderPrices) looks first, so it doesn't ask Scryfall for them all again.
@@ -113,7 +100,7 @@ export default function SetCardsPage({ set, onPickCard }: Props) {
 
       {/* The same buttons as in a binder: List / Grid, zoom, Sort */}
       <View style={styles.tools}>
-        <ViewSwitch mode={mode} sort={sort} reversed={reversed} sorts={SORTS} onSort={chooseSort} modes={['list', 'grid']} onView={chooseView} />
+        <ViewSwitch mode={mode} sort={sort} reversed={reversed} sorts={SET_SORTS} onSort={chooseSetSort} modes={['list', 'grid']} onView={chooseSetView} />
       </View>
 
       {cards.isError ? (
