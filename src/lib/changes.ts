@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.5.1',
+    date: '2026-11-23',
+    lines: ['In the scanner, the "Which printing?" screen now has a finish button (not foil, foil or etched) beside the Use button, so a card can be set as foil while its printing is chosen.'],
+  },
+  {
     version: '1.5.0',
     date: '2026-11-23',
     lines: [

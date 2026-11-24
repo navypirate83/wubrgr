@@ -8,6 +8,11 @@
    fit are shown first and a divider labelled "Other printings" separates them from
    the rest of the card's printings (kept in case a clue was misread).
    Tap the one in your hand, then "Use ...". It never adds a card by itself from here.
+   Beside the "Use" button is the finish button (not foil / foil / etched, the same as on
+   the confirm sheet), because a card's finish usually can't be told from the photo, so it
+   is chosen here together with the printing. It follows the printing tapped: a printing
+   that doesn't come in the finish shown switches to one it does, and one that comes in only
+   one finish can't be changed.
    ===================================================================== */
 
 import { useState } from 'react';
@@ -17,6 +22,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Button from '@/components/Button';
 import { useColors } from '@/hooks/useTheme';
 import { RADIUS } from '@/theme/colors';
+import FinishButton from './FinishButton';
+import { finishesOf, startingFinish } from '@/lib/scanner/scanItems';
+import type { Finish } from '@/lib/cards';
 import type { Printing } from '@/lib/scanner/core/catalogueTypes';
 
 type Props = {
@@ -26,13 +34,25 @@ type Props = {
   chosen: Printing | null;           // the one picked now (starts on this)
   artPreview?: string;               // the artwork as the camera saw it
   reason?: string;                   // how the list was narrowed (a small line)
-  onPick: (printing: Printing) => void;
+  finish: Finish;                    // the finish to start on (the card's own, or the scanner option's)
+  onPick: (printing: Printing, finish: Finish) => void;
   onClose: () => void;
 };
 
-export default function PrintingPicker({ name, candidates, matched, chosen, artPreview, reason, onPick, onClose }: Props) {
+export default function PrintingPicker({ name, candidates, matched, chosen, artPreview, reason, finish: startFinish, onPick, onClose }: Props) {
   const colors = useColors();
   const [selected, setSelected] = useState<Printing | null>(chosen ?? candidates[0] ?? null);
+  // The finish picked (not foil, foil or etched). It is kept when the printing tapped comes in it, and
+  // otherwise changes to the first finish that printing does come in.
+  const [finish, setFinish] = useState<Finish>(() => {
+    const first = chosen ?? candidates[0];
+    return first && !finishesOf(first).includes(startFinish) ? startingFinish(first) : startFinish;
+  });
+  // Tap a printing: select it, and fix the finish if it doesn't come in the one shown
+  function select(p: Printing) {
+    setSelected(p);
+    if (!finishesOf(p).includes(finish)) setFinish(startingFinish(p));
+  }
   // Where the divider goes: after the printings that fit (no divider if the list wasn't narrowed, or everything fit)
   const split = matched !== undefined && matched > 0 && matched < candidates.length ? matched : candidates.length;
 
@@ -45,7 +65,7 @@ export default function PrintingPicker({ name, candidates, matched, chosen, artP
         accessibilityRole="radio"
         accessibilityState={{ selected: on }}
         accessibilityLabel={`${p.setName}, number ${p.collectorNumber}, ${p.year}`}
-        onPress={() => setSelected(p)}
+        onPress={() => select(p)}
         style={[styles.cell, { borderColor: on ? colors.accent : 'transparent' }]}
       >
         {p.image ? <Image source={{ uri: p.image }} style={styles.picture} contentFit="cover" /> : <View style={styles.picture} />}
@@ -90,12 +110,16 @@ export default function PrintingPicker({ name, candidates, matched, chosen, artP
         )}
       </ScrollView>
 
+      {/* The finish button (for the printing tapped), then the button that uses it */}
       <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-        <Button
-          label={selected ? `Use ${selected.setCode.toUpperCase()} #${selected.collectorNumber}` : 'Choose one'}
-          disabled={!selected}
-          onPress={() => { if (selected) onPick(selected); }}
-        />
+        {selected && <FinishButton printing={selected} finish={finish} onChange={setFinish} />}
+        <View style={styles.use}>
+          <Button
+            label={selected ? `Use ${selected.setCode.toUpperCase()} #${selected.collectorNumber}${finish === 'foil' ? ' (foil)' : finish === 'etched' ? ' (etched)' : ''}` : 'Choose one'}
+            disabled={!selected}
+            onPress={() => { if (selected) onPick(selected, finish); }}
+          />
+        </View>
       </View>
     </View>
   );
@@ -121,5 +145,6 @@ const styles = StyleSheet.create({
   picture: { width: '100%', aspectRatio: 63 / 88, borderRadius: 6 },
   likely: { position: 'absolute', top: 8, left: 8, fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, overflow: 'hidden' },
   label: { fontSize: 12, textAlign: 'center' },
-  footer: { padding: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  use: { flex: 1 },
 });

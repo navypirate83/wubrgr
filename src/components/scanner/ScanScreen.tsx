@@ -63,7 +63,7 @@ import type { Crumb } from '@/lib/scanner/core/crashTrailCore';
 import { createOrderedResults } from '@/lib/scanner/core/resolveQueue';
 import { timingWords } from '@/lib/scanner/core/readPlan';
 import { changeScanOptions, getScanOptions } from '@/lib/scanner/scanSettings';
-import { finishesOf, newScanId, startingFinish, startingFinishFor, type ScanItem } from '@/lib/scanner/scanItems';
+import { newScanId, startingFinishFor, type ScanItem } from '@/lib/scanner/scanItems';
 import { allFrontNameIndex, allFrontNames, catalogueConfigured, downloadCatalogue, openCatalogue, printingsNamed, type DownloadStage } from '@/lib/scanner/catalogue/catalogue';
 import { looksLikeAnyName } from '@/lib/scanner/core/fuzzy';
 import { looksLikeAnyNameIndexed, type NameIndex } from '@/lib/scanner/core/nameIndex';
@@ -75,7 +75,7 @@ const STAGE_WORDS: Record<DownloadStage, string> = { downloading: 'Downloading',
 // a card already in the stack list being changed, and the scan it came from
 type SheetState = { item: ScanItem; likely: boolean; fromList: boolean };
 // The picker: what it's choosing for, and what to do with the choice
-type PickerState = { name: string; candidates: Printing[]; matched?: number; chosen: Printing | null; artPreview?: string; reason?: string; apply: (printing: Printing) => void };
+type PickerState = { name: string; candidates: Printing[]; matched?: number; chosen: Printing | null; artPreview?: string; reason?: string; finish: Finish; apply: (printing: Printing, finish: Finish) => void };
 
 // An item for a printing, with the language read from the card (or the printing's own), and the finish
 // chosen in the scanner options ("start cards as") when the printing comes in it
@@ -303,7 +303,8 @@ export default function ScanScreen() {
       } else {
         setPicker({
           name: outcome.candidates[0]?.name ?? outcome.name ?? 'This card', candidates: outcome.candidates, matched: outcome.matched, chosen: null, artPreview: art, reason: outcome.reason,
-          apply: (printing) => { setPicker(null); setSheet({ item: itemFor(outcome, printing, null, chosen.startFinish), likely: false, fromList: false }); },
+          finish: chosen.startFinish,
+          apply: (printing: Printing, finish: Finish) => { setPicker(null); setSheet({ item: { ...itemFor(outcome, printing, null, chosen.startFinish), finish }, likely: false, fromList: false }); },
         });
       }
       return;
@@ -327,9 +328,10 @@ export default function ScanScreen() {
     closeFirst?.();
     setPicker({
       name: item.printing.name, candidates: all, matched: all === item.candidates ? item.matched : undefined, chosen: item.printing, artPreview: item.reading?.extras?.artPreview,
-      apply: (printing) => {
+      finish: item.finish,
+      apply: (printing: Printing, finish: Finish) => {
         setPicker(null);
-        update({ ...item, printing, flag: null, candidates: all, finish: finishesOf(printing).includes(item.finish) ? item.finish : startingFinish(printing) });
+        update({ ...item, printing, flag: null, candidates: all, finish });
       },
     });
   }
@@ -421,7 +423,7 @@ export default function ScanScreen() {
 
       {picker && (
         <PrintingPicker
-          name={picker.name} candidates={picker.candidates} matched={picker.matched} chosen={picker.chosen} artPreview={picker.artPreview} reason={picker.reason}
+          name={picker.name} candidates={picker.candidates} matched={picker.matched} chosen={picker.chosen} artPreview={picker.artPreview} reason={picker.reason} finish={picker.finish}
           onPick={picker.apply} onClose={() => setPicker(null)}
         />
       )}
