@@ -1132,7 +1132,7 @@ export const helpTopics: HelpTopic[] = [
               Tap a set to see every card in it, as a <Strong>List</Strong> or a <Strong>Grid</Strong>, with the same
               <Strong> Sort</Strong> button as an opened binder (without Newest added, and without Set, since every card is
               from the same set). Tap a card to open it in the Card Finder. The <Strong>back arrow</Strong> at the top left works as
-              everywhere else: from a card it goes back to the set's cards, and from the set's cards back to the list of sets.
+              everywhere else: from a card it goes back to the set's cards, and from the set's cards back to the list of sets. Tapping the <Strong>Sets</Strong> tab while you're looking inside a set also goes to the list.
               Opening the Card Finder with the <Strong>+</Strong> in a binder, list or deck always starts on the Cards tab.
             </P>
             <P>

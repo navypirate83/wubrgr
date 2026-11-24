@@ -33,7 +33,7 @@ export const CHANGES: Change[] = [
     version: '1.8.1',
     date: '2026-11-24',
     lines: [
-      "In the Card Finder, the back arrow at the top now steps back through the Sets tab like any other page: from a card to its set's cards, and from a set's cards to the list of sets. The \"Back to (the set)\" and \"Sets\" links are gone.",
+      "In the Card Finder, the back arrow at the top now steps back through the Sets tab like any other page: from a card to its set's cards, and from a set's cards to the list of sets. The \"Back to (the set)\" and \"Sets\" links are gone. Tapping the Sets tab while looking inside a set goes to the list of sets.",
       "Tapping the + in a binder, list or deck always opens the Card Finder on the Cards tab.",
     ],
   },

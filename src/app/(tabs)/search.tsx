@@ -156,7 +156,14 @@ export default function CardFinderScreen() {
   const tab: FinderTab = addressValue(params.tab) === 'sets' ? 'sets' : 'cards';
   const showParam = addressValue(params.show) ?? null;
   // Go to a tab: a new step for the back arrow
-  const goTab = (next: FinderTab) => router.setParams({ tab: next === 'sets' ? 'sets' : undefined });
+  // (Tapping Sets while already looking inside a set goes to the list of sets.)
+  const goTab = (next: FinderTab) => {
+    if (next === 'sets' && tab === 'sets') {
+      if (showParam) router.setParams({ tab: 'sets', show: undefined });
+      return;
+    }
+    router.setParams({ tab: next === 'sets' ? 'sets' : undefined });
+  };
 
   // A message from adding to a binder (like "That binder is full."),
   // shown under the search box instead of the usual one until the next
