@@ -40,7 +40,7 @@ import PopupWindow from '@/components/PopupWindow';
 import HelpButton from '@/components/HelpButton';
 import MoveCardDialog from '@/components/binder/MoveCardDialog';
 import CardList2, { type CardEntry } from '@/components/binder/CardList';
-import SelectionBar from '@/components/binder/SelectionBar';
+import SelectionBar, { SelectionCover } from '@/components/binder/SelectionBar';
 import MoveManyDialog from '@/components/binder/MoveManyDialog';
 import { useCardSelection } from '@/hooks/useCardSelection';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
@@ -395,6 +395,7 @@ export default function ListScreen() {
                           keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       {/* The search box, and the List / Grid switch with the sort */}
       <View style={styles.top}>
+        <View style={styles.searchArea}>
         <TextField
           accessibilityLabel="Search this list"
           placeholder="Search this list…"
@@ -414,19 +415,21 @@ export default function ListScreen() {
             </>
           )}
         />
+          {selection.selecting && (
+            <SelectionCover>
+              <SelectionBar
+                count={selection.keys.size}
+              options={[{ id: 'binder', label: 'A binder' }]}
+              onMove={() => setMovingMany(true)}
+              onDelete={deletePicked}
+              onCancel={selection.clear}
+              deleteWords={`They will be taken out of ${list.name}.`}
+            />
+            </SelectionCover>
+          )}
+        </View>
       </View>
 
-      {/* While cards are selected (a long press), the bar with Move to and Delete */}
-      {selection.selecting && (
-        <SelectionBar
-          count={selection.keys.size}
-          options={[{ id: 'binder', label: 'A binder' }]}
-          onMove={() => setMovingMany(true)}
-          onDelete={deletePicked}
-          onCancel={selection.clear}
-          deleteWords={`They will be taken out of ${list.name}.`}
-        />
-      )}
 
       {/* THE CARDS, with the red "+" floating over them in the corner */}
       <View ref={listAreaRef} style={styles.listArea} collapsable={false}>
@@ -536,6 +539,8 @@ export default function ListScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   top: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6, gap: 8, zIndex: 10 },
+  // The search box with the buttons under it (the floating selection bar is laid over this)
+  searchArea: { gap: 8 },
   listArea: { flex: 1 },
   dropOutline: { position: 'absolute', top: 4, left: 8, right: 8, bottom: 4, borderWidth: 2, borderStyle: 'dashed', borderRadius: 12, zIndex: 25 },
   empty: { alignItems: 'center', gap: 8, padding: 28, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: RADIUS * 1.4, marginTop: 8 },

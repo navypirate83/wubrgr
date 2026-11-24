@@ -5,14 +5,24 @@
    "Cancel" (ends the selection without changing anything). The screen
    decides what moving and deleting do; this only draws the bar and
    asks "Delete 3 cards?" before deleting.
+   The bar FLOATS: the screen puts it inside a "SelectionCover" laid over its
+   search box and the buttons under it, so nothing moves when it appears, and
+   what is underneath can't be tapped by accident while it shows.
    ===================================================================== */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { PickerButton, PickerSheet, type Anchor } from '@/components/search/PickerSheet';
 import { useColors } from '@/hooks/useTheme';
 import { askYesNo } from '@/lib/dialogs';
+
+// A cover laid over the part of the screen it is placed in (that part must be "position: relative"): the
+// screen's colour hides what's under it and soaks up taps, and the bar floats in the middle
+export function SelectionCover({ children }: { children: ReactNode }) {
+  const colors = useColors();
+  return <View style={[styles.cover, { backgroundColor: colors.bg }]}>{children}</View>;
+}
 
 export type MoveOption = { id: string; label: string };
 
@@ -70,7 +80,8 @@ export default function SelectionBar({ count, noun = 'card', options, onMove, on
 
 // The look: one row along the top, the count on the left
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, zIndex: 30 },
+  cover: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', zIndex: 40 },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderRadius: 14, boxShadow: '0px 4px 14px rgba(0,0,0,0.45)', elevation: 6 },
   count: { flex: 1, fontSize: 15, fontWeight: '700' },
   move: { minWidth: 110 },
   delete: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10 },

@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.7.1',
+    date: '2026-11-24',
+    lines: ["The bar with Move to and Delete that shows while cards are selected now floats over the search box and the buttons under it, so the list of cards no longer jumps down when you select a card."],
+  },
+  {
     version: '1.7.0',
     date: '2026-11-24',
     lines: ["Press and hold a card to select it, then tap other cards to select more: in a deck's Main deck, Sideboard and Maybe lists, a binder's List and Grid views, and lists. Picked cards are highlighted with an orange check, and a bar at the top has Move to and a red Delete (which asks once), so it also works for deleting many cards at once. This replaces the Maybe board's Pick cards to move button."],

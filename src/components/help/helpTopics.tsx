@@ -431,7 +431,7 @@ export const helpTopics: HelpTopic[] = [
               In a deck's Main deck, Sideboard or Maybe list, a binder's List or Grid view, or a list, press and hold a card to select it.
               While a selection is going, a plain tap picks or un-picks another card (it doesn't open the card). A picked card is
               highlighted and has an orange check on its picture (the check is there for people who can't tell the highlight). A bar
-              at the top says how many are picked and has <Strong>Move to</Strong>, a red <Strong>Delete</Strong> and a cross to cancel.
+              floats over the search box and the buttons under it (so nothing moves), says how many are picked and has <Strong>Move to</Strong>, a red <Strong>Delete</Strong> and a cross to cancel.
               Un-picking the last card also ends the selection.
             </P>
             <P>

@@ -64,7 +64,7 @@ import HelpButton from '@/components/HelpButton';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import DeckSearchBar, { type DeckSearchMode } from '@/components/decks/DeckSearchBar';
 import CardList, { type CardEntry } from '@/components/binder/CardList';
-import SelectionBar from '@/components/binder/SelectionBar';
+import SelectionBar, { SelectionCover } from '@/components/binder/SelectionBar';
 import { useCardSelection } from '@/hooks/useCardSelection';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import CardScreen, { BINDER_ICON } from '@/components/binder/CardScreen';
@@ -683,6 +683,8 @@ export default function DeckScreen() {
           cards below), and the List / Grid switch with the sort and the
           download button */}
       <View style={styles.top}>
+        {/* The search bar and the buttons under it. While cards are selected, the floating bar covers them (nothing moves). */}
+        <View style={styles.searchArea}>
         <DeckSearchBar
           mode={searchMode} onMode={setSearchMode}
           filter={filter} onFilter={setFilter}
@@ -699,6 +701,23 @@ export default function DeckScreen() {
             </>
           )}
         />
+          {selection.selecting && (
+            <SelectionCover>
+        {selection.selecting && (
+          <SelectionBar
+            count={selection.keys.size}
+            options={(['main', 'side', 'maybe'] as const)
+              .filter((w) => w !== shownZone && (w !== 'side' || format.sideboard > 0))
+              .map((w) => ({ id: w, label: ZONE_NAMES[w] }))}
+            onMove={(w) => movePicked(w as 'main' | 'side' | 'maybe')}
+            onDelete={deletePicked}
+            onCancel={selection.clear}
+            deleteWords={`They will be taken out of ${deck.name}.`}
+          />
+        )}
+            </SelectionCover>
+          )}
+        </View>
         {/* Switch between the main deck, the sideboard (formats that have one) and the maybe board.
 */}
         <View style={styles.tabs}>
@@ -716,19 +735,6 @@ export default function DeckScreen() {
             );
           })}
         </View>
-        {/* While cards are selected (a long press), the bar with Move to and Delete */}
-        {selection.selecting && (
-          <SelectionBar
-            count={selection.keys.size}
-            options={(['main', 'side', 'maybe'] as const)
-              .filter((w) => w !== shownZone && (w !== 'side' || format.sideboard > 0))
-              .map((w) => ({ id: w, label: ZONE_NAMES[w] }))}
-            onMove={(w) => movePicked(w as 'main' | 'side' | 'maybe')}
-            onDelete={deletePicked}
-            onCancel={selection.clear}
-            deleteWords={`They will be taken out of ${deck.name}.`}
-          />
-        )}
       </View>
 
       {/* THE CARDS, with a picture dragged over them outlined */}
@@ -927,6 +933,8 @@ export default function DeckScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   top: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6, gap: 8, zIndex: 10 },
+  // The search bar with the buttons under it (the floating selection bar is laid over this)
+  searchArea: { gap: 8 },
   listArea: { flex: 1 },
   // The Main deck / Sideboard buttons
   tabs: { flexDirection: 'row', gap: 8 },

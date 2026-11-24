@@ -65,7 +65,7 @@ import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import MoveCardDialog from '@/components/binder/MoveCardDialog';
 import MoveManyDialog from '@/components/binder/MoveManyDialog';
-import SelectionBar from '@/components/binder/SelectionBar';
+import SelectionBar, { SelectionCover } from '@/components/binder/SelectionBar';
 import { useCardSelection } from '@/hooks/useCardSelection';
 import {
   MAX_COPIES, binderDirtyStamp, binderName, binderPages, cardCount, findBinder, firstEmptyPocket, isLocalMode, loadBinder,
@@ -1341,6 +1341,8 @@ function BinderView({ binderId }: { binderId: string }) {
       {/* Search the cards in this binder (or, with its switch, the whole
           shelf) */}
       <View style={styles.top}>
+        {/* The search box and the buttons under it. While cards are selected, the floating bar covers them (nothing moves). */}
+        <View style={styles.searchArea}>
         <BinderSearch currentBinderId={binderId} onQuery={setQuery} clearToken={clearToken} />
         {/* List / Grid / Binder, and the sort (or Clean-up in the Binder view) */}
         <ViewSwitch
@@ -1353,6 +1355,19 @@ function BinderView({ binderId }: { binderId: string }) {
             </>
           )}
         />
+          {selection.selecting && mode !== 'binder' && (
+            <SelectionCover>
+              <SelectionBar
+                count={selection.keys.size}
+                options={[{ id: 'binder', label: 'Another binder' }]}
+                onMove={() => setMovingMany(true)}
+                onDelete={deletePicked}
+                onCancel={selection.clear}
+                deleteWords="They will be taken out of this binder."
+              />
+            </SelectionCover>
+          )}
+        </View>
       </View>
 
       {/* The Binder view's own summary line, above the pockets: how many
@@ -1366,17 +1381,6 @@ function BinderView({ binderId }: { binderId: string }) {
 
       {/* THE LIST OR GRID of cards. Tapping a card opens its menu. The red
           "+" floats over them in the corner. */}
-      {/* While cards are selected (a long press), the bar with Move to and Delete */}
-      {selection.selecting && mode !== 'binder' && (
-        <SelectionBar
-          count={selection.keys.size}
-          options={[{ id: 'binder', label: 'Another binder' }]}
-          onMove={() => setMovingMany(true)}
-          onDelete={deletePicked}
-          onCancel={selection.clear}
-          deleteWords="They will be taken out of this binder."
-        />
-      )}
 
       {(mode !== 'binder' || searching) && (
         <View ref={listAreaRef} style={styles.listArea} collapsable={false}>
@@ -1655,6 +1659,8 @@ function GlowingPocket({ glow, children }: { glow: { value: number }; children: 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   top: { paddingHorizontal: 12, paddingTop: 10, gap: 4, zIndex: 10 },
+  // The search box with the buttons under it (the floating selection bar is laid over this)
+  searchArea: { gap: 4 },
   area: { flex: 1, alignItems: 'center', padding: 6 },
   scroll: { alignSelf: 'stretch', flex: 1 },
   scrollContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
