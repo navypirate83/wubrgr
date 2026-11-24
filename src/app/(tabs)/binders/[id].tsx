@@ -81,7 +81,9 @@ import { summaryText, type ImportSummary } from '@/lib/deckImportRun';
 import type { ImportedDeck } from '@/lib/deckImport';
 import { layoutKey, onLayoutChange, pageLayout } from '@/lib/pageLayout';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, binderSort, binderSortReversed, binderViewMode, onBinderViewChange, onGridZoomChange, sortHeadersOn } from '@/lib/binderView';
-import { headerFor, sortEntries } from '@/lib/binderSort';
+import { BINDER_SORTS, headerFor, sortEntries } from '@/lib/binderSort';
+import { type CleanUpChoice } from '@/components/binder/CleanUpMenu';
+import UndoBar from '@/components/binder/UndoBar';
 import { isSearching, makeNameFilter } from '@/lib/nameFilter';
 import { fillDetails, finishParam } from '@/lib/cardDetails';
 import { fillMissingPrices } from '@/lib/addedPrice';
@@ -724,26 +726,50 @@ function BinderView({ binderId }: { binderId: string }) {
     return Object.keys(cards).some((key) => (pageOf(key) - 1) * perPage + slotOf(key) > count);
   }, [cards, perPage]);
 
-  // Clean-up (Binder view): after asking, move every card forward, keeping
-  // their order (page by page, pocket by pocket), so all the empty pockets
-  // are at the end. The number of pages stays as it is.
-  async function cleanUp() {
-    if (!hasGaps) return;
-    const yes = await askYesNo('Clean up this binder?',
-      'Every card moves forward to fill the empty pockets, keeping its order. The empty pockets end up at the end.',
-      'Clean up', 'Cancel');
-    if (!yes) return;
-    const ordered = Object.entries(cardsRef.current).sort(([a], [b]) => pageOf(a) - pageOf(b) || slotOf(a) - slotOf(b));
+  // The last Clean-up, so it can be undone: the cards as they were, the cards as Clean-up left them, and
+  // what to say. The Undo bar shows only while the cards are still exactly as Clean-up left them (any
+  // other change, like adding a card, ends the chance to undo, so it can never undo someone's later work).
+  const [undoable, setUndoable] = useState<{ before: BinderCards; after: BinderCards; text: string } | null>(null);
+  const closeUndo = useCallback(() => setUndoable(null), []);
+
+  // Clean-up (Binder view), from its menu: every card moves forward to fill the empty pockets (page by page,
+  // pocket by pocket), so all the empty pockets are at the end. "Just close the gaps" keeps the order
+  // the cards are in; any of the sorts puts them in that order first (the same order the List view
+  // would show). The number of pages stays as it is. An Undo bar offers to put everything back.
+  function cleanUp(choice: CleanUpChoice) {
+    const before = cardsRef.current;
+    const entriesNow = Object.entries(before).map(([key, card]) => ({ key, card }));
+    const ordered = choice === 'gaps'
+      ? entriesNow.sort((a, b) => pageOf(a.key) - pageOf(b.key) || slotOf(a.key) - slotOf(b.key))
+      : sortEntries(entriesNow, choice, false, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency });
     const next: BinderCards = {};
-    ordered.forEach(([, card], index) => {
+    ordered.forEach(({ card }, index) => {
       next[pocketKey(Math.floor(index / perPage) + 1, (index % perPage) + 1)] = card;
     });
+    // Nothing would move: say so instead of showing an Undo for nothing
+    if (JSON.stringify(next) === JSON.stringify(before)) {
+      showMessage('Nothing to move', choice === 'gaps' ? 'There are no gaps to close.' : 'The cards are already in that order.');
+      return;
+    }
     if (!commit(next)) {
       showMessage('Couldn\'t save', 'Saving isn\'t working on this device, so the cards could not be moved.');
       return;
     }
+    const text = choice === 'gaps' ? 'Gaps closed' : `Cards arranged by ${BINDER_SORTS.find((s) => s.value === choice)?.name ?? choice}`;
+    setUndoable({ before, after: next, text });
     scrollToTop();
-    announce('Cards moved together');
+    announce(text);
+  }
+
+  // Undo the last Clean-up: the cards go back to the pockets they were in
+  function undoCleanUp() {
+    if (!undoable) return;
+    if (!commit(undoable.before)) {
+      showMessage('Couldn\'t save', 'Saving isn\'t working on this device, so the cards could not be put back.');
+      return;
+    }
+    setUndoable(null);
+    announce('Clean-up undone');
   }
 
   // The windows: the card's menu, "Remove card?" and "Move card to…"
@@ -1288,7 +1314,7 @@ function BinderView({ binderId }: { binderId: string }) {
         <BinderSearch currentBinderId={binderId} onQuery={setQuery} clearToken={clearToken} />
         {/* List / Grid / Binder, and the sort (or Clean-up in the Binder view) */}
         <ViewSwitch
-          mode={mode} sort={sort} reversed={reversed} onCleanUp={cleanUp} canCleanUp={hasGaps}
+          mode={mode} sort={sort} reversed={reversed} onCleanUp={cleanUp} canCleanUp={hasGaps} pricesReady={!prices.loading && !prices.failed && (prices.total !== null || baseEntries.length === 0)}
           extras={(
             <>
               {/* Import cards into this binder, and download it (.CSV, .TXT or copy) */}
@@ -1552,6 +1578,10 @@ function BinderView({ binderId }: { binderId: string }) {
       )}
 
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} shortcuts={binderShortcuts} />
+
+      {/* After a Clean-up: a bar over the bottom of the screen with an Undo button. It shows only while the
+          cards are still exactly as Clean-up left them, so it can never undo something done afterwards. */}
+      {undoable && cards === undoable.after && <UndoBar text={undoable.text} onUndo={undoCleanUp} onClose={closeUndo} />}
     </View>
   );
 }

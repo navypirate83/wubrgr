@@ -22,9 +22,10 @@
    - Grid, on the website only: two small zoom buttons (− and +) before
      Sort, to make the card pictures smaller or bigger (the zoom is kept
      on this device: see lib/binderView.ts).
-   - Binder: a Clean-up button that moves every card forward to fill the
-     empty pockets (the binder screen does the moving and asks first). It's
-     faded when there are no empty pockets in the way.
+   - Binder: a Clean-up button with a menu (see CleanUpMenu.tsx): "Just close
+     the gaps" moves every card forward to fill the empty pockets, and the
+     rest do that and also arrange the cards by name, price, color... (the
+     binder screen does the moving, and offers an Undo).
    The view and sort chosen are remembered and saved with your settings
    (see lib/binderView.ts).
    ===================================================================== */
@@ -36,6 +37,7 @@ import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useTheme';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, chooseBinderSort, onGridZoomChange, setBinderViewMode, zoomBinderGrid } from '@/lib/binderView';
 import { BINDER_SORTS, type BinderSort } from '@/lib/binderSort';
+import CleanUpMenu, { type CleanUpChoice } from './CleanUpMenu';
 import SortButton from './SortButton';
 import type { BinderViewMode } from '@/lib/binderViewTypes';
 import { RADIUS } from '@/theme/colors';
@@ -62,10 +64,11 @@ type Props = {
   // remember their own choice)
   modes?: BinderViewMode[];
   onView?: (mode: BinderViewMode) => void;
-  // Clean-up (Binder view): called when it's tapped, and whether there's
-  // anything for it to do
-  onCleanUp?: () => void;
+  // Clean-up (Binder view): called when something is picked from its menu, whether there are gaps to
+  // close, and whether the prices have arrived (the price sorts wait for them)
+  onCleanUp?: (choice: CleanUpChoice) => void;
   canCleanUp?: boolean;
+  pricesReady?: boolean;
   // Small tool buttons to show right after the view buttons (see ToolButton)
   extras?: ReactNode;
 };
@@ -87,7 +90,7 @@ export function ToolButton({ icon, label, onPress }: { icon: keyof typeof Ionico
   );
 }
 
-export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinderSort, modes, onView = setBinderViewMode, onCleanUp, canCleanUp = false, extras }: Props) {
+export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinderSort, modes, onView = setBinderViewMode, onCleanUp, canCleanUp = false, pricesReady = false, extras }: Props) {
   const colors = useColors();
   // How far the grid is zoomed (a step from 0, the smallest pictures)
   const zoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
@@ -125,26 +128,8 @@ export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinder
       <View style={styles.tools}>{extras}</View>
       </View>
 
-      {/* Binder view: Clean-up (faded when there's nothing to clean up) */}
-      {mode === 'binder' && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Clean-up"
-          accessibilityHint="Moves every card forward to fill the empty pockets"
-          accessibilityState={{ disabled: !canCleanUp }}
-          disabled={!canCleanUp}
-          onPress={onCleanUp}
-          style={({ pressed }) => [
-            styles.button, styles.sort,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-            !canCleanUp && styles.faded,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Ionicons name="sparkles-outline" size={14} color={colors.muted} />
-          <Text style={[styles.label, { color: colors.muted }]}>Clean-up</Text>
-        </Pressable>
-      )}
+      {/* Binder view: the Clean-up button, with its menu (close the gaps, or arrange the cards) */}
+      {mode === 'binder' && <CleanUpMenu canCloseGaps={canCleanUp} pricesReady={pricesReady} onPick={(choice) => onCleanUp?.(choice)} />}
 
       {/* List and Grid: (Grid on the website: zoom out and in, then) Sort,
           with its menu dropping down */}

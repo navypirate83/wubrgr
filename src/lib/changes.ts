@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.8.0',
+    date: '2026-11-23',
+    lines: ["The binder's Clean-up button now opens a menu: Just close the gaps (as before), or close the gaps and arrange the cards by name, price, price change, color, set, type, rarity, mana value or newest added. An Undo bar appears afterwards and puts every card back."],
+  },
+  {
     version: '1.7.0',
     date: '2026-11-23',
     lines: ['New sort: Price change. In a binder, list or deck, the sort button has Gainers (the card whose price has gone up the most, in percent, since you added it comes first) and, tapped again, Losers. On the Shelf, binders can be sorted the same way by how much all their cards have moved.'],

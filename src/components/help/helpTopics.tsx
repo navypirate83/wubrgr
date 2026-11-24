@@ -802,9 +802,14 @@ export const helpTopics: HelpTopic[] = [
         To add a card from the list or grid, tap the red <Strong>+</Strong> in the corner: it opens the Card
         Finder, and the card goes into the binder's next empty pocket (if every pocket is full, a page is
         added at the end first).
-        In the <Strong>Binder</Strong> view, <Strong>Clean-up</Strong> (at the right, under the search bar) asks, then
-        moves every card forward to fill the empty pockets, keeping their order. It's faded when there are
-        no empty pockets in the way.
+        In the <Strong>Binder</Strong> view, <Strong>Clean-up</Strong> (at the right, under the search bar) opens a menu.
+        <Strong> Just close the gaps</Strong>, at the top, moves every card forward to fill the empty pockets, keeping their order
+        (faded when there are no gaps). Under it, <Strong>Close the gaps and arrange by</Strong> does that and also puts the cards in
+        the order of any of the sorts (name, price, price change, color, set, type, rarity, mana value or newest added), the same
+        order the List view would show, filling pocket 1, 2, 3 and so on. The two price sorts wait until the prices have loaded.
+        Afterwards a bar at the bottom of the screen says what happened and has an <Strong>Undo</Strong> button for 15 seconds, which
+        puts every card back in the pocket it was in. If you change the binder in the meantime (adding a card, say), the bar goes away,
+        so Undo can never undo your later work.
         In every view, a line under the buttons shows how many cards the binder holds, how many different
         ones, how many different card names there are (<Strong>distinct</Strong>: a card in several
         sets, or as a foil, counts once), and what they're all worth at the store chosen
