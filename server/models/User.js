@@ -86,13 +86,13 @@ const userSchema = new mongoose.Schema(
       // The same for an opened card list (no Binder view)
       phoneListView: { type: String, enum: ['list', 'grid'] },
       wideListView: { type: String, enum: ['list', 'grid'] },
-      binderSort: { type: String, enum: ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'] },
+      binderSort: { type: String, enum: ['name', 'added', 'price', 'change', 'color', 'set', 'type', 'rarity', 'value'] },
       // Whether the sort is the other way round (cheapest first, oldest first...)
       binderSortReversed: { type: Boolean },
       // Card lists, decks and PRISM's Cards tab each have their own sort
-      listSort: { type: String, enum: ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'] },
+      listSort: { type: String, enum: ['name', 'added', 'price', 'change', 'color', 'set', 'type', 'rarity', 'value'] },
       listSortReversed: { type: Boolean },
-      deckSort: { type: String, enum: ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'] },
+      deckSort: { type: String, enum: ['name', 'added', 'price', 'change', 'color', 'set', 'type', 'rarity', 'value'] },
       deckSortReversed: { type: Boolean },
       prismSort: { type: String, enum: ['shared', 'decks', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'] },
       prismSortReversed: { type: Boolean },

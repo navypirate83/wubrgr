@@ -7,6 +7,10 @@
    - price:  most valuable first          (tap again: cheapest first)
              (what ONE copy of the card is worth at the store chosen in
              Settings, not the whole stack; cards with no price always go last)
+   - change: biggest price gain first (tap again: biggest loss first). How far
+             ONE copy's price today has moved, in percent, from its price on the
+             day it was added (see priceChange.ts); cards with no such percent
+             always go last
    - color:  White, Blue, Black, Red, Green (one color each), then every
              two-color pairing, then three colors and more (each exact
              set of colors is its own group), then colorless, then Lands
@@ -33,13 +37,14 @@
    ===================================================================== */
 
 import type { ScryfallCard } from './scryfall';
+import { priceChangeOf } from './priceChange.ts';
 import type { BinderCard } from './binderStorage';
-import { colorsOf, manaValueOf, storedDetails, typeLineOf, type StoredDetails } from './cardDetails';
+import { colorsOf, manaValueOf, storedDetails, typeLineOf, type StoredDetails } from './cardDetails.ts';
 
 // A card in the list, and the pocket it's in
 export type SortEntry = { key: string; card: BinderCard };
 
-export type BinderSort = 'name' | 'added' | 'price' | 'color' | 'set' | 'type' | 'rarity' | 'value';
+export type BinderSort = 'name' | 'added' | 'price' | 'change' | 'color' | 'set' | 'type' | 'rarity' | 'value';
 
 // The sorts, in the order the menu lists them. Each has its name in the
 // menu and the short word on the Sort button, in its usual direction and
@@ -55,6 +60,7 @@ export const BINDER_SORTS: SortOption[] = [
   { value: 'name', name: 'Name (A to Z)', short: 'A–Z', reversedName: 'Name (Z to A)', reversedShort: 'Z–A' },
   { value: 'added', name: 'Newest added', short: 'Newest', reversedName: 'Oldest added', reversedShort: 'Oldest' },
   { value: 'price', name: 'Price (highest first)', short: 'Priciest', reversedName: 'Price (lowest first)', reversedShort: 'Cheapest' },
+  { value: 'change', name: 'Price change (biggest gain first)', short: 'Gainers', reversedName: 'Price change (biggest loss first)', reversedShort: 'Losers' },
   { value: 'color', name: 'Color', short: 'Color' },
   { value: 'set', name: 'Set (oldest first)', short: 'Old sets', reversedName: 'Set (newest first)', reversedShort: 'New sets' },
   { value: 'type', name: 'Type', short: 'Type' },
@@ -69,12 +75,12 @@ export const DEFAULT_BINDER_SORT: BinderSort = 'name';
 //  - "Most shared, then by deck" ("decks"): the cards in the most decks first, counting down, then the
 //    cards only one deck uses, deck by deck in slot order (see prismOrder.ts). It has header bars.
 // ("shared" has no reverse and no header bars; "decks" has no reverse.)
-export type PrismSort = 'shared' | 'decks' | Exclude<BinderSort, 'price'>;
+export type PrismSort = 'shared' | 'decks' | Exclude<BinderSort, 'price' | 'change'>;
 export type PrismSortOption = { value: PrismSort; name: string; short: string; reversedName?: string; reversedShort?: string };
 export const PRISM_SORTS: PrismSortOption[] = [
   { value: 'shared', name: 'Shared first', short: 'Shared' },
   { value: 'decks', name: 'Most shared, then by deck', short: 'By decks' },
-  ...BINDER_SORTS.filter((s) => s.value !== 'price') as PrismSortOption[],
+  ...BINDER_SORTS.filter((s) => s.value !== 'price' && s.value !== 'change') as PrismSortOption[],
 ];
 export const DEFAULT_PRISM_SORT: PrismSort = 'shared';
 // Keep only a real PRISM sort name (anything else becomes the default)
@@ -103,6 +109,8 @@ export function canReverse(sort: BinderSort): boolean {
 export type SortContext = {
   printings?: Map<string, ScryfallCard>;
   prices?: Map<string, number | null>;
+  // The money those prices are in (for comparing with the price a card was added at)
+  currency?: 'USD' | 'EUR';
 };
 
 /* ---------------------------------------------------------------------
@@ -211,6 +219,11 @@ export function sortEntries(entries: SortEntry[], sort: BinderSort, reversed = f
       // Most valuable first, by the price of one copy; no price (or not loaded) last
       by((item) => context.prices?.get(item.entry.key) ?? undefined, -1);
       break;
+    case 'change':
+      // Biggest gain first, by how many percent one copy's price has moved since the card was added;
+      // no added price, no price today, or different money: last
+      by((item) => priceChangeOf(item.entry.card.extra, context.prices?.get(item.entry.key), context.currency ?? 'USD')?.percent ?? undefined, -1);
+      break;
     case 'color':
       by((item) => (item.details.colors ? colorGroup(item.details.colors, item.details.type) : undefined));
       break;
@@ -245,7 +258,7 @@ export function sortEntries(entries: SortEntry[], sort: BinderSort, reversed = f
    - type:  the name of the type (Creature, Instant, ...)
    - set:   the set's symbol, its code and its name
    - value: the mana value as a number symbol ({0}, {1}, ...)
-   - added, price and rarity: no headers
+   - added, price, change and rarity: no headers
    A card whose details haven't arrived yet goes under "Unknown".
    --------------------------------------------------------------------- */
 

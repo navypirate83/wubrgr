@@ -156,6 +156,20 @@ test("the Binders, Lists, Decks and PRISM pages each save their own sort (and re
   }
 });
 
+test('the price change sort is saved for cards and for the Binders page, and no other page has it', async () => {
+  const user = await makeUser();
+  const auth = bearer(user);
+  const mine = { binderSort: 'change', binderSortReversed: true, listSort: 'change', deckSort: 'change', shelfBinders: 'change:r' };
+  const saved = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...mine });
+  expect(saved.status).toBe(200);
+  expect(saved.body.settings).toMatchObject(mine);
+  // PRISM's Cards tab and the Lists page don't have it
+  for (const bad of [{ prismSort: 'change' }, { shelfLists: 'change' }, { shelfDecks: 'change:r' }]) {
+    const refused = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, ...bad });
+    expect(refused.status).toBe(400);
+  }
+});
+
 test('an account that never saved the new sorts leaves them out of the answer', async () => {
   const user = await makeUser();
   const auth = bearer(user);

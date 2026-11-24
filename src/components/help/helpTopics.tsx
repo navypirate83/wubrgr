@@ -388,6 +388,7 @@ export const helpTopics: HelpTopic[] = [
             <Bullet><Strong>My own order</Strong> is where every page starts: the order you set yourself. Only here can binders be dragged, and a held list, deck or PRISM set has <Strong>Move up</Strong> and <Strong>Move down</Strong>.</Bullet>
             <Bullet><Strong>Name A to Z</Strong>, <Strong>Recently opened</Strong> and <Strong>Newest first</Strong> are on every page. "Recently opened" and "Newest first" are noted on each device separately: they start counting from when a device first sees the item.</Bullet>
             <Bullet><Strong>Most cards</Strong> (binders, lists and decks).</Bullet>
+            <Bullet><Strong>Biggest price gain first</Strong> (binders only; the button says <Strong>Gainers</Strong>, and <Strong>Losers</Strong> when flipped): ranks each binder by how many percent its cards' prices have moved, all together, since they were added. A binder with no added prices is always last.</Bullet>
             <Bullet><Strong>Decks</Strong> also have <Strong>By format</Strong>, <Strong>Highest bracket first</Strong> (decks with no bracket always last), <Strong>Not legal first</Strong> (decks over the card limit or holding banned cards) and <Strong>Most cards missing</Strong> (cards you don't own in any binder).</Bullet>
             <Bullet><Strong>PRISM sets</Strong> also have <Strong>Most work waiting</Strong> (marks still to paint or scrape off) and <Strong>Most decks</Strong>.</Bullet>
           </>
@@ -766,7 +767,7 @@ export const helpTopics: HelpTopic[] = [
         saves it with your account so it follows you to your other devices.
         In the list and grid, the button at the right (it shows the sort in use, like <Strong>A–Z</Strong>) drops
         down a menu: <Strong>Name</Strong> (A to Z), <Strong>Newest added</Strong>, <Strong>Price</Strong> (the
-        most valuable first, by the price of one copy, so owning several copies doesn't move a card up), <Strong>Color</Strong> (White, Blue, Black, Red, Green, then each
+        most valuable first, by the price of one copy, so owning several copies doesn't move a card up), <Strong>Price change</Strong> (the button says <Strong>Gainers</Strong>: the card whose price has gone up the most, in percent, since you added it comes first; tap it again for <Strong>Losers</Strong>, the biggest drop first; cards with no added price, or no price today, always go last), <Strong>Color</Strong> (White, Blue, Black, Red, Green, then each
         two-color pair, then three colors and more, each exact set of colors in its own group, then colorless,
         then Lands in color order: Plains, Islands, Swamps, Mountains, Forests, then other lands), <Strong>Set</Strong> (the oldest set first), <Strong>Type</Strong> (Creatures, Enchantments,
         Artifacts, Sorceries, Instants, Battles, Planeswalkers, Lands, then anything else; anything that is a
@@ -780,7 +781,7 @@ export const helpTopics: HelpTopic[] = [
         In the list and grid (not the pockets of the Binder view), a small <Strong>header bar</Strong> goes
         in above each group: the letter (A, B, C...) for Name; the mana symbols for Color (the colorless
         diamond for colorless, a little mountain for Lands); the type's name for Type; the set's symbol,
-        code and name for Set; and the number in a mana symbol for Mana value. Price, Newest added and
+        code and name for Set; and the number in a mana symbol for Mana value. Price, Price change, Newest added and
         Rarity have no header bars. To turn the header bars off, use <Strong>Group headers</Strong> under
         <Strong> Collection</Strong> in Settings (it follows your account to your other devices).
         Every card is saved with the details sorting needs (its colors, type, rarity, mana value and

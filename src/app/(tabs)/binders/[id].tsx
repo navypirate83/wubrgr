@@ -285,7 +285,7 @@ function BinderView({ binderId }: { binderId: string }) {
   // looked up on the internet for this, and the answers are kept for a while.
   const prices = useBinderPrices(baseEntries);
   const entries = useMemo<CardEntry[]>(
-    () => sortEntries(matchingEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey }),
+    () => sortEntries(matchingEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency }),
     [matchingEntries, sort, reversed, prices.printings, prices.eachByKey],
   );
   // Which group each card falls under for the sort in use, so the List and

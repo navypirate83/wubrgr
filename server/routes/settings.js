@@ -38,14 +38,14 @@ const DEFAULT_PRICE_STORE = 'tcgplayer';
 const VIEWS = ['list', 'grid', 'binder'];
 // An opened card list has no pockets, so no Binder view
 const LIST_VIEWS = ['list', 'grid'];
-const SORTS = ['name', 'added', 'price', 'color', 'set', 'type', 'rarity', 'value'];
+const SORTS = ['name', 'added', 'price', 'change', 'color', 'set', 'type', 'rarity', 'value'];
 // PRISM's Cards tab sorts without price, and has "shared" (shared cards first)
 const PRISM_SORTS = ['shared', 'decks', 'name', 'added', 'color', 'set', 'type', 'rarity', 'value'];
 // The sorts of the Binders, Lists, Decks and PRISM pages themselves (the sort's name,
 // with ":r" after it when reversed). The same lists as the app's shelfSort.ts.
 const withReversed = (names, fixed) => [...fixed, ...names, ...names.map((n) => `${n}:r`)];
 const SHELF_SORTS = {
-  shelfBinders: withReversed(['name', 'used', 'made', 'cards'], ['mine']),
+  shelfBinders: withReversed(['name', 'used', 'made', 'cards', 'change'], ['mine']),
   shelfLists: withReversed(['name', 'used', 'made', 'cards'], ['mine']),
   shelfDecks: withReversed(['name', 'used', 'made', 'cards', 'format', 'legal', 'bracket', 'missing'], ['mine']),
   shelfPrisms: withReversed(['work', 'name', 'used', 'decks'], ['mine']),

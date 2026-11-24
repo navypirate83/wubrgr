@@ -111,3 +111,12 @@ test('the texts the server may accept', () => {
   assert.ok(!allowedShelfTexts('decks').includes('mine:r'));
   assert.ok(!allowedShelfTexts('binders').includes('format'));
 });
+
+test('biggest price gain first, then biggest loss first; binders with nothing to go by are always last', () => {
+  const items = [item('a', 'A', { change: -25 }), item('b', 'B'), item('c', 'C', { change: 50 }), item('d', 'D', { change: 0 })];
+  assert.deepEqual(ids(sortShelf('binders', items, 'change')), ['c', 'd', 'a', 'b']);
+  assert.deepEqual(ids(sortShelf('binders', items, 'change:r')), ['a', 'd', 'c', 'b']);
+  // Only the Binders page has it
+  assert.deepEqual(parseShelfSort('lists', 'change'), { sort: 'mine', reversed: false });
+  assert.ok(allowedShelfTexts('binders').includes('change:r'));
+});

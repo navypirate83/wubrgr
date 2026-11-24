@@ -200,7 +200,7 @@ export default function DeckScreen() {
   const entries = useMemo<CardEntry[]>(
     () => sortEntries(
       onlyGameChangers ? baseEntries.filter((entry) => isGameChanger(entry.card.name)) : baseEntries,
-      sort, reversed, { printings: prices.printings, prices: prices.eachByKey },
+      sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency },
     ),
     [baseEntries, onlyGameChangers, isGameChanger, gameChangers, sort, reversed, prices.printings, prices.eachByKey],
   );

@@ -47,6 +47,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import { STORE_ICONS } from '@/components/settings/PriceStorePicker';
 import { formatPrice } from '@/lib/prices';
+import { priceChangeOf } from '@/lib/priceChange';
 import { useAnnouncer } from '@/hooks/useAnnouncer';
 import { useContentWidth } from '@/hooks/useMenuStyle';
 import { useColors } from '@/hooks/useTheme';
@@ -65,7 +66,7 @@ import { markOpened, stampsFor } from '@/lib/shelfStamps';
 import Button from '@/components/Button';
 import {
   DEFAULT_PAGES,
-  binderCardCount, binderPages, cardCountText, fitCardsIntoPages, forgetBinder, freeBinderName,
+  binderCardCount, binderPages, cardCount, cardCountText, fitCardsIntoPages, forgetBinder, freeBinderName,
   hasBinderCopy, loadBinder, loadBinderList, minPagesFor, saveBinder, saveBinderList, setLocalMode,
   type Binder,
 } from '@/lib/binderStorage';
@@ -236,6 +237,24 @@ export default function ShelfScreen() {
     for (const b of binders) out[b.id] = formatPrice(Math.round((sums[b.id] ?? 0) * 100) / 100, shelfPrices.currency);
     return out;
   }, [priceEntries, shelfPrices, binders]);
+  // How far each binder's cards have moved in price since they were added, in percent, for the "Gainers /
+  // Losers" sort: what its cards (every copy) are worth now against what they cost when added. Only
+  // cards with both prices in the same money count. A binder with none of those has no change to go by.
+  const changes = useMemo(() => {
+    const now: Record<string, number> = {};
+    const then: Record<string, number> = {};
+    for (const { key, card } of priceEntries) {
+      const price = shelfPrices.eachByKey.get(key);
+      const change = priceChangeOf(card.extra, price, shelfPrices.currency);
+      if (!change || change.percent === null || typeof price !== 'number') continue;
+      const id = key.slice(0, key.indexOf('|'));
+      now[id] = (now[id] ?? 0) + price * cardCount(card);
+      then[id] = (then[id] ?? 0) + change.added * cardCount(card);
+    }
+    const out: Record<string, number> = {};
+    for (const id of Object.keys(then)) if (then[id] > 0) out[id] = ((now[id] - then[id]) / then[id]) * 100;
+    return out;
+  }, [priceEntries, shelfPrices]);
 
   // The binders in the order chosen with the Sort button. In "My own order" (the
   // start) this is the saved order itself, and binders can be moved by hand;
@@ -245,9 +264,9 @@ export default function ShelfScreen() {
   const shown = useMemo(() => {
     const stamps = stampsFor(binders.map((b) => b.id));
     return sortShelf('binders', binders.map((b) => ({
-      ...b, cards: binderCardCount(b.id), used: stamps[b.id].used, made: stamps[b.id].made,
+      ...b, cards: binderCardCount(b.id), used: stamps[b.id].used, made: stamps[b.id].made, change: changes[b.id],
     })), sortSaved);
-  }, [binders, sortSaved, cardsChanged]);
+  }, [binders, sortSaved, cardsChanged, changes]);
 
   // The shelf's layout: each binder's size, the gaps, and how many fit
   // across (at least one). The whole grid is centered, and its width

@@ -34,6 +34,7 @@ export type ShelfItem = {
   work?: number;        // marks still to paint or scrape in a PRISM set
   used?: number;        // when it was last opened (milliseconds; 0 if never)
   made?: number;        // when it was first seen (milliseconds)
+  change?: number;      // a binder's cards' price change since they were added, in percent (none: nothing to go by)
 };
 
 // One way to sort, as the menu shows it: the value saved, its name in the
@@ -51,11 +52,12 @@ const MINE: ShelfSortChoice = { value: 'mine', name: 'My own order', short: 'Min
 const NAME: ShelfSortChoice = { value: 'name', name: 'Name A to Z', short: 'Name', reversedName: 'Name Z to A', reversedShort: 'Name Z-A' };
 const USED: ShelfSortChoice = { value: 'used', name: 'Recently opened', short: 'Recent', reversedName: 'Opened longest ago', reversedShort: 'Oldest use' };
 const MADE: ShelfSortChoice = { value: 'made', name: 'Newest first', short: 'Newest', reversedName: 'Oldest first', reversedShort: 'Oldest' };
+const CHANGE: ShelfSortChoice = { value: 'change', name: 'Biggest price gain first', short: 'Gainers', reversedName: 'Biggest price loss first', reversedShort: 'Losers' };
 const CARDS: ShelfSortChoice = { value: 'cards', name: 'Most cards', short: 'Cards', reversedName: 'Fewest cards', reversedShort: 'Fewest' };
 
 // The ways to sort on each page, in the order the menu lists them
 export const SHELF_SORTS: Record<ShelfArea, ShelfSortChoice[]> = {
-  binders: [MINE, NAME, USED, MADE, CARDS],
+  binders: [MINE, NAME, USED, MADE, CARDS, CHANGE],
   lists: [MINE, NAME, USED, MADE, CARDS],
   decks: [
     MINE, NAME, USED, MADE, CARDS,
@@ -124,6 +126,7 @@ function compare(area: ShelfArea, sort: string, a: ShelfItem, b: ShelfItem): num
     case 'work': return num(b.work) - num(a.work);
     case 'missing': return num(b.missing) - num(a.missing);
     case 'bracket': return num(b.bracket) - num(a.bracket);
+    case 'change': return num(b.change) - num(a.change);
     case 'format': return (a.format ?? '').localeCompare(b.format ?? '');
     case 'legal': return Number(a.legal !== false) - Number(b.legal !== false);   // not legal first
     default: return 0;
@@ -138,6 +141,12 @@ export function sortShelf<T extends ShelfItem>(area: ShelfArea, items: T[], save
   if (sort === 'bracket') {
     const rated = items.filter((i) => i.bracket).sort((a, b) => compare(area, sort, a, b) || byName(a, b));
     const unrated = items.filter((i) => !i.bracket).sort(byName);
+    return [...(reversed ? rated.reverse() : rated), ...unrated];
+  }
+  // Binders with no price change to go by (no added prices) always go last, whichever way round it is
+  if (sort === 'change') {
+    const rated = items.filter((i) => i.change !== undefined).sort((a, b) => compare(area, sort, a, b) || byName(a, b));
+    const unrated = items.filter((i) => i.change === undefined).sort(byName);
     return [...(reversed ? rated.reverse() : rated), ...unrated];
   }
   const sorted = [...items].sort((a, b) => compare(area, sort, a, b) || byName(a, b));
