@@ -132,7 +132,7 @@ const GRID_GAP = 10;
 // Below this width (points) the List view is "narrow" (a phone): the copies bar moves under the card's text
 const NARROW_LIST = 520;
 // The thin line under each grid picture (set symbol, number, store symbol and price): how tall it is, with its gap
-const INFO_HEIGHT = 15;
+const INFO_HEIGHT = 16;
 
 export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
   const colors = useColors();
@@ -590,7 +590,7 @@ function TileInfo({ card, width, price, currency, setIcon }: {
   const { priceStore } = useSettings();
   const finish = finishOf(card);
   // The size of the writing, a little smaller on narrow pictures (but never too small to read)
-  const font = Math.max(9, Math.min(11, Math.round(width / 12)));
+  const font = Math.max(10, Math.min(12, Math.round(width / 12) + 1));
   const symbol = font + 1;
   const number = `#${card.number}${finish === 'etched' ? '**' : finish === 'foil' ? '*' : ''}`;
   const code = `${card.set.toUpperCase()} · ${number}`;
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   tileInfo: { height: INFO_HEIGHT - 2, marginTop: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4, overflow: 'hidden' },
   tileInfoSet: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 },
   tileInfoPrice: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 0 },
-  tileInfoText: { lineHeight: 13 },
+  tileInfoText: { lineHeight: 14 },
   // A grid tile's bar sits over the bottom of the card
   tileBar: { position: 'absolute', left: 4, right: 4, bottom: 4 },
 });
