@@ -8,6 +8,9 @@
    full names). Under that: the main button (which says where it goes, or "Done"
    when changing a card in the list) and "Wrong printing?" to pick another
    printing of the card. A "LIKELY" tag says the scanner wasn't sure.
+   The sheet sits ABOVE the stack list (a higher layer), so a card tapped in the list can
+   be changed without leaving the list. While the printing picker is open the sheet steps
+   back under it ("behind"), because the picker is drawn on the list's own layer.
    ===================================================================== */
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -29,13 +32,14 @@ type Props = {
   onPrimary: () => void;
   onWrongPrinting?: () => void;           // shown when there are other printings to pick
   onClose: () => void;
+  behind?: boolean;                       // the printing picker is open: step back under it
 };
 
-export default function ConfirmSheet({ item, likely, primaryLabel, onChange, onPrimary, onWrongPrinting, onClose }: Props) {
+export default function ConfirmSheet({ item, likely, primaryLabel, onChange, onPrimary, onWrongPrinting, onClose, behind }: Props) {
   const colors = useColors();
   const p = item.printing;
   return (
-    <View style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }]}>
+    <View style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: colors.shadow, zIndex: behind ? 10 : SHEET_LAYER }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} onPress={onClose} style={styles.close}>
         <Ionicons name="close" size={22} color={colors.muted} />
       </Pressable>
@@ -74,6 +78,9 @@ export default function ConfirmSheet({ item, likely, primaryLabel, onChange, onP
     </View>
   );
 }
+
+// The layer the sheet is on: above the stack list and the picker (both 20)
+export const SHEET_LAYER = 30;
 
 // The look: a rounded sheet at the bottom, never wider than a phone
 const styles = StyleSheet.create({

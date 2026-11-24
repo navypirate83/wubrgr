@@ -392,8 +392,13 @@ export default function ScanScreen() {
       {/* Downloading the AI scanner, with a progress bar (opened by "Download" in the first-time question) */}
       {aiDownloading && <AiDownloadWindow onClose={() => setAiDownloading(false)} />}
 
+      {/* A card changed from the stack list: a dim layer between the list and the sheet, so tapping outside the sheet closes the sheet (not the list) */}
+      {sheet && sheet.fromList && !picker && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setSheet(null)} style={styles.sheetBackdrop} />
+      )}
       {sheet && (
         <ConfirmSheet
+          behind={picker !== null}
           item={sheet.item}
           likely={sheet.likely}
           primaryLabel={sheet.fromList ? 'Done' : 'Add to binder'}
@@ -442,6 +447,8 @@ export default function ScanScreen() {
 // The look: the camera fills the screen; the mode choice and the count sit beside the scan button
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  // The see-through layer over the stack list, under the confirm sheet (the sheet is on layer 30, the list on 20)
+  sheetBackdrop: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 25, backgroundColor: 'rgba(0,0,0,0.35)' },
   modes: { gap: 6 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, alignSelf: 'flex-start' },
   chipText: { fontSize: 13, fontWeight: '700' },
