@@ -1113,6 +1113,37 @@ export const helpTopics: HelpTopic[] = [
     ),
     sections: [
       {
+        id: 'finder-sets',
+        title: 'Browsing by set (the Sets tab)',
+        body: (
+          <>
+            <P>
+              The Card Finder has two tabs at the very top: <Strong>Cards</Strong> (the search described below) and
+              <Strong> Sets</Strong>. Sets is a list of every set, newest release first. Each row has the set's symbol on
+              the left, then the set's name and short code, and under it how many cards the set has and the day it came out.
+              Only the main set's own cards are counted, not its tokens or Commander cards.
+            </P>
+            <P>
+              The search box above the list finds a set while you type, and forgives typos, part of a word, or the letters of
+              a word in order ("bloomburo" finds Bloomburrow, "trek cmdr" finds the Star Trek Commander set). It looks inside
+              the extras too, so "tokens" finds every set that has tokens.
+            </P>
+            <P>
+              Tap a set to see every card in it, as a <Strong>List</Strong> or a <Strong>Grid</Strong>, with the same
+              <Strong> Sort</Strong> button as an opened binder (without Newest added, and without Set, since every card is
+              from the same set). Tap a card to open it in the Card Finder, with <Strong>Back to (the set)</Strong> above it.
+              <Strong> Sets</Strong> at the top left of the set's cards goes back to the list.
+            </P>
+            <P>
+              A set that came with extras (its tokens, Commander decks, Timeshifts, promos, art cards) has a small arrow at
+              the end of its row. Tap the arrow to push the rest of the list down and show them right under that set; a
+              Commander set's own tokens sit under it, one step in. Tap the arrow again to close them. Tap one of the extras
+              to see its cards. Sets that only exist on a computer screen (Arena and Alchemy) are left out.
+            </P>
+          </>
+        ),
+      },
+      {
         id: 'finder-search',
         title: 'Searching for a card',
         body: (

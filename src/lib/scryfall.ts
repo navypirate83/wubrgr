@@ -13,6 +13,7 @@
 
 import { fetchOrExplain, RequestError } from './http';
 import { lookup, serverFailed, serverGet, serverPost, serverUsable } from './cardLookup';
+import type { SetInfo } from './setList';
 
 // The address of the Scryfall API
 const API = 'https://api.scryfall.com';
@@ -126,6 +127,18 @@ export type Ruling = {
 // One set (from the list of every set)
 type ScryfallSet = {
   code: string;
+  icon_svg_uri: string;
+};
+
+// One set with everything the Sets tab needs (the list of every set, from Scryfall)
+type ScryfallSetFull = {
+  code: string;
+  name: string;
+  set_type: string;
+  parent_set_code?: string;
+  card_count: number;
+  released_at?: string;
+  digital?: boolean;
   icon_svg_uri: string;
 };
 
@@ -271,6 +284,41 @@ export async function loadSetIcons(): Promise<Map<string, string>> {
     },
   });
   return new Map(Object.entries(icons));
+}
+
+// Every set (name, kind, which main set it came with, how many cards, release day...), for the
+// Card Finder's Sets tab. See lib/setList.ts for how they're grouped.
+export function loadSetList(): Promise<SetInfo[]> {
+  return lookup<SetInfo[]>({
+    key: 'setlist',
+    freshMs: DAY,
+    direct: async () => {
+      const sets = await scryfall<{ data: ScryfallSetFull[] }>('/sets');
+      return sets.data.map((set) => ({
+        code: set.code,
+        name: set.name,
+        type: set.set_type,
+        parent: set.parent_set_code ?? null,
+        count: set.card_count,
+        released: set.released_at ?? '',
+        digital: Boolean(set.digital),
+        icon: set.icon_svg_uri,
+      }));
+    },
+  });
+}
+
+// Every card in one set: each printing once (so a card printed twice in the set, like a basic land
+// or a showcase version, shows each time), tokens and other extras included, in set order. A set
+// can have hundreds of cards, so this takes a few requests. (Not saved on the device: it's big.)
+export async function loadSetCards(code: string): Promise<ScryfallCard[]> {
+  try {
+    return await fetchAllPages<ScryfallCard>(
+      `/cards/search?order=set&unique=prints&include_extras=true&include_variations=true&q=${encodeURIComponent(`e:${code}`)}`);
+  } catch (err) {
+    if (err instanceof Error && /didn.t match any cards|No cards found/i.test(err.message)) return [];
+    throw err;
+  }
 }
 
 // The addresses that look up one card:

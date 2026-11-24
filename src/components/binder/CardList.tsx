@@ -116,6 +116,8 @@ type Props = {
   // Is this card a Game Changer? (A Commander deck draws a yellow border around
   // those pictures; leave it out for none.)
   gameChanger?: (card: BinderCard) => boolean;
+  // Leave out the "- 3 +" copies bars (cards you don't own, like a whole set's cards in the Card Finder)
+  noCopies?: boolean;
 };
 
 // What the FlatList draws, one item per screen row: a header bar, or a
@@ -134,7 +136,7 @@ const NARROW_LIST = 520;
 // The thin line under each grid picture (set symbol, number, store symbol and price): how tall it is, with its gap
 const INFO_HEIGHT = 16;
 
-export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
+export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger, noCopies }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
@@ -329,13 +331,13 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         if (mode === 'list') {
           const item = row.entries[0];
           return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.eachByKey.get(item.key)} currency={prices.currency} narrow={width < NARROW_LIST}
-                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />;
+                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />;
         }
         // The Grid view: a row of pictures side by side
         return (
           <View style={styles.gridRow}>
             {row.entries.map((item) => (
-              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} price={prices.eachByKey.get(item.key)} currency={prices.currency} setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />
+              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} price={prices.eachByKey.get(item.key)} currency={prices.currency} setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />
             ))}
           </View>
         );
@@ -414,8 +416,9 @@ function SelectedCheck({ size }: { size: number }) {
 /* ---------------------------------------------------------------------
    ONE LINE OF THE LIST. "memo" redraws it only when its card changes.
    --------------------------------------------------------------------- */
-const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, narrow, setIcon, highlighted, selected, onLongPick, missing, banned, gold }: {
+const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, narrow, setIcon, highlighted, selected, onLongPick, missing, banned, gold, noCopies }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; border: string;
+  noCopies?: boolean;                  // no copies bar (cards you don't own)
   setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
   highlighted: boolean;                // just added or selected: tinted
   selected: boolean;                   // picked in a selection: an orange check on the picture
@@ -478,7 +481,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
     </Pressable>
   );
   // How many copies: the "− 3 +" bar
-  const copiesPart = (
+  const copiesPart = noCopies ? null : (
     <CopiesBar name={card.name} count={count} style={styles.rowBar}
                onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
   );
@@ -506,7 +509,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
           {mainPart}
           {pricesPart}
         </View>
-        <View style={styles.barUnder}>{copiesPart}</View>
+        {copiesPart && <View style={styles.barUnder}>{copiesPart}</View>}
       </View>
     );
   }
@@ -522,8 +525,9 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
 /* ---------------------------------------------------------------------
    ONE PICTURE IN THE GRID
    --------------------------------------------------------------------- */
-const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, currency, setIcon, highlighted, selected, onLongPick, missing, banned, gold }: {
+const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, currency, setIcon, highlighted, selected, onLongPick, missing, banned, gold, noCopies }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; size: number;
+  noCopies?: boolean;                  // no copies bar (cards you don't own)
   price: number | null | undefined;    // one copy's price. undefined: not loaded yet; null: the store has none
   currency: 'USD' | 'EUR';
   setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
@@ -562,8 +566,10 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, 
 
       {/* The "− 3 +" bar along the bottom of the card: how many copies you
           own (a bar laid over the card, the same as in a binder pocket) */}
-      <CopiesBar name={card.name} count={count} style={styles.tileBar}
-                 onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
+      {!noCopies && (
+        <CopiesBar name={card.name} count={count} style={styles.tileBar}
+                   onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
+      )}
       </View>
 
       {/* THE THIN LINE UNDER THE PICTURE: the set symbol (in the rarity's colour), the set code and number, then

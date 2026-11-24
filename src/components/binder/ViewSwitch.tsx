@@ -36,7 +36,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useTheme';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, chooseBinderSort, onGridZoomChange, setBinderViewMode, zoomBinderGrid } from '@/lib/binderView';
-import { BINDER_SORTS, type BinderSort } from '@/lib/binderSort';
+import { BINDER_SORTS, type BinderSort, type SortOption } from '@/lib/binderSort';
 import CleanUpMenu, { type CleanUpChoice } from './CleanUpMenu';
 import SortButton from './SortButton';
 import type { BinderViewMode } from '@/lib/binderViewTypes';
@@ -71,6 +71,8 @@ type Props = {
   pricesReady?: boolean;
   // Small tool buttons to show right after the view buttons (see ToolButton)
   extras?: ReactNode;
+  // The sorts the menu lists (all of them unless the screen gives fewer: the Card Finder's set page has no "Newest added")
+  sorts?: SortOption[];
 };
 
 // One small square tool button with an icon (like download or import),
@@ -90,7 +92,7 @@ export function ToolButton({ icon, label, onPress }: { icon: keyof typeof Ionico
   );
 }
 
-export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinderSort, modes, onView = setBinderViewMode, onCleanUp, canCleanUp = false, pricesReady = false, extras }: Props) {
+export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinderSort, modes, onView = setBinderViewMode, onCleanUp, canCleanUp = false, pricesReady = false, extras, sorts = BINDER_SORTS }: Props) {
   const colors = useColors();
   // How far the grid is zoomed (a step from 0, the smallest pictures)
   const zoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
@@ -149,7 +151,7 @@ export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinder
               </Pressable>
             </View>
           )}
-        <SortButton sort={sort} reversed={reversed} options={BINDER_SORTS} onChoose={(value) => onSort(value as BinderSort)} />
+        <SortButton sort={sort} reversed={reversed} options={sorts} onChoose={(value) => onSort(value as BinderSort)} />
         </View>
       )}
 

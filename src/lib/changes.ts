@@ -30,6 +30,16 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.8.0',
+    date: '2026-11-24',
+    lines: [
+      "The Card Finder now has two tabs at the top: Cards (the search, just as it was) and Sets.",
+      "Sets lists every set, newest release first, with its symbol, name, code, how many cards it has and its release date. Type in the search box above the list to find a set: it forgives typos and part-words (\"bloomburo\", \"trek cmdr\").",
+      "Tap a set to see all its cards as a list or a grid, with the same Sort button as a binder (without Newest added). Tap a card to open it; Back to (the set) brings you back to the set's cards.",
+      "A set that came with extras (tokens, Commander decks, Timeshifts, promos, art cards) has a small arrow at the end of its row. Tap it to show them right under the set, and tap it again to hide them. A Commander set's own tokens sit under it. Searching for \"tokens\" opens the sets that have them.",
+    ],
+  },
+  {
     version: '1.7.7',
     date: '2026-11-24',
     lines: ["The thin line under each card in the Grid view is one point bigger, so it is easier to read."],
