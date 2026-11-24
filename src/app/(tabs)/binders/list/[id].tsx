@@ -92,6 +92,9 @@ function finderLinkFor(listId: string, card?: ListCard): string {
   return `/search?${params}`;
 }
 
+// The places "Move to" offers for several selected cards: a binder, a list or a deck (each opens its own list to choose from)
+const MOVE_MANY = [{ id: 'binder', label: 'Binder' }, { id: 'list', label: 'List' }, { id: 'deck', label: 'Deck' }];
+
 export default function ListScreen() {
   const colors = useColors();
   const navigation = useNavigation();
@@ -106,7 +109,7 @@ export default function ListScreen() {
   const [movingIndex, setMovingIndex] = useState<number | null>(null);
   // Picking several cards (a long press), and the pop-up for moving them all to a binder
   const selection = useCardSelection();
-  const [movingMany, setMovingMany] = useState(false);
+  const [movingMany, setMovingMany] = useState<'binder' | 'list' | 'deck' | null>(null);
   // The import window (the upload button) and the download window (the download button)
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -380,7 +383,7 @@ export default function ListScreen() {
   // The selected cards are safely in a binder: take them off the list
   function movedManyToBinder(note: string) {
     for (const spot of [...pickedSpots].sort((a, b) => b - a)) removeCardFromList(id, spot);
-    setMovingMany(false);
+    setMovingMany(null);
     selection.clear();
     announce(note);
     changed();
@@ -419,8 +422,8 @@ export default function ListScreen() {
             <SelectionCover>
               <SelectionBar
                 count={selection.keys.size}
-              options={[{ id: 'binder', label: 'A binder' }]}
-              onMove={() => setMovingMany(true)}
+              options={MOVE_MANY}
+              onMove={(where) => setMovingMany(where as 'binder' | 'list' | 'deck')}
               onDelete={deletePicked}
               onCancel={selection.clear}
               deleteWords={`They will be taken out of ${list.name}.`}
@@ -502,9 +505,11 @@ export default function ListScreen() {
       {/* "Move to" with several cards selected: the pop-up list of binders */}
       {movingMany && list && (
         <MoveManyDialog
+          kind={movingMany}
+          exceptId={id}
           cards={pickedSpots.map((i) => (({ manaCost: _cost, typeLine: _type, ...binderCard }) => binderCard)(list.cards[i]))}
           onDone={movedManyToBinder}
-          onCancel={() => setMovingMany(false)}
+          onCancel={() => setMovingMany(null)}
         />
       )}
 

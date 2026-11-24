@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.7.2',
+    date: '2026-11-24',
+    lines: ["With cards selected in a binder or a list, Move to now offers Binder, List and Deck, each opening its own list to choose from. Cards moved to a deck go on its Maybe board."],
+  },
+  {
     version: '1.7.1',
     date: '2026-11-24',
     lines: ["The bar with Move to and Delete that shows while cards are selected now floats over the search box and the buttons under it, so the list of cards no longer jumps down when you select a card."],

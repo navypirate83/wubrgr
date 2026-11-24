@@ -436,7 +436,7 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <P>
               In a deck, <Strong>Move to</Strong> offers the other places (main deck, sideboard, maybe board); moving into a full main deck
-              asks first. In a binder or a list it moves the cards into another binder. <Strong>Delete</Strong> asks once ("Delete 3 cards?") and
+              asks first. In a binder or a list it offers <Strong>Binder</Strong>, <Strong>List</Strong> and <Strong>Deck</Strong>: pick one, then which binder, list or deck (a deck gets them on its Maybe board), and the cards leave where they were. <Strong>Delete</Strong> asks once ("Delete 3 cards?") and
               then takes them all out, so it is also a quick way to clear many cards. A card with several copies counts as one picked
               card, and all its copies move or go together. The Binder view (the page of pockets) has no selecting.
             </P>

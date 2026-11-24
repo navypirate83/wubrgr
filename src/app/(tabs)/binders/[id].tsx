@@ -208,6 +208,9 @@ function searchLinkFor(binderId: string, key: string, card?: BinderCard): string
 // starts again from scratch): "key" makes React draw a new one. The same
 // happens when the page layout changes in Settings: the cards have been
 // moved to the new layout, so the screen starts again with them.
+// The places "Move to" offers for several selected cards: a binder, a list or a deck (each opens its own list to choose from)
+const MOVE_MANY = [{ id: 'binder', label: 'Binder' }, { id: 'list', label: 'List' }, { id: 'deck', label: 'Deck' }];
+
 export default function BinderScreen() {
   const { id = '' } = useLocalSearchParams<{ id: string }>();
   const layout = useSyncExternalStore(onLayoutChange, layoutKey, layoutKey);
@@ -784,7 +787,7 @@ function BinderView({ binderId }: { binderId: string }) {
   const [movingKey, setMovingKey] = useState<string | null>(null);
   // Picking several cards (a long press, in the List and Grid views only) and the pop-up for moving them all to another binder
   const selection = useCardSelection();
-  const [movingMany, setMovingMany] = useState(false);
+  const [movingMany, setMovingMany] = useState<'binder' | 'list' | 'deck' | null>(null);
   // Switching to the Binder view ends any selection
   useEffect(() => { if (mode === 'binder') selection.clear(); }, [mode, selection.clear]);
   // The import window (the upload button) and the download window (the download button)
@@ -830,7 +833,7 @@ function BinderView({ binderId }: { binderId: string }) {
     const next = { ...cardsRef.current };
     for (const key of selection.keys) delete next[key];
     commit(next);
-    setMovingMany(false);
+    setMovingMany(null);
     selection.clear();
     savedNote.current = note;   // read out once saved
     scheduleDriveSave();
@@ -1359,8 +1362,8 @@ function BinderView({ binderId }: { binderId: string }) {
             <SelectionCover>
               <SelectionBar
                 count={selection.keys.size}
-                options={[{ id: 'binder', label: 'Another binder' }]}
-                onMove={() => setMovingMany(true)}
+                options={MOVE_MANY}
+                onMove={(where) => setMovingMany(where as 'binder' | 'list' | 'deck')}
                 onDelete={deletePicked}
                 onCancel={selection.clear}
                 deleteWords="They will be taken out of this binder."
@@ -1571,10 +1574,11 @@ function BinderView({ binderId }: { binderId: string }) {
 
       {movingMany && (
         <MoveManyDialog
+          kind={movingMany}
           cards={[...selection.keys].map((key) => cards[key]).filter(Boolean)}
           exceptId={binderId}
           onDone={movedManyOut}
-          onCancel={() => setMovingMany(false)}
+          onCancel={() => setMovingMany(null)}
         />
       )}
 
