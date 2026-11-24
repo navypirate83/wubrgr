@@ -50,7 +50,7 @@ export const helpTopics: HelpTopic[] = [
     lead: (
       <>
         The Shelf holds every binder you own, side by side: a closed binder for each (its
-        name, cover symbol and color), with how many cards it has under it, then a dot, the icon of your <Strong>Price store</Strong> (Settings) and what its cards are worth (left off while the prices load, and for an empty binder). As many fit
+        name, cover symbol and color), with how many cards it has under it, then a dot, the icon of your <Strong>Price store</Strong> (Settings) and what its cards are worth (left off while the prices load, and for an empty binder). On a phone the count and the worth go on two lines. As many fit
         across as the screen has room for, and more rows appear as you make more. Tap <Strong>The
         Shelf</Strong> (the row of books) at the bottom of the screen to get to it.
         The three small picture buttons in the header, beside the page's name, switch between your <Strong>Binders</Strong> (the open
@@ -762,7 +762,7 @@ export const helpTopics: HelpTopic[] = [
         three small picture buttons under the search bar switch between <Strong>Binder</Strong> (the open
         binder drawing), <Strong>List</Strong> (the list icon: a
         small picture, the name, the set and number, how many copies you have, and three price lines for one copy: what it is worth today, how
-        many percent that has changed since you added the card (green +, red -), and its price when added) and <Strong>Grid</Strong> (the grid icon: card pictures side by side). The app remembers your choice
+        many percent that has changed since you added the card (green +, red -), and its price when added; on a phone the − 3 + bar moves under the card's name so everything has room) and <Strong>Grid</Strong> (the grid icon: card pictures side by side). The app remembers your choice
         for the next binder you open, one for a phone-sized window and one for a wide screen, and
         saves it with your account so it follows you to your other devices.
         In the list and grid, the button at the right (it shows the sort in use, like <Strong>A–Z</Strong>) drops
