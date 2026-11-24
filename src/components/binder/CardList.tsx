@@ -588,7 +588,7 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, 
    How wide the text will be is worked out by a good guess from the number of letters
    (so the choice is made before anything is drawn).
    --------------------------------------------------------------------- */
-function TileInfo({ card, width, price, currency, setIcon }: {
+export function TileInfo({ card, width, price, currency, setIcon }: {
   card: BinderCard; width: number; price: number | null | undefined; currency: 'USD' | 'EUR'; setIcon: string | undefined;
 }) {
   const colors = useColors();

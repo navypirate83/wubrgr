@@ -4,7 +4,9 @@
    main deck: a commander (and, only if its abilities call for it, a
    partner or a Background), or an Oathbreaker and its signature spell
    (see lib/deckZones.ts for which cards each takes).
-   - A spot with a card shows its picture, name, what it is and its rules text (no
+   - A spot with a card shows its picture with the thin line under it (set symbol in the rarity
+     colour, set code and number, price: the same as under a Grid picture), name, the role and
+     casting cost, then the card's type (like "Legendary Creature — Human"), what it is and its rules text (no
      flavor text; in a box as tall as the (larger) picture, which scrolls if the
      text is longer), with
      "Change" (pick another card for the spot) and "Move to deck" (the card
@@ -15,12 +17,15 @@
    ===================================================================== */
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useTheme';
 import ManaCost from '@/components/lists/ManaCost';
 import SymbolText from '@/components/SymbolText';
 import FoilFrame from '@/components/binder/FoilFrame';
+import { TileInfo, type CardEntry } from '@/components/binder/CardList';
+import { useBinderPrices } from '@/hooks/useBinderPrices';
 import MissingOutline from './MissingOutline';
 import BannedSlash from './BannedSlash';
 import GameChangerBadge from './GameChangerBadge';
@@ -28,7 +33,7 @@ import { commandCard, type Deck, type DeckCard } from '@/lib/deckStorage';
 import { deckFormat } from '@/lib/deckFormats';
 import { secondSpotShows, slotHint, slotName } from '@/lib/deckZones';
 import { pictureSource } from '@/lib/http';
-import { loadRulesText } from '@/lib/scryfall';
+import { loadRulesText, loadSetIcons } from '@/lib/scryfall';
 
 // How big a card's picture is: as tall as the spot's text box (the old 76-point picture plus three
 // lines of 13 points), and as wide as a card's shape makes it (the old 54 by 76 shape)
@@ -48,6 +53,17 @@ type Props = {
 export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, missing, banned, gameChanger }: Props) {
   const colors = useColors();
   const format = deckFormat(deck.format);
+  // What the command zone's cards cost today, and their sets' symbols, for the line under each picture
+  // (worked out here, so it doesn't matter which list the deck is showing)
+  const entries = useMemo<CardEntry[]>(
+    () => ([0, 1] as const).flatMap((slot) => {
+      const card = commandCard(deck, slot);
+      return card ? [{ key: String(slot), card }] : [];
+    }),
+    [deck],
+  );
+  const prices = useBinderPrices(entries);
+  const setIcons = useQuery({ queryKey: ['set-icons'], queryFn: loadSetIcons });
   if (!format.command) return null;
   const first = commandCard(deck, 0);
   const slots: (0 | 1)[] = secondSpotShows(format, first) ? [0, 1] : [0];
@@ -83,14 +99,18 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
             <View key={slot} style={[styles.slot, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Pressable accessibilityRole="button" accessibilityLabel={`${card.name}${gameChanger?.(card.name) ? ', Game Changer' : ''}, your ${name.toLowerCase()}. Opens its menu.`}
                          onPress={() => onOpenCard(deck.cards.indexOf(card))} style={styles.cardPress}>
-                <View>
-                  <FoilFrame foil={card.foil === true} width={PICTURE_WIDTH} height={PICTURE_HEIGHT} radius={6}>
-                    <Image source={pictureSource(card.image)} style={styles.thumb} contentFit="cover" />
-                  </FoilFrame>
-                  {banned?.(card.name) && <BannedSlash radius={6} />}
-                  {gameChanger?.(card.name) && <MissingOutline radius={6} width={3} yellow />}
-                  {missing?.(card) && <MissingOutline radius={6} width={3} dashed={missing(card) === 'printing'} inset={gameChanger?.(card.name) ? 3 : 0} />}
-                  {gameChanger?.(card.name) && <GameChangerBadge size={8} />}
+                <View style={{ width: PICTURE_WIDTH }}>
+                  <View>
+                    <FoilFrame foil={card.foil === true} width={PICTURE_WIDTH} height={PICTURE_HEIGHT} radius={6}>
+                      <Image source={pictureSource(card.image)} style={styles.thumb} contentFit="cover" />
+                    </FoilFrame>
+                    {banned?.(card.name) && <BannedSlash radius={6} />}
+                    {gameChanger?.(card.name) && <MissingOutline radius={6} width={3} yellow />}
+                    {missing?.(card) && <MissingOutline radius={6} width={3} dashed={missing(card) === 'printing'} inset={gameChanger?.(card.name) ? 3 : 0} />}
+                    {gameChanger?.(card.name) && <GameChangerBadge size={8} />}
+                  </View>
+                  {/* The thin line just under the picture: set symbol (rarity colour), set code and number, price */}
+                  <TileInfo card={card} width={PICTURE_WIDTH} price={prices.eachByKey.get(String(slot))} currency={prices.currency} setIcon={setIcons.data?.get(card.set.toLowerCase())} />
                 </View>
                 {/* The name, the role and cost on one line, then the card's rules text (no flavor text) in
                     a box as tall as the picture (it scrolls if the text is longer) */}
@@ -100,6 +120,8 @@ export default function CommandZone({ deck, onChoose, onOpenCard, onMoveToDeck, 
                     <Text style={[styles.hint, { color: colors.muted }]} numberOfLines={1}>{name}</Text>
                     {card.manaCost ? <ManaCost cost={card.manaCost} size={13} /> : null}
                   </View>
+                  {/* The card's type, like "Legendary Creature — Human Wizard", after the casting cost */}
+                  {card.typeLine ? <Text style={[styles.hint, { color: colors.muted }]} numberOfLines={1}>{card.typeLine}</Text> : null}
                   <RulesText card={card} />
                 </View>
               </Pressable>
