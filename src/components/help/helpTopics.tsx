@@ -360,8 +360,7 @@ export const helpTopics: HelpTopic[] = [
               there do not count towards the deck's size, legality, power bracket or price, and a card scanned into a deck lands here. A card's
               screen has a <Strong>Move to</Strong> button for each place the card is not in (main deck, sideboard, maybe board). Moving a card
               into the main deck can take it over the format's limit: a window says so, and <Strong>Add anyway</Strong> goes ahead or <Strong>Cancel</Strong> stops.
-              On the Maybe button, <Strong>Pick cards to move</Strong> lets you tap several cards (they are highlighted) and move them all at once
-              with <Strong>To main deck</Strong> or <Strong>To sideboard</Strong>.
+              To work on several cards at once, see <HelpLink to="my-binders-select">Selecting several cards</HelpLink>.
               Tap a card to open its card screen, the same as in a binder or list: a big picture (tap it to open the card in
               the Card Finder), the card's name and set, a bar with its language, condition, the deck's name and how many copies you own in your binders, the <Strong>pencil</Strong> (Edit: version, copies, finish, language, condition),
               the rules (slide up from the strip at the bottom), and the red <Strong>trash can</Strong> (Delete from deck, it asks first). A deck is not part of your
@@ -420,6 +419,27 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>its <Strong>cover symbol</Strong> (a mana symbol or a set symbol) and <Strong>cover color</Strong>.</Bullet>
             <P>Tap <Strong>Save</Strong> to keep the changes, or <Strong>Cancel</Strong> to leave it as it was.</P>
+          </>
+        ),
+      },
+      {
+        id: 'my-binders-select',
+        title: 'Selecting several cards',
+        body: (
+          <>
+            <P>
+              In a deck's Main deck, Sideboard or Maybe list, a binder's List or Grid view, or a list, press and hold a card to select it.
+              While a selection is going, a plain tap picks or un-picks another card (it doesn't open the card). A picked card is
+              highlighted and has an orange check on its picture (the check is there for people who can't tell the highlight). A bar
+              at the top says how many are picked and has <Strong>Move to</Strong>, a red <Strong>Delete</Strong> and a cross to cancel.
+              Un-picking the last card also ends the selection.
+            </P>
+            <P>
+              In a deck, <Strong>Move to</Strong> offers the other places (main deck, sideboard, maybe board); moving into a full main deck
+              asks first. In a binder or a list it moves the cards into another binder. <Strong>Delete</Strong> asks once ("Delete 3 cards?") and
+              then takes them all out, so it is also a quick way to clear many cards. A card with several copies counts as one picked
+              card, and all its copies move or go together. The Binder view (the page of pockets) has no selecting.
+            </P>
           </>
         ),
       },

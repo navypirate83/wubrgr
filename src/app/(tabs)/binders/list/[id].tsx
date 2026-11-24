@@ -40,6 +40,9 @@ import PopupWindow from '@/components/PopupWindow';
 import HelpButton from '@/components/HelpButton';
 import MoveCardDialog from '@/components/binder/MoveCardDialog';
 import CardList2, { type CardEntry } from '@/components/binder/CardList';
+import SelectionBar from '@/components/binder/SelectionBar';
+import MoveManyDialog from '@/components/binder/MoveManyDialog';
+import { useCardSelection } from '@/hooks/useCardSelection';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import AddCardsButton from '@/components/binder/AddCardsButton';
 import CardScreen, { BINDER_ICON } from '@/components/binder/CardScreen';
@@ -101,6 +104,9 @@ export default function ListScreen() {
   // moved to a binder (the pop-up list of binders)
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const [movingIndex, setMovingIndex] = useState<number | null>(null);
+  // Picking several cards (a long press), and the pop-up for moving them all to a binder
+  const selection = useCardSelection();
+  const [movingMany, setMovingMany] = useState(false);
   // The import window (the upload button) and the download window (the download button)
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -360,6 +366,26 @@ export default function ListScreen() {
     changed();
   }
 
+  // The selected cards' spots in the list, and the cards themselves
+  const pickedSpots = [...selection.keys].map(Number).filter((i) => list?.cards[i]);
+
+  // Delete every selected card (the bar has already asked). From the last spot to the first, so the others don't shift.
+  function deletePicked() {
+    for (const spot of [...pickedSpots].sort((a, b) => b - a)) removeCardFromList(id, spot);
+    announce(`Deleted ${pickedSpots.length} cards.`);
+    selection.clear();
+    changed();
+  }
+
+  // The selected cards are safely in a binder: take them off the list
+  function movedManyToBinder(note: string) {
+    for (const spot of [...pickedSpots].sort((a, b) => b - a)) removeCardFromList(id, spot);
+    setMovingMany(false);
+    selection.clear();
+    announce(note);
+    changed();
+  }
+
   // A list that doesn't exist (deleted, or a broken link): back to the lists
   if (!list) return <Redirect href={'/binders/lists' as never} />;
 
@@ -390,6 +416,18 @@ export default function ListScreen() {
         />
       </View>
 
+      {/* While cards are selected (a long press), the bar with Move to and Delete */}
+      {selection.selecting && (
+        <SelectionBar
+          count={selection.keys.size}
+          options={[{ id: 'binder', label: 'A binder' }]}
+          onMove={() => setMovingMany(true)}
+          onDelete={deletePicked}
+          onCancel={selection.clear}
+          deleteWords={`They will be taken out of ${list.name}.`}
+        />
+      )}
+
       {/* THE CARDS, with the red "+" floating over them in the corner */}
       <View ref={listAreaRef} style={styles.listArea} collapsable={false}>
         <CardList2
@@ -398,7 +436,9 @@ export default function ListScreen() {
           note={addedNote}
           mode={mode}
           width={contentWidth}
-          onPick={(key) => setMenuIndex(Number(key))}
+          onPick={(key) => { if (selection.selecting) selection.toggle(key); else setMenuIndex(Number(key)); }}
+          onLongPick={selection.press}
+          selectedKeys={selection.keys}
           onCopies={onCopies}
           minTile={GRID_ZOOM_WIDTHS[gridZoom]}
           prices={prices}
@@ -453,6 +493,15 @@ export default function ListScreen() {
           card={(({ manaCost: _cost, typeLine: _type, ...binderCard }) => binderCard)(movingCard)}
           onMoved={(note) => movedToBinder(note)}
           onCancel={() => setMovingIndex(null)}
+        />
+      )}
+
+      {/* "Move to" with several cards selected: the pop-up list of binders */}
+      {movingMany && list && (
+        <MoveManyDialog
+          cards={pickedSpots.map((i) => (({ manaCost: _cost, typeLine: _type, ...binderCard }) => binderCard)(list.cards[i]))}
+          onDone={movedManyToBinder}
+          onCancel={() => setMovingMany(false)}
         />
       )}
 

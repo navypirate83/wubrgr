@@ -64,6 +64,8 @@ import HelpButton from '@/components/HelpButton';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import DeckSearchBar, { type DeckSearchMode } from '@/components/decks/DeckSearchBar';
 import CardList, { type CardEntry } from '@/components/binder/CardList';
+import SelectionBar from '@/components/binder/SelectionBar';
+import { useCardSelection } from '@/hooks/useCardSelection';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import CardScreen, { BINDER_ICON } from '@/components/binder/CardScreen';
 import AddToCollectionDialog from '@/components/decks/AddToCollectionDialog';
@@ -139,8 +141,8 @@ export default function DeckScreen() {
   const format = deckFormat(deck?.format);
   // (The maybe board is in every format; the sideboard only in those that have one)
   const shownZone: 'main' | 'side' | 'maybe' = tab === 'maybe' ? 'maybe' : format.sideboard > 0 ? tab : 'main';
-  // Picking several cards at once to move them (the maybe board's "Pick" button): their spots in the deck, as text
-  const [picked, setPicked] = useState<Set<string> | null>(null);
+  // Picking several cards at once (a long press): their spots in the deck, as text (see useCardSelection.ts)
+  const selection = useCardSelection();
   // A card is being looked up: don't start a second add until it's done
   const busy = useRef(false);
   // The held card's window (its spot in the deck), and the card being moved
@@ -524,10 +526,10 @@ export default function DeckScreen() {
     return askYesNo('Over the limit', `Moving ${what} into the main deck would make it ${over.total} cards. A ${format.name} deck has at most ${over.limit}.`, 'Add anyway', 'Cancel');
   }
 
-  // Move every picked card (from the maybe board's "Pick" button) to one place
+  // Move every selected card to one place
   async function movePicked(where: 'main' | 'side' | 'maybe') {
-    if (!deck || !picked || picked.size === 0) return;
-    const spots = [...picked].map(Number).filter((i) => deck.cards[i]);
+    if (!deck || !selection.selecting) return;
+    const spots = [...selection.keys].map(Number).filter((i) => deck.cards[i]);
     const copies = spots.reduce((sum, i) => sum + cardCount(deck.cards[i]), 0);
     if (!(await okToMove(where, copies, `${spots.length} cards`))) return;
     // Move from the last spot to the first so the spots still to move don't shift
@@ -535,8 +537,18 @@ export default function DeckScreen() {
       if (where === 'main') moveToMain(id, spot); else moveToZone(id, spot, where);
     }
     setDeck(findDeck(id));
-    setPicked(null);
+    selection.clear();
     announce(`${spots.length} cards are now ${ZONE_WORDS[where]}.`);
+  }
+
+  // Delete every selected card from the deck (the bar has already asked)
+  function deletePicked() {
+    if (!deck) return;
+    const spots = [...selection.keys].map(Number).filter((i) => deck.cards[i]);
+    for (const spot of [...spots].sort((a, b) => b - a)) setDeckCardCount(id, spot, 0);
+    setDeck(findDeck(id));
+    selection.clear();
+    announce(`Deleted ${spots.length} cards.`);
   }
 
   // Is the card whose window is open allowed in the command zone? The "Make
@@ -695,7 +707,7 @@ export default function DeckScreen() {
             const chosen = shownZone === which;
             return (
               <Pressable key={which} accessibilityRole="button" accessibilityState={{ selected: chosen }}
-                         onPress={() => { setTab(which); setPicked(null); }}
+                         onPress={() => { setTab(which); selection.clear(); }}
                          style={[styles.tab, { borderColor: chosen ? colors.accent : colors.border, backgroundColor: chosen ? colors.accent : 'transparent' }]}>
                 <Text style={[styles.tabText, { color: chosen ? colors.accentText : colors.text }]}>
                   {which === 'main' ? `Main deck ${count}` : which === 'side' ? `Sideboard ${count} of ${format.sideboard}` : `Maybe ${count}`}
@@ -704,26 +716,18 @@ export default function DeckScreen() {
             );
           })}
         </View>
-        {/* The maybe board: "Pick" lets you tick several cards and move them all at once */}
-        {shownZone === 'maybe' && deck.cards.some((c) => zoneOf(c) === 'maybe') && (
-          picked === null ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Pick several cards to move" onPress={() => setPicked(new Set())}
-                       style={[styles.pickRow, { borderColor: colors.border }]}>
-              <Ionicons name="checkmark-circle-outline" size={18} color={colors.accent} />
-              <Text style={{ color: colors.accent, fontWeight: '600' }}>Pick cards to move</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.pickRow}>
-              <Text style={{ color: colors.text, fontWeight: '600', flex: 1 }}>{picked.size === 0 ? 'Tap cards to pick them' : `${picked.size} picked`}</Text>
-              {picked.size > 0 && (['main', 'side'] as const).filter((w) => w !== 'side' || format.sideboard > 0).map((where) => (
-                <Pressable key={where} accessibilityRole="button" accessibilityLabel={`Move ${picked.size} to ${ZONE_NAMES[where]}`} onPress={() => movePicked(where)}
-                           style={[styles.pickMove, { backgroundColor: colors.accent }]}>
-                  <Text style={{ color: colors.accentText, fontWeight: '700' }}>To {ZONE_NAMES[where].toLowerCase()}</Text>
-                </Pressable>
-              ))}
-              <Pressable accessibilityRole="button" onPress={() => setPicked(null)}><Text style={{ color: colors.muted, fontWeight: '600' }}>Cancel</Text></Pressable>
-            </View>
-          )
+        {/* While cards are selected (a long press), the bar with Move to and Delete */}
+        {selection.selecting && (
+          <SelectionBar
+            count={selection.keys.size}
+            options={(['main', 'side', 'maybe'] as const)
+              .filter((w) => w !== shownZone && (w !== 'side' || format.sideboard > 0))
+              .map((w) => ({ id: w, label: ZONE_NAMES[w] }))}
+            onMove={(w) => movePicked(w as 'main' | 'side' | 'maybe')}
+            onDelete={deletePicked}
+            onCancel={selection.clear}
+            deleteWords={`They will be taken out of ${deck.name}.`}
+          />
         )}
       </View>
 
@@ -735,10 +739,10 @@ export default function DeckScreen() {
           mode={mode}
           width={contentWidth}
           onPick={(key) => {
-            if (picked === null) { setMenuIndex(Number(key)); return; }
-            setPicked((now) => { const next = new Set(now); if (!next.delete(key)) next.add(key); return next; });
+            if (selection.selecting) selection.toggle(key); else setMenuIndex(Number(key));
           }}
-          selectedKeys={picked ?? undefined}
+          onLongPick={selection.press}
+          selectedKeys={selection.keys}
           onCopies={onCopies}
           minTile={GRID_ZOOM_WIDTHS[gridZoom]}
           prices={prices}
@@ -926,8 +930,6 @@ const styles = StyleSheet.create({
   listArea: { flex: 1 },
   // The Main deck / Sideboard buttons
   tabs: { flexDirection: 'row', gap: 8 },
-  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-  pickMove: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   tab: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 7, alignItems: 'center' },
   tabText: { fontSize: 14, fontWeight: '600' },
   // The power bracket button, and the window's choices

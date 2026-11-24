@@ -64,6 +64,9 @@ import { applyEdit, type CardEdit } from '@/lib/cardEdit';
 import ShelfSwitch from '@/components/binders/ShelfSwitch';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
 import MoveCardDialog from '@/components/binder/MoveCardDialog';
+import MoveManyDialog from '@/components/binder/MoveManyDialog';
+import SelectionBar from '@/components/binder/SelectionBar';
+import { useCardSelection } from '@/hooks/useCardSelection';
 import {
   MAX_COPIES, binderDirtyStamp, binderName, binderPages, cardCount, findBinder, firstEmptyPocket, isLocalMode, loadBinder,
   loadBinderList, pocketKey, samePrinting, saveBinder, saveBinderList, withCount, type BinderCard, type BinderCards,
@@ -779,6 +782,11 @@ function BinderView({ binderId }: { binderId: string }) {
   const [addingTo, setAddingTo] = useState<{ kind: 'list' | 'deck'; key: string } | null>(null);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [movingKey, setMovingKey] = useState<string | null>(null);
+  // Picking several cards (a long press, in the List and Grid views only) and the pop-up for moving them all to another binder
+  const selection = useCardSelection();
+  const [movingMany, setMovingMany] = useState(false);
+  // Switching to the Binder view ends any selection
+  useEffect(() => { if (mode === 'binder') selection.clear(); }, [mode, selection.clear]);
   // The import window (the upload button) and the download window (the download button)
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -805,6 +813,28 @@ function BinderView({ binderId }: { binderId: string }) {
     return { copies: found.reduce((sum, card) => sum + (card.count ?? 1), 0), notFound };
   }
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Delete every selected card (the bar has already asked), and save
+  function deletePicked() {
+    const next = { ...cardsRef.current };
+    const gone = [...selection.keys].filter((key) => next[key]);
+    for (const key of gone) delete next[key];
+    selection.clear();
+    if (!commit(next)) { showMessage("Could not save", "Saving is not working on this device, so the cards could not be removed."); return; }
+    scheduleDriveSave();
+    announce(`Deleted ${gone.length} cards.`);
+  }
+
+  // The selected cards are safely in another binder: take them all out of this one
+  function movedManyOut(note: string) {
+    const next = { ...cardsRef.current };
+    for (const key of selection.keys) delete next[key];
+    commit(next);
+    setMovingMany(false);
+    selection.clear();
+    savedNote.current = note;   // read out once saved
+    scheduleDriveSave();
+  }
 
   // The copies are safely in the other binder: take them out of this one
   // (the whole card if all went, otherwise just lower its count), close
@@ -1336,6 +1366,18 @@ function BinderView({ binderId }: { binderId: string }) {
 
       {/* THE LIST OR GRID of cards. Tapping a card opens its menu. The red
           "+" floats over them in the corner. */}
+      {/* While cards are selected (a long press), the bar with Move to and Delete */}
+      {selection.selecting && mode !== 'binder' && (
+        <SelectionBar
+          count={selection.keys.size}
+          options={[{ id: 'binder', label: 'Another binder' }]}
+          onMove={() => setMovingMany(true)}
+          onDelete={deletePicked}
+          onCancel={selection.clear}
+          deleteWords="They will be taken out of this binder."
+        />
+      )}
+
       {(mode !== 'binder' || searching) && (
         <View ref={listAreaRef} style={styles.listArea} collapsable={false}>
           <CardList
@@ -1346,7 +1388,10 @@ function BinderView({ binderId }: { binderId: string }) {
             mode={mode === 'binder' ? 'grid' : mode}
             width={contentWidth}
             // In the Binder view a tap jumps to the card's pocket; elsewhere it opens the card's menu
-            onPick={(key) => (mode === 'binder' ? jumpTo(key) : setMenuKey(key))}
+            onPick={(key) => (mode === 'binder' ? jumpTo(key) : selection.selecting ? selection.toggle(key) : setMenuKey(key))}
+            // (The Binder view's page of pockets has no selecting; the List and Grid views do)
+            onLongPick={mode === 'binder' ? undefined : selection.press}
+            selectedKeys={mode === 'binder' ? undefined : selection.keys}
             onCopies={onCopies}
             minTile={GRID_ZOOM_WIDTHS[gridZoom]}
             prices={prices}
@@ -1518,6 +1563,15 @@ function BinderView({ binderId }: { binderId: string }) {
       {addingTo?.kind === 'deck' && addingCard && (
         <AddToDeckDialog card={addingCard} onCancel={() => setAddingTo(null)}
                          onDone={(note) => { setAddingTo(null); announce(note); showMessage(note); }} />
+      )}
+
+      {movingMany && (
+        <MoveManyDialog
+          cards={[...selection.keys].map((key) => cards[key]).filter(Boolean)}
+          exceptId={binderId}
+          onDone={movedManyOut}
+          onCancel={() => setMovingMany(false)}
+        />
       )}
 
       {moving && movingKey && (

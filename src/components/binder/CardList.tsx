@@ -39,6 +39,7 @@
 
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useColors } from '@/hooks/useTheme';
@@ -81,8 +82,11 @@ type Props = {
   // A card just added (by dropping a picture on the list): its key, which is
   // scrolled to and highlighted for a moment, and a short note for the line above
   flashKey?: string | null;
-  // Cards that are picked (to move several at once): drawn highlighted, like the card just added
+  // SELECTING SEVERAL CARDS: a long press on a card calls "onLongPick" (the screen starts a selection with it). The
+  // "selectedKeys" are drawn highlighted with an orange check on the picture (the check is for people who can't
+  // tell the highlight; it's also spoken as "selected"). Leave both out for a list that can't select.
   selectedKeys?: Set<string>;
+  onLongPick?: (key: string) => void;
   note?: string | null;
   // A deck that is not legal: why ("101 cards, at most 100"). It ends the line of totals in red as "Not legal: ..."
   warn?: string;
@@ -125,7 +129,7 @@ const GRID_GAP = 10;
 // Below this width (points) the List view is "narrow" (a phone): the copies bar moves under the card's text
 const NARROW_LIST = 520;
 
-export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
+export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
@@ -320,13 +324,13 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         if (mode === 'list') {
           const item = row.entries[0];
           return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.eachByKey.get(item.key)} currency={prices.currency} narrow={width < NARROW_LIST}
-                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />;
+                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />;
         }
         // The Grid view: a row of pictures side by side
         return (
           <View style={styles.gridRow}>
             {row.entries.map((item) => (
-              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />
+              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />
             ))}
           </View>
         );
@@ -391,12 +395,26 @@ export function Summary({ entries, prices, searchOf, hint, note, warn, alsoCount
 }
 
 /* ---------------------------------------------------------------------
+   THE ORANGE CHECK on a picked card's picture (round, in the picture's corner)
+   --------------------------------------------------------------------- */
+function SelectedCheck({ size }: { size: number }) {
+  const colors = useColors();
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 3, left: 3, width: size, height: size, borderRadius: size / 2, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.bg }}>
+      <Ionicons name="checkmark" size={Math.round(size * 0.7)} color={colors.accentText} />
+    </View>
+  );
+}
+
+/* ---------------------------------------------------------------------
    ONE LINE OF THE LIST. "memo" redraws it only when its card changes.
    --------------------------------------------------------------------- */
-const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, narrow, setIcon, highlighted, missing, banned, gold }: {
+const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, narrow, setIcon, highlighted, selected, onLongPick, missing, banned, gold }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; border: string;
   setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
-  highlighted: boolean;                // just added: tinted for a moment
+  highlighted: boolean;                // just added or selected: tinted
+  selected: boolean;                   // picked in a selection: an orange check on the picture
+  onLongPick?: (key: string) => void;  // a long press starts a selection
   missing: false | 'card' | 'printing';   // a deck: not in your binders (solid red border) or not that printing (dashed)
   banned: boolean;                     // banned in the deck's format: black "BANNED" slash
   gold: boolean;                       // a Game Changer: yellow border
@@ -423,6 +441,8 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
       accessibilityRole="button"
       accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)} each` : ''}${gold ? ', Game Changer' : ''}. Opens its menu.`}
       onPress={() => onPick(key)}
+      onLongPress={onLongPick ? () => onLongPick(key) : undefined}
+      accessibilityState={{ selected }}
       style={({ pressed }) => [styles.rowMain, pressed && { backgroundColor: colors.surfaceHover }]}
     >
       <View>
@@ -433,6 +453,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
         {gold && <MissingOutline radius={4} width={2} yellow />}
         {missing && <MissingOutline radius={4} width={2} dashed={missing === 'printing'} inset={gold ? 2 : 0} />}
         {gold && <GameChangerBadge size={7} />}
+        {selected && <SelectedCheck size={20} />}
       </View>
       <View style={styles.rowText}>
         {/* The name, with a small gold "GC" tag after it for a Game Changer */}
@@ -496,9 +517,11 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
 /* ---------------------------------------------------------------------
    ONE PICTURE IN THE GRID
    --------------------------------------------------------------------- */
-const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlighted, missing, banned, gold }: {
+const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlighted, selected, onLongPick, missing, banned, gold }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; size: number;
-  highlighted: boolean;                // just added: outlined for a moment
+  highlighted: boolean;                // just added or selected: outlined
+  selected: boolean;                   // picked in a selection: an orange check on the picture
+  onLongPick?: (key: string) => void;  // a long press starts a selection
   missing: false | 'card' | 'printing';   // a deck: not in your binders (solid red border) or not that printing (dashed)
   banned: boolean;                     // banned in the deck's format: black "BANNED" slash
   gold: boolean;                       // a Game Changer: yellow border
@@ -513,6 +536,8 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
         accessibilityRole="button"
         accessibilityLabel={`${card.name}${card.foil ? ', foil' : ''}${gold ? ', Game Changer' : ''}, ${count} ${count === 1 ? 'copy' : 'copies'}. Opens its menu.`}
         onPress={() => onPick(key)}
+        onLongPress={onLongPick ? () => onLongPick(key) : undefined}
+        accessibilityState={{ selected }}
         style={({ pressed }) => pressed && styles.pressed}
       >
         <FoilFrame foil={card.foil === true} width={size} height={Math.round(size * CARD_RATIO)} radius={6} border={3}>
@@ -522,6 +547,7 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
         {gold && <MissingOutline radius={6} width={3} yellow />}
         {missing && <MissingOutline radius={6} width={3} dashed={missing === 'printing'} inset={gold ? 3 : 0} />}
         {gold && <GameChangerBadge size={Math.max(8, Math.round(size * 0.1))} lift={26} />}
+        {selected && <SelectedCheck size={Math.max(22, Math.round(size * 0.22))} />}
       </Pressable>
 
       {/* The "− 3 +" bar along the bottom of the card: how many copies you
