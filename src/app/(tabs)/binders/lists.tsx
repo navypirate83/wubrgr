@@ -30,6 +30,8 @@ import { useColors } from '@/hooks/useTheme';
 import { useAccount } from '@/hooks/useAccount';
 import ListSearch from '@/components/lists/ListSearch';
 import PopupWindow from '@/components/PopupWindow';
+import ShelfSelectionBar from '@/components/binders/ShelfSelectionBar';
+import { cardsOnLists, resetLists } from '@/lib/resetValue';
 import TextField from '@/components/TextField';
 import Button from '@/components/Button';
 import {
@@ -78,6 +80,10 @@ export default function ListsScreen() {
   // name being typed)
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  // Lists picked together ("Select multiple" in a held list's options): their ids. While any are picked, a tap
+  // picks or un-picks a list instead of opening it, and a floating bar at the top has Rename, Reset value and Delete.
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggleSelected = (id: string) => setSelected((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
 
   // Something went wrong talking to Google Drive: say what, in plain words
   function problem(err: unknown, what: string) {
@@ -175,6 +181,48 @@ export default function ListsScreen() {
     }
   }
 
+  // "Delete" for the picked lists: ask once, then delete each the same way as one list
+  async function deletePicked(ids: string[]) {
+    const doomed = loadLists().filter((l) => ids.includes(l.id));
+    if (doomed.length === 0) return;
+    const yes = await askYesNo(
+      doomed.length === 1 ? `Delete ${doomed[0].name}?` : `Delete these ${doomed.length} lists?`,
+      `${doomed.map((l) => l.name).join(', ')}: ${cardCountText(doomed.reduce((sum, l) => sum + l.cards.length, 0))} in all.${localMode ? " This can't be undone." : ' They go to your Google Drive trash.'}`,
+      'Yes, delete', 'No');
+    if (!yes) return;
+    try {
+      for (const list of doomed) {
+        await trashListFile(list.id);
+        forgetList(list.id);
+      }
+    } catch (err) {
+      problem(err, "Couldn't delete the lists.");
+    }
+    setLists(loadLists());
+  }
+
+  // "Reset value" for the picked lists: ask first, then every card's added price becomes today's price
+  async function resetPicked(ids: string[]) {
+    const chosen = loadLists().filter((l) => ids.includes(l.id));
+    if (chosen.length === 0) return;
+    const cards = cardsOnLists(chosen.map((l) => l.id));
+    const what = chosen.length === 1 ? chosen[0].name : `${chosen.length} lists`;
+    const yes = await askYesNo(
+      `Reset the value of ${cards} ${cards === 1 ? 'card' : 'cards'} in ${what}?`,
+      "Each card's added price becomes today's price, and the % changes start again from 0. This can't be undone.",
+      'Yes, reset', 'No');
+    if (!yes) return;
+    setAdding(true);
+    try {
+      const { reset, skipped } = await resetLists(chosen.map((l) => l.id));
+      setLists(loadLists());
+      showMessage('Value reset', `Reset the value of ${reset} ${reset === 1 ? 'card' : 'cards'} in ${what}${skipped > 0 ? ` (${skipped} had no price today and kept their old one)` : ''}.`);
+    } catch (err) {
+      problem(err, "Couldn't reset the value.");
+    }
+    setAdding(false);
+  }
+
   // The lists in the order chosen with the Sort button, with a header bar before
   // each group when the sort has groups (letters)
   const { saved: sortSaved, headersOn } = useShelfSort('lists');
@@ -243,11 +291,14 @@ export default function ListsScreen() {
             accessibilityRole="button"
             accessibilityLabel={`${item.name}, ${cardCountText(item.cards.length)}`}
             accessibilityHint="Opens the list. Hold for Rename and Delete."
-            onPress={() => openList(item.id)}
+            accessibilityState={{ selected: selected.includes(item.id) }}
+            onPress={() => (selected.length > 0 ? toggleSelected(item.id) : openList(item.id))}
             onLongPress={() => { hapticTap(); setMenuId(item.id); }}
             delayLongPress={500}
-            style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.surfaceHover : colors.surface, borderColor: colors.border }]}
+            style={({ pressed }) => [styles.row, { backgroundColor: selected.includes(item.id) ? `${colors.accent}2e` : pressed ? colors.surfaceHover : colors.surface, borderColor: selected.includes(item.id) ? colors.accent : colors.border }]}
           >
+            {/* A picked list has an orange check (the highlight is the main sign; the check is for people who can't tell it) */}
+            {selected.includes(item.id) && <Ionicons name="checkmark-circle" size={24} color={colors.accent} />}
             <View style={styles.rowText}>
               <SymbolText style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{item.name}</SymbolText>
               <Text style={[styles.rowCount, { color: colors.muted }]}>{cardCountText(item.cards.length)}</Text>
@@ -258,13 +309,28 @@ export default function ListsScreen() {
         }}
       />
 
-      {/* A held list's options: Rename and Delete */}
+      {/* While lists are picked: the floating bar over the top */}
+      {selected.length > 0 && (
+        <ShelfSelectionBar
+          count={selected.length} noun="list" editLabel="Rename" busy={adding}
+          onEdit={() => { const list = lists.find((l) => l.id === selected[0]); setSelected([]); if (list) setRenaming({ id: list.id, name: list.name }); }}
+          onReset={() => { const ids = selected; setSelected([]); resetPicked(ids); }}
+          onDelete={() => { const ids = selected; setSelected([]); deletePicked(ids); }}
+          onCancel={() => setSelected([])}
+        />
+      )}
+
+      {/* A held list's options: Rename, Reset value, Select multiple and Delete */}
       {menuList && (
         <PopupWindow title={menuList.name} onClose={() => setMenuId(null)}
                      buttons={[{ label: 'Close', onPress: () => setMenuId(null), kind: 'secondary' }]}>
           <View style={styles.menu}>
             <Button label="Rename" icon="create-outline" kind="secondary"
                     onPress={() => { setMenuId(null); setRenaming({ id: menuList.id, name: menuList.name }); }} />
+            <Button label="Reset value" icon="refresh-outline" kind="secondary" disabled={adding}
+                    onPress={() => { setMenuId(null); resetPicked([menuList.id]); }} />
+            <Button label="Select multiple" icon="checkmark-circle-outline" kind="secondary"
+                    onPress={() => { setMenuId(null); setSelected([menuList.id]); }} />
             {/* Moving by hand only makes sense in "My own order" */}
             {ownOrder && lists.findIndex((l) => l.id === menuList.id) > 0 && (
               <Button label="Move up" icon="arrow-up" kind="secondary" onPress={() => move(menuList.id, -1)} />

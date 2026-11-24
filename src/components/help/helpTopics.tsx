@@ -158,20 +158,25 @@ export const helpTopics: HelpTopic[] = [
               brings you back to the shelf (or a swipe in from the left edge on an iPhone).</Bullet>
             <Bullet>
               <Strong>Its options</Strong>: on a phone or tablet, rest your finger on a binder until it
-              lifts (with a small buzz). Three boxes appear along the bottom: <Strong>Edit</Strong>,{' '}
+              lifts (with a small buzz). Five small boxes appear along the bottom: <Strong>Edit</Strong>,{' '}
               <Strong>Copy</Strong> (a duplicate with the same cards, named like "Black (1)", at the end
-              of the shelf) and a red <Strong>Delete</Strong>. Slide the binder onto one and let go. Let
+              of the shelf), <Strong>Reset value</Strong> (every card's added price becomes today's price, so the
+              % change starts again from 0; it asks first and can't be undone), a red <Strong>Delete</Strong> and{' '}
+              <Strong>Select multiple</Strong>. Slide the binder onto one and let go. Let
               go anywhere else and it just drops into place. With a mouse, hold the button still for
-              half a second or <Strong>right-click</Strong> the binder to get the same three choices.
+              half a second or <Strong>right-click</Strong> the binder to get the choices.
+              While you hold a binder near the top or bottom edge of the shelf, the shelf scrolls by itself, so you can
+              carry it a long way.
             </Bullet>
             <Bullet>
-              <Strong>Pick several at once</Strong> (on a computer): hold <Strong>Ctrl</Strong> (or{' '}
-              <Strong>Cmd</Strong>) and click each binder you want. Picked binders get a frame and a
-              tick. Let go of Ctrl and a window asks whether to <Strong>Copy</Strong> or{' '}
-              <Strong>Delete</Strong> them. <Strong>Esc</Strong> drops the picks. With only the
-              keyboard: the <Key>arrow keys</Key> move an outline from binder to binder,{' '}
-              <Key>Space</Key> picks or un-picks the one it is on, and <Key>Enter</Key> asks Copy or
-              Delete.
+              <Strong>Pick several at once</Strong>: drop a held binder on <Strong>Select multiple</Strong> (or, on a computer, hold{' '}
+              <Strong>Ctrl</Strong> or <Strong>Cmd</Strong> and click). Picked binders get a frame and a tick, and a plain tap
+              now picks or un-picks other binders instead of opening them. A bar floats over the top of the shelf with <Strong>Edit</Strong>{' '}
+              (only when one is picked), <Strong>Copy</Strong>, <Strong>Reset value</Strong> and a red <Strong>Delete</Strong>, which
+              work on every picked binder; the cross (or <Strong>Esc</Strong>) drops the picks. With only the
+              keyboard: the <Key>arrow keys</Key> move an outline from binder to binder and{' '}
+              <Key>Space</Key> picks or un-picks the one it is on. Lists and Decks have the same bar: hold a list or deck, tap{' '}
+              <Strong>Select multiple</Strong>, then tap more (Reset value is for binders and lists only).
             </Bullet>
             <Bullet>
               <Strong>Change the order</Strong>: drag a binder to a new spot. With a finger, rest it
@@ -723,7 +728,7 @@ export const helpTopics: HelpTopic[] = [
             <Bullet><Key>Space</Key>: pick or un-pick the binder the outline is on. Picked binders get a frame and a tick.</Bullet>
             <Bullet><Key>Shift</Key> + <Key>Arrow keys</Key>: pick the binders you move over.</Bullet>
             <Bullet><Key>Ctrl</Key> + <Key>A</Key> (<Key>Cmd</Key> + <Key>A</Key> on a Mac): pick every binder.</Bullet>
-            <Bullet><Key>Enter</Key>: open the binder the outline is on. With some picked, it asks whether to Copy or Delete them.</Bullet>
+            <Bullet><Key>Enter</Key>: open the binder the outline is on.</Bullet>
             <Bullet><Key>C</Key>: copy the picked binders (or the one the outline is on).</Bullet>
             <Bullet><Key>Delete</Key>: delete the picked binders (or the one the outline is on), after asking "Are you sure?".</Bullet>
             <Bullet><Key>Esc</Key>: drop the picks.</Bullet>

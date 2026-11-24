@@ -56,6 +56,33 @@ export function withAddedPrice<T extends BinderCard>(card: T, print: ScryfallCar
   return Object.keys(notes).length > 0 ? { ...card, extra: { ...card.extra, ...notes } } : card;
 }
 
+// RESET VALUE: one card with today's price written as the price it was added at, replacing any price it had.
+// Gives back the very same card when the printing is unknown or the store has no price for it (the old price
+// is kept rather than blanked), so the caller can count how many were skipped.
+export function withResetPrice<T extends BinderCard>(card: T, print: ScryfallCard | undefined): T {
+  if (!print) return card;
+  const notes = addedPriceNotes(print, finishOf(card));
+  if (Object.keys(notes).length === 0) return card;
+  // (A price in euros adds a currency note; one in dollars must not keep an old euro note)
+  const { [CURRENCY_NOTE]: _oldCurrency, ...rest } = card.extra ?? {};
+  return { ...card, extra: { ...rest, ...notes } };
+}
+
+// Reset the value of every card in this set of cards (a binder's or a list's, as a list of cards): each one's
+// added price becomes today's price. Gives back the new cards and how many were reset and skipped. Looks the
+// printings up (and so can fail without internet: then it throws, and nothing is changed).
+export async function resetPrices<T extends BinderCard>(cards: T[]): Promise<{ cards: T[]; reset: number; skipped: number }> {
+  const known = cards.filter((card) => card.set && card.number);
+  const prints = known.length > 0 ? await loadPrintings(known.map((card) => ({ set: card.set, number: card.number }))) : new Map<string, ScryfallCard>();
+  let reset = 0;
+  const next = cards.map((card) => {
+    const changed = withResetPrice(card, prints.get(`${card.set}/${card.number}`.toLowerCase()));
+    if (changed !== card) reset++;
+    return changed;
+  });
+  return { cards: next, reset, skipped: cards.length - reset };
+}
+
 // A binder's cards with today's price written on every card that has none (the cards from before prices
 // were recorded), from their printings (looked up by "set/number" in lowercase). Returns the new set of
 // cards, or null if nothing changed.

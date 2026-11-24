@@ -30,6 +30,7 @@ import { useColors } from '@/hooks/useTheme';
 import { useAccount } from '@/hooks/useAccount';
 import DeckSearch from '@/components/decks/DeckSearch';
 import PopupWindow from '@/components/PopupWindow';
+import ShelfSelectionBar from '@/components/binders/ShelfSelectionBar';
 import TextField from '@/components/TextField';
 import Button from '@/components/Button';
 import NewDeckDialog from '@/components/decks/NewDeckDialog';
@@ -81,6 +82,10 @@ export default function DecksScreen() {
   const [making, setMaking] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  // Decks picked together ("Select multiple" in a held deck's options): their ids. While any are picked, a tap
+  // picks or un-picks a deck instead of opening it, and a floating bar at the top has Rename and Delete.
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggleSelected = (id: string) => setSelected((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
 
   // Every time this page comes into view (a deck's cards may have changed)
   useFocusEffect(useCallback(() => { setDecks(loadDecks()); }, []));
@@ -131,6 +136,19 @@ export default function DecksScreen() {
     const yes = await askYesNo(`Delete ${deck.name}?`, `It has ${cardCountText(cardsIn(deck))}. This can't be undone.`, 'Yes, delete', 'No');
     if (!yes) return;
     forgetDeck(deck.id);
+    setDecks(loadDecks());
+  }
+
+  // "Delete" for the picked decks: ask once, then delete each
+  async function deletePicked(ids: string[]) {
+    const doomed = loadDecks().filter((d) => ids.includes(d.id));
+    if (doomed.length === 0) return;
+    const yes = await askYesNo(
+      doomed.length === 1 ? `Delete ${doomed[0].name}?` : `Delete these ${doomed.length} decks?`,
+      `${doomed.map((d) => d.name).join(', ')}: ${cardCountText(doomed.reduce((sum, d) => sum + cardsIn(d), 0))} in all. This can't be undone.`,
+      'Yes, delete', 'No');
+    if (!yes) return;
+    for (const deck of doomed) forgetDeck(deck.id);
     setDecks(loadDecks());
   }
 
@@ -278,11 +296,14 @@ export default function DecksScreen() {
             accessibilityRole="button"
             accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}${bracketOf(item) ? `, ${bracketText(bracketOf(item))}` : ''}, ${cardCountText(cardsIn(item))}${deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0 ? ', not legal' : ''}`}
             accessibilityHint="Opens the deck. Hold for Rename and Delete."
-            onPress={() => openDeck(item.id)}
+            accessibilityState={{ selected: selected.includes(item.id) }}
+            onPress={() => (selected.length > 0 ? toggleSelected(item.id) : openDeck(item.id))}
             onLongPress={() => { hapticTap(); setMenuId(item.id); }}
             delayLongPress={500}
-            style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.surfaceHover : colors.surface, borderColor: colors.border }]}
+            style={({ pressed }) => [styles.row, { backgroundColor: selected.includes(item.id) ? `${colors.accent}2e` : pressed ? colors.surfaceHover : colors.surface, borderColor: selected.includes(item.id) ? colors.accent : colors.border }]}
           >
+            {/* A picked deck has an orange check (the highlight is the main sign; the check is for people who can't tell it) */}
+            {selected.includes(item.id) && <Ionicons name="checkmark-circle" size={24} color={colors.accent} />}
             <View style={styles.rowText}>
               <SymbolText style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>{item.name}</SymbolText>
               <Text style={[styles.rowCount, { color: colors.muted }]}>
@@ -303,13 +324,25 @@ export default function DecksScreen() {
       {/* Add deck: a name, and the format to build it for */}
       {making && <NewDeckDialog allowImport onCreate={create} onCancel={() => setMaking(false)} />}
 
-      {/* A held deck's options: Rename and Delete */}
+      {/* While decks are picked: the floating bar over the top */}
+      {selected.length > 0 && (
+        <ShelfSelectionBar
+          count={selected.length} noun="deck" editLabel="Rename"
+          onEdit={() => { const deck = decks.find((d) => d.id === selected[0]); setSelected([]); if (deck) setRenaming({ id: deck.id, name: deck.name }); }}
+          onDelete={() => { const ids = selected; setSelected([]); deletePicked(ids); }}
+          onCancel={() => setSelected([])}
+        />
+      )}
+
+      {/* A held deck's options: Rename, Select multiple and Delete */}
       {menuDeck && (
         <PopupWindow title={menuDeck.name} onClose={() => setMenuId(null)}
                      buttons={[{ label: 'Close', onPress: () => setMenuId(null), kind: 'secondary' }]}>
           <View style={styles.menu}>
             <Button label="Rename" icon="create-outline" kind="secondary"
                     onPress={() => { setMenuId(null); setRenaming({ id: menuDeck.id, name: menuDeck.name }); }} />
+            <Button label="Select multiple" icon="checkmark-circle-outline" kind="secondary"
+                    onPress={() => { setMenuId(null); setSelected([menuDeck.id]); }} />
             {/* Moving by hand only makes sense in "My own order" */}
             {ownOrder && decks.findIndex((d) => d.id === menuDeck.id) > 0 && (
               <Button label="Move up" icon="arrow-up" kind="secondary" onPress={() => move(menuDeck.id, -1)} />

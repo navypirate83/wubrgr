@@ -15,12 +15,14 @@
    - the Sort button (under Add binder) puts the binders in order: My own order
      (the start, and the only one where dragging moves them), name, recently
      opened, newest or most cards (see shelfSort.ts)
-   - press and HOLD a binder still for its options: Edit, Copy and Delete
-     (the phone gives a little buzz when they open). A right-click with a
-     mouse shows them too.
-   - on a computer, hold CTRL and click several binders to pick them (each
-     gets a frame and a tick). Letting go of Ctrl asks: Copy them or
-     Delete them. Esc drops the picks.
+   - press and HOLD a binder still for its options: five small boxes along
+     the bottom (Edit, Copy, Reset value, Delete, Select multiple; the phone
+     gives a little buzz). A right-click with a mouse shows them too.
+   - dropping a binder on Select multiple (or, on a computer, holding CTRL
+     and clicking) picks it (a frame and a tick); then a tap picks more, and a
+     floating bar at the top has Edit (one picked), Copy, Reset value and
+     Delete. Esc drops the picks.
+   - holding a binder near the top or bottom edge scrolls the shelf by itself
    - pull the shelf DOWN to load the binders again (from Google Drive,
      when signed in)
    With no binders yet, the shelf says so and offers to make the first.
@@ -60,6 +62,8 @@ import BinderSearch from '@/components/binders/BinderSearch';
 import ClosedBinder from '@/components/binders/ClosedBinder';
 import { BinderPropertiesDialog, DeleteBinderDialog, type BinderChanges } from '@/components/binders/BinderWindows';
 import PopupWindow from '@/components/PopupWindow';
+import ShelfSelectionBar from '@/components/binders/ShelfSelectionBar';
+import { cardsInBinders, resetBinders } from '@/lib/resetValue';
 import { ShelfSortBar, isOwnOrder, useShelfSort } from '@/components/ShelfSort';
 import { sortShelf } from '@/lib/shelfSort';
 import { markOpened, stampsFor } from '@/lib/shelfStamps';
@@ -83,14 +87,22 @@ import { cardsForCollection, placeInBinder } from '@/lib/collectionImport';
 import { readImportSource, summaryText } from '@/lib/deckImportRun';
 import { RADIUS } from '@/theme/colors';
 
-// The three boxes along the bottom of the screen that a binder picked up
-// with a finger can be dropped on
-type Zone = 'edit' | 'copy' | 'delete';
-const ZONES: { zone: Zone; label: string; icon: 'create-outline' | 'copy-outline' | 'trash-outline' }[] = [
+// The five small boxes along the bottom of the screen that a binder picked up
+// with a finger can be dropped on: Edit, Copy, Reset value (every card's added price
+// becomes today's price), Delete, and Select multiple (starts picking several binders)
+type Zone = 'edit' | 'copy' | 'reset' | 'delete' | 'select';
+const ZONES: { zone: Zone; label: string; icon: 'create-outline' | 'copy-outline' | 'refresh-outline' | 'trash-outline' | 'checkmark-circle-outline' }[] = [
   { zone: 'edit', label: 'Edit', icon: 'create-outline' },
   { zone: 'copy', label: 'Copy', icon: 'copy-outline' },
+  { zone: 'reset', label: 'Reset value', icon: 'refresh-outline' },
   { zone: 'delete', label: 'Delete', icon: 'trash-outline' },
+  { zone: 'select', label: 'Select multiple', icon: 'checkmark-circle-outline' },
 ];
+
+// While a binder is held near the top or bottom edge of the shelf, the shelf scrolls by itself:
+// within EDGE points of the edge, faster the nearer it is (up to MAX_SCROLL points a frame)
+const EDGE = 90;
+const MAX_SCROLL = 16;
 
 // The shelf's binders: how wide each one is, and the space between them
 // across and down (points). Smaller on phones, so three fit across, and
@@ -157,10 +169,10 @@ export default function ShelfScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  // Binders picked with Ctrl held (their ids, in the order picked), and
-  // whether the "Copy or Delete" window for them is open
+  // Binders picked (their ids, in the order picked): by dropping a held binder on "Select multiple",
+  // or Ctrl-click on a computer. While any are picked, a tap picks or un-picks instead of opening, and
+  // a floating bar at the top has Edit, Copy, Reset value and Delete.
   const [selected, setSelected] = useState<string[]>([]);
-  const [selectionOpen, setSelectionOpen] = useState(false);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   // The binder the keyboard is on (its id), drawn with an outline: the arrow
@@ -171,7 +183,7 @@ export default function ShelfScreen() {
   // Ctrl let go: if binders were picked, ask what to do with them. Esc
   // drops the picks. (Computers only: see hooks/useCtrlSelect.)
   const { ctrlHeld } = useCtrlSelect(
-    () => { if (selectedRef.current.length > 0) setSelectionOpen(true); },
+    () => { /* the floating bar stays up with the picks */ },
     () => setSelected([]),
   );
   // Mouse or finger? (They drag binders differently: see BinderTile.)
@@ -195,6 +207,30 @@ export default function ShelfScreen() {
     window.addEventListener('touchmove', stopScrolling, { passive: false });
     return () => window.removeEventListener('touchmove', stopScrolling);
   }, [holding]);
+  // While a binder is held up, scroll the shelf by itself when it is near the top or bottom edge
+  // (never while it's over one of the boxes along the bottom)
+  const lifted = drag?.lifted === true;
+  useEffect(() => {
+    if (!lifted) return;
+    const timer = setInterval(() => {
+      const d = dragRef.current;
+      if (!d || !d.lifted || zoneAt(d)) return;
+      const y = d.absY - screenAt.current.y;
+      // The bottom edge is the top of the boxes (a mouse has none: the screen's bottom)
+      const bottom = withMouse || barTop.current === 0 ? screenHeight.current : barTop.current - 8;
+      let speed = 0;
+      if (y < EDGE) speed = -MAX_SCROLL * Math.min(1, (EDGE - y) / EDGE);
+      else if (bottom > 0 && y > bottom - EDGE) speed = MAX_SCROLL * Math.min(1, (y - (bottom - EDGE)) / EDGE);
+      if (speed === 0) return;
+      const to = Math.max(0, scrollY.current + speed);
+      if (to === scrollY.current) return;
+      scrollY.current = to;
+      listRef.current?.scrollToOffset({ offset: to, animated: false });
+      setDrag((now) => (now ? { ...now } : now));   // redraw, so the binders shift to the new landing spot
+    }, 16);
+    return () => clearInterval(timer);
+  }, [lifted]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   // One binder's height on the shelf, with its caption (measured as
   // they're drawn), when the last drag ended, the "hold for options"
   // countdown, and where the screen sits on the device's screen
@@ -205,6 +241,11 @@ export default function ShelfScreen() {
   const barTop = useRef(0);
   const zoneBoxes = useRef<Partial<Record<Zone, { x: number; y: number; w: number; h: number }>>>({});
   const dragEnded = useRef(0);
+  // How far the shelf is scrolled, and how far it was when the drag began (the shelf scrolls by itself
+  // while a binder is held near its edge, and the spot the binder would land in follows it)
+  const scrollY = useRef(0);
+  const scrollAtStart = useRef(0);
+  const screenHeight = useRef(0);
   const screenRef = useRef<ComponentRef<typeof View>>(null);
   const screenAt = useRef({ x: 0, y: 0 });
   // What the binders depend on besides the list (see the list's "extraData")
@@ -565,10 +606,32 @@ export default function ShelfScreen() {
     setSelected((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
   }
 
-  // The window that asks "Copy or Delete?" closed (any way): nothing stays picked
-  function closeSelection() {
-    setSelectionOpen(false);
-    setSelected([]);
+  /* ----- Reset value ----- */
+
+  // Ask first (it can't be undone), then make every card's added price today's price
+  async function resetValue(ids: string[]) {
+    const chosen = loadBinderList().filter((b) => ids.includes(b.id));
+    if (chosen.length === 0) return;
+    const cards = cardsInBinders(chosen.map((b) => b.id));
+    const what = chosen.length === 1 ? chosen[0].name : `${chosen.length} binders`;
+    const yes = await askYesNo(
+      `Reset the value of ${cards} ${cards === 1 ? 'card' : 'cards'} in ${what}?`,
+      "Each card's added price becomes today's price, and the % changes start again from 0. This can't be undone.",
+      'Yes, reset', 'No',
+    );
+    if (!yes) return;
+    setAdding(true);
+    setMessage({ text: `Resetting ${what}…` });
+    try {
+      const { reset, skipped } = await resetBinders(chosen.map((b) => b.id));
+      setCardsChanged((n) => n + 1);
+      const text = `✓ Reset the value of ${reset} ${reset === 1 ? 'card' : 'cards'} in ${what}${skipped > 0 ? ` (${skipped} had no price today and kept their old one)` : ''}.`;
+      setMessage({ text });
+      announce(text.replace('✓ ', ''));
+    } catch (err) {
+      problem(err, "Couldn't reset the value.");
+    }
+    setAdding(false);
   }
 
   /* ----- Picking several binders with the keyboard ----- */
@@ -637,7 +700,7 @@ export default function ShelfScreen() {
       event.preventDefault();
       toggleCursor();
     } else if (event.key === 'Enter' && !onAButton) {
-      if (selected.length > 0) { event.preventDefault(); setSelectionOpen(true); }
+      if (selected.length > 0) { event.preventDefault(); }
       else if (cursor) { event.preventDefault(); openBinder(cursor); }
     } else if (event.key === 'Delete' || event.key === 'Backspace') {
       const ids = targetIds();
@@ -688,7 +751,7 @@ export default function ShelfScreen() {
     const start = spotAt(d.from);
     const stepY = tileHeight.current + gapY;
     const column = Math.min(columns - 1, Math.max(0, Math.round((start.x + d.dx) / (tile + gapX))));
-    const row = Math.max(0, Math.round((start.y + d.dy) / (stepY || 1)));
+    const row = Math.max(0, Math.round((start.y + d.dy + (scrollY.current - scrollAtStart.current)) / (stepY || 1)));
     return Math.min(binders.length - 1, row * columns + column);
   }
 
@@ -715,6 +778,7 @@ export default function ShelfScreen() {
   // Delete boxes appear along the bottom. A mouse picks it up once it moves.
   function startDrag(id: string, from: number, absX: number, absY: number) {
     screenRef.current?.measureInWindow((x, y) => { screenAt.current = { x, y }; });
+    scrollAtStart.current = scrollY.current;
     setDrag({ id, from, dx: 0, dy: 0, absX, absY, lifted: !withMouse });
     if (!withMouse) hapticTap();
   }
@@ -760,6 +824,8 @@ export default function ShelfScreen() {
     if (zone === 'edit') { setEditingId(d.id); return; }
     if (zone === 'copy') { copyBinders([d.id]); return; }
     if (zone === 'delete') { setDeletingId(d.id); return; }
+    if (zone === 'reset') { resetValue([d.id]); return; }
+    if (zone === 'select') { setSelected([d.id]); announce(`${binders.find((b) => b.id === d.id)?.name ?? 'Binder'} picked. Tap more binders to pick them.`); return; }
     const to = dropSpot(d);
     if (to !== d.from) moveBinderTo(d.id, to);
   }
@@ -801,7 +867,7 @@ export default function ShelfScreen() {
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                           keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       {/* The screen's own box, measured for the floating binder */}
-      <View ref={screenRef} style={styles.fill} collapsable={false}>
+      <View ref={screenRef} style={styles.fill} collapsable={false} onLayout={(event) => { screenHeight.current = event.nativeEvent.layout.height; }}>
       {/* The shelf: a FlatList with "numColumns" lays the binders out in
           rows of that many. ("key" makes it start fresh when the number
           across changes, like a phone turned sideways: a FlatList can't
@@ -816,6 +882,8 @@ export default function ShelfScreen() {
         numColumns={columns}
         columnWrapperStyle={columns > 1 ? [styles.shelfRow, { width: gridWidth, gap: gapX }] : undefined}
         scrollEnabled={!drag}
+        onScroll={(event) => { scrollY.current = event.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         data={shown}
         keyExtractor={(binder) => binder.id}
@@ -860,7 +928,7 @@ export default function ShelfScreen() {
               selected={selected.includes(binder.id)}
               cursor={binder.id === cursor}
               // With Ctrl held, a click picks the binder instead of opening it
-              onOpen={() => (ctrlHeld.current ? toggleSelected(binder.id) : openBinder(binder.id))}
+              onOpen={() => (ctrlHeld.current || selected.length > 0 ? toggleSelected(binder.id) : openBinder(binder.id))}
               onHold={() => { hapticTap(); setMenuId(binder.id); }}
               onEdit={() => setEditingId(binder.id)}
               onCopy={() => copyBinders([binder.id])}
@@ -884,7 +952,19 @@ export default function ShelfScreen() {
         </View>
       )}
 
-      {/* While a binder is held with a finger: three boxes along the bottom,
+      {/* While binders are picked: the floating bar over the top (Edit with one picked, Copy, Reset value, Delete) */}
+      {selected.length > 0 && !drag?.lifted && (
+        <ShelfSelectionBar
+          count={selected.length} noun="binder" busy={adding}
+          onEdit={() => { setEditingId(selected[0]); setSelected([]); }}
+          onCopy={() => { const ids = selected; setSelected([]); copyBinders(ids); }}
+          onReset={() => { const ids = selected; setSelected([]); resetValue(ids); }}
+          onDelete={() => { const ids = selected; setSelected([]); deleteBinders(ids); }}
+          onCancel={() => setSelected([])}
+        />
+      )}
+
+      {/* While a binder is held with a finger: five small boxes along the bottom,
           Edit on the left, Copy in the middle and a red Delete on the right.
           Let go over one to do it (Delete still asks "Are you sure?"); the
           box under the binder lights up. */}
@@ -906,8 +986,8 @@ export default function ShelfScreen() {
                   over && styles.zoneOver,
                 ]}
               >
-                <Ionicons name={icon} size={22} color={red ? '#ffffff' : colors.text} />
-                <Text style={[styles.zoneText, { color: red ? '#ffffff' : colors.text }]}>{label}</Text>
+                <Ionicons name={icon} size={24} color={red ? '#ffffff' : colors.text} />
+                <Text style={[styles.zoneText, { color: red ? '#ffffff' : colors.text }]} numberOfLines={2}>{label}</Text>
               </View>
             );
           })}
@@ -935,21 +1015,6 @@ export default function ShelfScreen() {
                     onPress={() => { setMenuId(null); copyBinders([menuBinder.id]); }} />
             <Button label="Delete" icon="trash-outline" kind="danger"
                     onPress={() => { setMenuId(null); setDeletingId(menuBinder.id); }} />
-          </View>
-        </PopupWindow>
-      )}
-      {/* Several binders picked with Ctrl: copy them or delete them */}
-      {selectionOpen && (
-        <PopupWindow title={`${selected.length} binder${selected.length === 1 ? '' : 's'} selected`} onClose={closeSelection}
-                     buttons={[{ label: 'Cancel', onPress: closeSelection, kind: 'secondary' }]}>
-          <Text style={[styles.selectionText, { color: colors.text }]}>
-            {binders.filter((b) => selected.includes(b.id)).map((b) => b.name).join(', ')}
-          </Text>
-          <View style={styles.menu}>
-            <Button label={selected.length === 1 ? 'Copy it' : 'Copy them'} icon="copy-outline" kind="secondary" disabled={adding}
-                    onPress={() => { const ids = selected; closeSelection(); copyBinders(ids); }} />
-            <Button label={selected.length === 1 ? 'Delete it' : 'Delete them'} icon="trash-outline" kind="danger"
-                    onPress={() => { const ids = selected; closeSelection(); deleteBinders(ids); }} />
           </View>
         </PopupWindow>
       )}
@@ -1164,10 +1229,10 @@ const styles = StyleSheet.create({
   // The floating copy of a dragged binder
   floating: { position: 'absolute', zIndex: 50 },
   // The Edit / Copy / Delete boxes along the bottom while a binder is held
-  zoneBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, padding: 12, zIndex: 60 },
-  zone: { flex: 1, minHeight: 64, borderRadius: RADIUS, borderWidth: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  zoneBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 6, padding: 10, zIndex: 60 },
+  zone: { flex: 1, minHeight: 64, borderRadius: RADIUS, borderWidth: 2, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 2 },
   zoneOver: { transform: [{ scale: 1.06 }] },
-  zoneText: { fontSize: 17, fontWeight: '700' },
+  zoneText: { fontSize: 10.5, fontWeight: '700', textAlign: 'center' },
   menu: { gap: 8 },
   // The names of the picked binders, above the Copy and Delete buttons
   selectionText: { fontSize: 15, lineHeight: 22, marginBottom: 12 },
