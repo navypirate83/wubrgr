@@ -795,7 +795,7 @@ export const helpTopics: HelpTopic[] = [
         three small picture buttons under the search bar switch between <Strong>Binder</Strong> (the open
         binder drawing), <Strong>List</Strong> (the list icon: a
         small picture, the name, the set and number, how many copies you have, and three price lines for one copy: what it is worth today, how
-        many percent that has changed since you added the card (green +, red -), and its price when added; on a phone the − 3 + bar moves under the card's name so everything has room) and <Strong>Grid</Strong> (the grid icon: card pictures side by side). The app remembers your choice
+        many percent that has changed since you added the card (green +, red -), and its price when added; on a phone the − 3 + bar moves under the card's name so everything has room) and <Strong>Grid</Strong> (the grid icon: card pictures side by side, each with a thin line under it: the set's symbol in its rarity colour, the set code and number, then the price store's symbol and the price of one copy; on small pictures the set code and store symbol drop away, then the number, so the price is always there). The app remembers your choice
         for the next binder you open, one for a phone-sized window and one for a wide screen, and
         saves it with your account so it follows you to your other devices.
         In the list and grid, the button at the right (it shows the sort in use, like <Strong>A–Z</Strong>) drops

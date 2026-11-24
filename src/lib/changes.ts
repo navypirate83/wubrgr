@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.7.6',
+    date: '2026-11-24',
+    lines: ["In the Grid view, each card now has a thin line under its picture: the set symbol in its rarity colour, the set code and number, then the price store's symbol and the price of one copy. On small pictures the set code and store symbol drop away first, then the number, so the price always stays."],
+  },
+  {
     version: '1.7.5',
     date: '2026-11-24',
     lines: ["The icons in a card's window (in a binder, a list or a deck) now have a small word under each one: Edit, Move, Add, Delete, and in a deck Main deck, Sideboard, Maybe and Commander (or Oathbreaker, Signature or Background)."],

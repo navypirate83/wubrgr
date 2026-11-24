@@ -42,7 +42,10 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { useColors } from '@/hooks/useTheme';
+import { useColors, useTheme } from '@/hooks/useTheme';
+import { useSettings } from '@/hooks/useSettings';
+import { STORE_ICONS } from '@/components/settings/PriceStorePicker';
+import { rarityColor } from '@/lib/rarity';
 import { usePinchZoom } from '@/hooks/usePinchZoom';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, setBinderGridZoom, zoomStepForWidth } from '@/lib/binderView';
 import { pictureSource } from '@/lib/http';
@@ -128,13 +131,15 @@ const CARD_RATIO = 88 / 63;
 const GRID_GAP = 10;
 // Below this width (points) the List view is "narrow" (a phone): the copies bar moves under the card's text
 const NARROW_LIST = 520;
+// The thin line under each grid picture (set symbol, number, store symbol and price): how tall it is, with its gap
+const INFO_HEIGHT = 15;
 
 export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
   // for the List view and for set header bars
-  const setIcons = useQuery({ queryKey: ['set-icons'], queryFn: loadSetIcons, enabled: mode === 'list' || !!headerOf });
+  const setIcons = useQuery({ queryKey: ['set-icons'], queryFn: loadSetIcons, enabled: mode === 'list' || mode === 'grid' || !!headerOf });
   // The grid's columns, and how wide each picture is
   const room = width - 2 * SPACE.l;
   const columns = mode === 'grid' ? Math.max(1, Math.floor((room + GRID_GAP) / (minTile + GRID_GAP))) : 1;
@@ -165,7 +170,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
   // Where each row starts (counted from the first row) and how tall it is,
   // for the Grid view, where every row's height is known exactly
   const layout = useMemo(() => {
-    const lengths = rows.map((row) => (row.kind === 'header' ? HEADER_HEIGHT : cardHeight));
+    const lengths = rows.map((row) => (row.kind === 'header' ? HEADER_HEIGHT : cardHeight + INFO_HEIGHT));
     const starts: number[] = [];
     let at = 0;
     lengths.forEach((length) => { starts.push(at); at += length + GRID_GAP; });
@@ -287,7 +292,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
       // is a row of cards; the cards start below the summary line.)
       getItemLayout={mode === 'grid' && summary.current.height > 0
         ? (_rows, row) => ({
-            length: layout.lengths[row] ?? cardHeight,
+            length: layout.lengths[row] ?? cardHeight + INFO_HEIGHT,
             offset: summary.current.y + summary.current.height + GRID_GAP + (layout.starts[row] ?? 0),
             index: row,
           })
@@ -330,7 +335,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         return (
           <View style={styles.gridRow}>
             {row.entries.map((item) => (
-              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />
+              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} price={prices.eachByKey.get(item.key)} currency={prices.currency} setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} />
             ))}
           </View>
         );
@@ -517,8 +522,11 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
 /* ---------------------------------------------------------------------
    ONE PICTURE IN THE GRID
    --------------------------------------------------------------------- */
-const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlighted, selected, onLongPick, missing, banned, gold }: {
+const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, currency, setIcon, highlighted, selected, onLongPick, missing, banned, gold }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; size: number;
+  price: number | null | undefined;    // one copy's price. undefined: not loaded yet; null: the store has none
+  currency: 'USD' | 'EUR';
+  setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
   highlighted: boolean;                // just added or selected: outlined
   selected: boolean;                   // picked in a selection: an orange check on the picture
   onLongPick?: (key: string) => void;  // a long press starts a selection
@@ -531,6 +539,8 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
   const count = cardCount(card);
   return (
     <View style={[{ width: size }, highlighted && { borderRadius: 8, boxShadow: `0px 0px 0px 3px ${colors.accent}` }]}>
+      {/* The picture and its copies bar together (the bar sits over the bottom of the picture, not of the whole tile) */}
+      <View>
       {/* The picture: tap it for the card's menu */}
       <Pressable
         accessibilityRole="button"
@@ -554,9 +564,59 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, highlig
           own (a bar laid over the card, the same as in a binder pocket) */}
       <CopiesBar name={card.name} count={count} style={styles.tileBar}
                  onFewer={() => onCopies(key, -1)} onMore={() => onCopies(key, 1)} />
+      </View>
+
+      {/* THE THIN LINE UNDER THE PICTURE: the set symbol (in the rarity's colour), the set code and number, then
+          the price store's symbol and one copy's price. It's kept as thin as it can be while still readable. */}
+      <TileInfo card={card} width={size} price={price} currency={currency} setIcon={setIcon} />
     </View>
   );
 });
+
+/* ---------------------------------------------------------------------
+   THE LINE UNDER A GRID PICTURE
+   Tries the whole line first: set symbol, "TRK · #553", store symbol, price.
+   If that would run into itself (a narrow picture), it takes the next simpler
+   one: set symbol, "#553" and price (no set code, no store symbol). If even that
+   would overlap, only the set symbol and the price are left. The price always stays.
+   How wide the text will be is worked out by a good guess from the number of letters
+   (so the choice is made before anything is drawn).
+   --------------------------------------------------------------------- */
+function TileInfo({ card, width, price, currency, setIcon }: {
+  card: BinderCard; width: number; price: number | null | undefined; currency: 'USD' | 'EUR'; setIcon: string | undefined;
+}) {
+  const colors = useColors();
+  const dark = useTheme() === 'dark';
+  const { priceStore } = useSettings();
+  const finish = finishOf(card);
+  // The size of the writing, a little smaller on narrow pictures (but never too small to read)
+  const font = Math.max(9, Math.min(11, Math.round(width / 12)));
+  const symbol = font + 1;
+  const number = `#${card.number}${finish === 'etched' ? '**' : finish === 'foil' ? '*' : ''}`;
+  const code = `${card.set.toUpperCase()} · ${number}`;
+  const cost = price === undefined ? '' : formatPrice(price, currency);
+  // A guess at how wide some text is (letters and numbers are about 0.6 of the font size across)
+  const guess = (text: string) => text.length * font * 0.6;
+  const GAP = 4;
+  const fitsFull = symbol + 3 + guess(code) + GAP + symbol + 3 + guess(cost) <= width;
+  const fitsNumber = symbol + 3 + guess(number) + GAP + guess(cost) <= width;
+  const step = fitsFull ? 0 : fitsNumber ? 1 : 2;
+  const tint = rarityColor(card.extra?.Rarity, colors, dark);
+  return (
+    <View style={styles.tileInfo} accessible accessibilityLabel={`${card.set.toUpperCase()} number ${card.number}${cost ? `, ${cost}` : ''}`}>
+      <View style={styles.tileInfoSet}>
+        {setIcon
+          ? <Image source={{ uri: setIcon }} style={{ width: symbol, height: symbol }} contentFit="contain" tintColor={tint} />
+          : <View style={{ width: symbol, height: symbol }} />}
+        {step < 2 ? <Text style={[styles.tileInfoText, { fontSize: font, color: colors.muted }]} numberOfLines={1}>{step === 0 ? code : number}</Text> : null}
+      </View>
+      <View style={styles.tileInfoPrice}>
+        {step === 0 && cost ? <Image source={STORE_ICONS[priceStore]} style={{ width: symbol, height: symbol, borderRadius: 2, backgroundColor: '#ffffff' }} contentFit="contain" /> : null}
+        <Text style={[styles.tileInfoText, { fontSize: font, color: colors.text, fontWeight: '600' }]} numberOfLines={1}>{cost}</Text>
+      </View>
+    </View>
+  );
+}
 
 // The look: rows with a thin line under each, and grid tiles with a tag
 const styles = StyleSheet.create({
@@ -597,6 +657,11 @@ const styles = StyleSheet.create({
   price: { textAlign: 'right', fontSize: 13, lineHeight: 15, fontVariant: ['tabular-nums'] },
   summary: { fontSize: 13, paddingBottom: SPACE.s, paddingTop: 2 },
   pressed: { opacity: 0.6 },
+  // The thin line under a grid picture: the set on the left, the price on the right
+  tileInfo: { height: INFO_HEIGHT - 2, marginTop: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4, overflow: 'hidden' },
+  tileInfoSet: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 },
+  tileInfoPrice: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 0 },
+  tileInfoText: { lineHeight: 13 },
   // A grid tile's bar sits over the bottom of the card
   tileBar: { position: 'absolute', left: 4, right: 4, bottom: 4 },
 });
