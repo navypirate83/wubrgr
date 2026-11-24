@@ -37,6 +37,7 @@ import { askYesNo, showMessage } from '@/lib/dialogs';
 import { changedSinceSync, syncQuietly } from '@/lib/serverSync';
 import { setMenuCollapsed } from '@/lib/menuPreference';
 import { sectionHref, shelfHref, shelfRootHref, type ShelfSection } from '@/lib/shelfMemory';
+import { finderHref } from '@/lib/finderMemory';
 import { signOut as serverSignOut } from '@/lib/session';
 import { askToClearDevice, clearDeviceData } from '@/lib/clearOnLogout';
 import { FULL_MENU_WIDTH, SLIM_MENU_WIDTH } from '@/lib/layoutSize';
@@ -177,7 +178,7 @@ export default function SideMenu({ style }: { style: 'slim' | 'full' }) {
         {hasPrism && <MenuItem slim={slim} sub label="PRISM" picture={PRISM_PICTURE} plain active={onPrism} onPress={() => goTo('prism', onPrism)} />}
       </View>
 
-      <MenuItem slim={slim} label="Card Finder" icon="search-outline" activeIcon="search" active={onSearch} onPress={() => router.navigate('/search')} />
+      <MenuItem slim={slim} label="Card Finder" icon="search-outline" activeIcon="search" active={onSearch} onPress={() => { if (!onSearch) router.navigate(finderHref() as never); }} />
       <MenuItem slim={slim} label="Scan" icon="camera-outline" activeIcon="camera" active={onScan} onPress={() => router.navigate('/scan')} />
       <MenuItem slim={slim} label="Settings" icon="settings-outline" activeIcon="settings" active={onSettings} onPress={() => router.navigate('/settings')} />
 

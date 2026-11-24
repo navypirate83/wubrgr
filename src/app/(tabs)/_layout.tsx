@@ -5,7 +5,8 @@
    Settings. (One more screen lives here without a tab of its own: the
    Admin's People page, so the tabs or side menu stay up on it.) Tapping a
    tab switches screens; each screen stays as you left it (scrolled
-   down, a search typed in) when you switch back. The Shelf tab takes you
+   down, a search typed in) when you switch back. The Card Finder tab takes you back to
+   the last place there (the Cards tab, the list of sets, or the set you were in). The Shelf tab takes you
    back to the last place you were in the shelf, or, if you're already inside
    a binder, list or deck, up to that part's main page (see lib/shelfMemory.ts).
    This is Expo Router's "Tabs": every file in this (tabs) folder is one
@@ -28,6 +29,7 @@ import SideMenu from '@/components/SideMenu';
 import { useMenuStyle } from '@/hooks/useMenuStyle';
 import { useColors } from '@/hooks/useTheme';
 import { shelfHref, shelfRootHref } from '@/lib/shelfMemory';
+import { finderHref } from '@/lib/finderMemory';
 import { mark } from '@/lib/scanner/crashTrail';
 
 // One tab's icon: an outline normally, filled in when it's the tab you're on
@@ -102,6 +104,16 @@ export default function TabsLayout() {
           title: 'Card Finder',
           tabBarIcon: tabIcon('search-outline', 'search'),
           headerRight: () => <HelpButton topic="finder" />,
+        }}
+        // Tapping it from another tab goes back to the last place in the Card Finder: the Cards
+        // tab, the list of sets, or the set you were looking in (see lib/finderMemory.ts). Tapping
+        // it while you're already there changes nothing.
+        listeners={{
+          tabPress: (event) => {
+            if (pathname === '/search') return;
+            event.preventDefault();
+            router.navigate(finderHref() as never);
+          },
         }}
       />
       {/* Scan: the card scanner (a camera drawn as an outline, like the other icons) */}

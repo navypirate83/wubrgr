@@ -57,6 +57,7 @@ import ShortcutsDialog, { type Shortcut } from '@/components/ShortcutsDialog';
 import SearchBox from '@/components/search/SearchBox';
 import CardGrid from '@/components/search/CardGrid';
 import FinderTabs, { type FinderTab } from '@/components/search/FinderTabs';
+import { rememberFinderPlace } from '@/lib/finderMemory';
 import SetsTab from '@/components/search/SetsTab';
 import CardPanel from '@/components/search/CardPanel';
 import { NoCardsFound, SearchError, Searching } from '@/components/search/SearchStates';
@@ -155,6 +156,8 @@ export default function CardFinderScreen() {
   // tab shows, so it's as you left it.
   const tab: FinderTab = addressValue(params.tab) === 'sets' ? 'sets' : 'cards';
   const showParam = addressValue(params.show) ?? null;
+  // Remember where you are, so the magnifying glass tab brings you back here (see lib/finderMemory.ts)
+  useEffect(() => { rememberFinderPlace(tab, showParam); }, [tab, showParam]);
   // Go to a tab: a new step for the back arrow
   // (Tapping Sets while already looking inside a set goes to the list of sets.)
   const goTab = (next: FinderTab) => {
