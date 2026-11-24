@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.7.5',
+    date: '2026-11-24',
+    lines: ["The icons in a card's window (in a binder, a list or a deck) now have a small word under each one: Edit, Move, Add, Delete, and in a deck Main deck, Sideboard, Maybe and Commander (or Oathbreaker, Signature or Background)."],
+  },
+  {
     version: '1.7.4',
     date: '2026-11-24',
     lines: ["On the Shelf, Lists and Decks pages, the floating bar for picked binders, lists or decks now sits over the search box and the Add buttons instead of floating above them, so nothing is left peeking out beside it."],

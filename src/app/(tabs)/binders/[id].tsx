@@ -1540,10 +1540,10 @@ function BinderView({ binderId }: { binderId: string }) {
           onOpenFinder={() => { const key = menuKey; setMenuKey(null); router.push(searchLinkFor(binderId, key, menuCard) as never); }}
           onClose={() => setMenuKey(null)}
           actions={[
-            { label: 'Move to another binder', picture: BINDER_ICON, plus: true, onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
-            { label: 'Add to a list', picture: LIST_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'list', key: menuKey }); setMenuKey(null); } },
-            { label: 'Add to a deck', picture: DECK_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'deck', key: menuKey }); setMenuKey(null); } },
-            { label: 'Remove from this binder', icon: 'trash-outline', kind: 'danger', onPress: () => { setRemovingKey(menuKey); setMenuKey(null); } },
+            { label: 'Move to another binder', short: 'Move', picture: BINDER_ICON, plus: true, onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
+            { label: 'Add to a list', short: 'Add', picture: LIST_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'list', key: menuKey }); setMenuKey(null); } },
+            { label: 'Add to a deck', short: 'Add', picture: DECK_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'deck', key: menuKey }); setMenuKey(null); } },
+            { label: 'Remove from this binder', short: 'Delete', icon: 'trash-outline', kind: 'danger', onPress: () => { setRemovingKey(menuKey); setMenuKey(null); } },
           ]}
         />
       )}

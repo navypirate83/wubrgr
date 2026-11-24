@@ -484,8 +484,8 @@ export default function ListScreen() {
           onOpenFinder={() => { const card = menuCard; setMenuIndex(null); router.push(finderLinkFor(id, card) as never); }}
           onClose={() => setMenuIndex(null)}
           actions={[
-            { label: 'Move to a binder', picture: BINDER_ICON, plus: true, onPress: () => moveToBinder(menuIndex) },
-            { label: 'Delete from list', icon: 'trash-outline', kind: 'danger', onPress: () => confirmDelete(menuIndex) },
+            { label: 'Move to a binder', short: 'Move', picture: BINDER_ICON, plus: true, onPress: () => moveToBinder(menuIndex) },
+            { label: 'Delete from list', short: 'Delete', icon: 'trash-outline', kind: 'danger', onPress: () => confirmDelete(menuIndex) },
           ]}
         />
       )}

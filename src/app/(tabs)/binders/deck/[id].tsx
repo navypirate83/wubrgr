@@ -816,20 +816,24 @@ export default function DeckScreen() {
               label: format.command.kind === 'oathbreaker'
                 ? ((menuCard.typeLine ?? '').includes('Planeswalker') ? 'Make Oathbreaker' : 'Make signature spell')
                 : 'Make commander',
+              // (the small word under the icon: Oathbreaker, Signature (spell), Background or Commander)
+              short: format.command.kind === 'oathbreaker'
+                ? ((menuCard.typeLine ?? '').includes('Planeswalker') ? 'Oathbreaker' : 'Signature')
+                : (menuCard.typeLine ?? '').includes('Background') ? 'Background' : 'Commander',
               icon: 'star-outline' as const, onPress: () => makeCommander(menuIndex),
             }] : []),
             /* Moving between the main deck, the sideboard (formats that have one) and the maybe board: one button for each place the card isn't in */
             ...(zoneOf(menuCard) !== 'command'
               ? (['main', 'side', 'maybe'] as const)
                 .filter((where) => where !== zoneOf(menuCard) && (where !== 'side' || format.sideboard > 0))
-                .map((where) => ({ label: `Move to ${ZONE_NAMES[where].toLowerCase()}`, icon: (where === 'main' ? 'arrow-up-outline' : where === 'side' ? 'arrow-down-outline' : 'help-circle-outline') as 'arrow-up-outline', onPress: () => moveCardTo(menuIndex, where) }))
+                .map((where) => ({ label: `Move to ${ZONE_NAMES[where].toLowerCase()}`, short: where === 'maybe' ? 'Maybe' : ZONE_NAMES[where], icon: (where === 'main' ? 'arrow-up-outline' : where === 'side' ? 'arrow-down-outline' : 'help-circle-outline') as 'arrow-up-outline', onPress: () => moveCardTo(menuIndex, where) }))
               : []),
             ...(zoneOf(menuCard) === 'command'
-              ? [{ label: 'Move to main deck', icon: 'arrow-up-outline' as const, onPress: () => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); } }] : []),
+              ? [{ label: 'Move to main deck', short: 'Main deck', icon: 'arrow-up-outline' as const, onPress: () => { const slot = menuCard.slot ?? 0; setMenuIndex(null); moveSlotToDeck(slot); } }] : []),
             /* A card you don't own (a solid red border), or a printing or finish (say foil) you don't own (a dashed border): add it to a binder (you own it, it's just not in your collection yet) or a list (a wishlist) */
             ...(marks.get(menuCard) === 'card' || marks.get(menuCard) === 'printing'
-              ? [{ label: 'Add to a binder/list', picture: BINDER_ICON, plus: true, onPress: () => addToCollection(menuIndex) }] : []),
-            { label: 'Delete from deck', icon: 'trash-outline' as const, kind: 'danger' as const, onPress: () => confirmDelete(menuIndex) },
+              ? [{ label: 'Add to a binder/list', short: 'Add', picture: BINDER_ICON, plus: true, onPress: () => addToCollection(menuIndex) }] : []),
+            { label: 'Delete from deck', short: 'Delete', icon: 'trash-outline' as const, kind: 'danger' as const, onPress: () => confirmDelete(menuIndex) },
           ]}
         >
           {/* The printings you own of this card (a dashed red border): tap one to use it */}

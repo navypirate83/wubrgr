@@ -982,7 +982,7 @@ export const helpTopics: HelpTopic[] = [
               open the card in the Card Finder). Under it (beside it on a wide window) come the card's name (with a <Strong>Foil</Strong> or <Strong>Etched</Strong> tag beside it; a card printed under another name shows that name, with "Real name" just under it), its set's symbol in
               the color of its rarity (red mythic, gold rare, silver uncommon, black common, purple special) with the set code and number, then the icon of your <Strong>Price store</Strong> (Settings) and the price of one copy, and a
               bar: language, condition, the binder's name with a small binder drawing, and, further along, a binder drawing with how many
-              copies of the card you own in all your binders. The icons along the bottom are the
+              copies of the card you own in all your binders. Each icon along the bottom has a small word under it (Edit, Move, Add, Delete, and in a deck Main deck, Sideboard, Maybe, Commander...). They are the
               <Strong> pencil</Strong> (Edit), the <Strong>binder with a +</Strong> (Move to another binder) and the red
               <Strong> trash can</Strong> (Remove from this binder, it asks first). <Strong>Edit</Strong> changes the <Strong>version</Strong> (the drop box at the top: tap it to see every printing of the card, 3 to 5 across, and type a set name, set code or number to narrow them; the picture, set and number change but your copies and condition stay), the copies
               (<Strong>−</Strong> and <Strong>+</Strong>), the <Strong>finish</Strong> (tap it to step through the finishes that

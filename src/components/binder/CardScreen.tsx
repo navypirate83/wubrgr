@@ -66,6 +66,7 @@ const WHERE_ICON = { binder: BINDER_ICON, list: LIST_ICON, deck: DECK_ICON };
 // One of the page's own icons (move to a binder, add to a list, add to a deck, delete...)
 export type CardScreenAction = {
   label: string;                                // read out by screen readers
+  short: string;                                // the one small word shown under the icon ("Move", "Add", "Delete"...)
   icon?: keyof typeof Ionicons.glyphMap;        // a standard icon...
   picture?: number;                             // ...or one of the app's own drawings (BINDER_ICON...)
   plus?: boolean;                               // a small + in the icon's lower-right corner
@@ -280,12 +281,12 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   // The row of icons, centered: Edit first, then the page's own, then the red trash can
   const iconRowEl = (
     <View style={[styles.iconRow, { borderTopColor: colors.border }]}>
-      <IconButton label="Edit this card" icon="create-outline" size={iconSize} onPress={() => setEditing(true)} />
+      <IconButton label="Edit this card" caption="Edit" icon="create-outline" size={iconSize} onPress={() => setEditing(true)} />
       {normalActions.map((action) => (
-        <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} />
+        <IconButton key={action.label} label={action.label} caption={action.short} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} />
       ))}
       {dangerActions.map((action) => (
-        <IconButton key={action.label} label={action.label} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} danger />
+        <IconButton key={action.label} label={action.label} caption={action.short} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} danger />
       ))}
     </View>
   );
@@ -564,14 +565,15 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
 /* ---------- small pieces ---------- */
 
 // One icon you tap in the row, with an optional small + in its lower-right corner
-function IconButton({ label, icon, picture, plus, danger, size, onPress }: {
-  label: string; icon?: keyof typeof Ionicons.glyphMap; picture?: number; plus?: boolean; danger?: boolean; size: number; onPress: () => void;
+function IconButton({ label, caption, icon, picture, plus, danger, size, onPress }: {
+  label: string; caption: string; icon?: keyof typeof Ionicons.glyphMap; picture?: number; plus?: boolean; danger?: boolean; size: number; onPress: () => void;
 }) {
   const colors = useColors();
   const color = danger ? colors.error : colors.text;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-      <View>
+      {/* (every icon area is the same height, so the words under them line up) */}
+      <View style={{ height: size + 2, justifyContent: 'center', alignItems: 'center' }}>
         {picture !== undefined
           ? <Image source={picture} style={{ width: Math.round(size * 1.08), height: Math.round(size * 0.92) }} contentFit="contain" tintColor={color} />
           : <Ionicons name={icon ?? 'help-outline'} size={size} color={color} />}
@@ -581,6 +583,8 @@ function IconButton({ label, icon, picture, plus, danger, size, onPress }: {
           </View>
         )}
       </View>
+      {/* The small word under the icon (screen readers read the button's full label instead) */}
+      <Text style={[styles.iconCaption, { color: danger ? colors.error : colors.muted }]} numberOfLines={1} adjustsFontSizeToFit importantForAccessibility="no" accessibilityElementsHidden>{caption}</Text>
     </Pressable>
   );
 }
@@ -652,7 +656,9 @@ const styles = StyleSheet.create({
   // pop-up keeps them together in the middle) and each is at least 40 wide, so five
   // or six still fit on a narrow phone
   iconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
-  iconButton: { flex: 1, maxWidth: 84, minWidth: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { flex: 1, maxWidth: 84, minWidth: 40, height: 62, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  // The small word under each icon
+  iconCaption: { fontSize: 10.5, fontWeight: '600', maxWidth: '100%', textAlign: 'center' },
   rulesInline: { gap: 6, marginTop: 4 },
   rulesInlineTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8 },
   rulesStrip: { minHeight: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 6 },
