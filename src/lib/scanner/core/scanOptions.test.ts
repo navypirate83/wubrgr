@@ -16,8 +16,14 @@ test('nothing saved gives the usual options, with no lock', () => {
 });
 
 test('good saved values are kept', () => {
-  const kept = cleanScanOptions({ lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false, aiArt: true });
-  assert.deepEqual(kept, { lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false, aiArt: true });
+  const kept = cleanScanOptions({ lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false, aiArt: true, sendPhotos: false });
+  assert.deepEqual(kept, { lockedSet: { code: 'dom', name: 'Dominaria' }, unsure: 'guess', startFinish: 'foil', showTimings: false, aiArt: true, sendPhotos: false });
+});
+
+test('sending photos for training is on until switched off, and junk counts as on', () => {
+  assert.equal(DEFAULT_SCAN_OPTIONS.sendPhotos, true);
+  assert.equal(cleanScanOptions({ sendPhotos: false }).sendPhotos, false);
+  assert.equal(cleanScanOptions({ sendPhotos: 'no' }).sendPhotos, true);
 });
 
 test('a bad value falls back to the usual one without spoiling the others', () => {

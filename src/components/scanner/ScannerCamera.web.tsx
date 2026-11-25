@@ -58,7 +58,7 @@ import { outlinePicturesInWorker } from '@/lib/scanner/ai/aiWorker.web';
 import { findOutlines, flatCard } from '@/lib/scanner/core/outlineFinder';
 import { getScanOptions } from '@/lib/scanner/scanSettings';
 import type { ScanReading, TrainingPhoto } from '@/lib/scanner/core/scannerTypes';
-import { hasTrainerAccess } from '@/lib/session';
+import { trainingOn } from '@/lib/scanner/trainerUpload';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
@@ -308,8 +308,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       const dark = brightness(source, card) < 45;
       const reading = ready ?? await readCard(source, card, looksLikeName);
       if (frameMs !== undefined) reading.timings = { frame: frameMs, ...reading.timings };
-      // For an account that sends photos for training, keep a small JPEG of this photo with the reading
-      if (hasTrainerAccess()) reading.photo = trainingPhoto(source, card);
+      // For an account that sends photos for training (and has that option on), keep a small JPEG of this photo with the reading
+      if (trainingOn()) reading.photo = trainingPhoto(source, card);
       // With "AI art matching" on, also leave a way to make the flat card pictures the AI looks at. It does its
       // slow work only if the scan turns out to need it, and the photo is let go with the reading afterwards.
       if (getScanOptions().aiArt) {

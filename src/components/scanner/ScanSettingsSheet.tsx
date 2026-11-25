@@ -15,6 +15,8 @@
      and has the Download button. With it off, or the files missing, nothing changes.
      It is only shown to accounts with AI scanner access (the AIScan right, or an admin); for everyone
      else this part of the sheet is not there at all, and the scanner never uses the AI.
+   - SEND PHOTOS FOR TRAINING (trainer accounts only, and admins): on by default; switch it off to stop the scanner making
+     and sending its photos for training (see lib/scanner/trainerUpload.ts). Not there for anyone else.
    Each change is saved straight away, on this device (see lib/scanner/scanSettings.ts).
    ===================================================================== */
 
@@ -150,7 +152,7 @@ function AiFilesStatus() {
 export default function ScanSettingsSheet({ options, onChange, onClose }: Props) {
   const colors = useColors();
   // Whether this account may use the AI at all (the AI part of the sheet is hidden if not)
-  const { hasAiScan } = useAccount();
+  const { hasAiScan, hasTrainer } = useAccount();
   // Every set in the catalogue (read once when the sheet opens), and whether the set list is open
   const [sets, setSets] = useState<SetInfo[]>([]);
   const [listOpen, setListOpen] = useState(false);
@@ -197,6 +199,15 @@ export default function ScanSettingsSheet({ options, onChange, onClose }: Props)
         </SettingBlock>
 
         <SwitchRow name="Show how long each scan took" value={options.showTimings} onChange={(showTimings) => onChange({ showTimings })} />
+
+        {/* Trainer accounts only: the switch for sending photos to train the scanner with */}
+        {hasTrainer && (
+          <SwitchRow
+            name="Send photos for training"
+            description="Sends the photos of scans it wasn't sure about, ones you changed or marked wrong, and ones it couldn't read, to the server to train the scanner with. Switch off to stop."
+            value={options.sendPhotos} onChange={(sendPhotos) => onChange({ sendPhotos })}
+          />
+        )}
 
         {/* AI art matching: only where this build can run the AI model (the website for now),
             and only for an account with AI scanner access */}

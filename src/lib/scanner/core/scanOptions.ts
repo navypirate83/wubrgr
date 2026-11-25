@@ -19,6 +19,8 @@
      artwork with the saved artworks using an AI model, which needs extra files
      downloaded once (see ai/). On by default (only for accounts with AI scanner access); with it off, or with the files
      missing, the scanner works exactly as before.
+   - sendPhotos: for accounts with the trainer right only: send the photos worth training on (unsure, corrected, "wrong", unread) to
+     the server automatically. On by default; with it off, no photo is made or sent (see ../trainerUpload.ts).
    The options are saved on the device (see ../scanSettings.ts). Anything
    saved that isn't one of these values is ignored and the usual choice is
    used instead.
@@ -36,6 +38,7 @@ export type ScanOptions = {
   startFinish: StartFinish;
   showTimings: boolean;
   aiArt: boolean;
+  sendPhotos: boolean;
 };
 
 // What every option is until it's changed
@@ -45,6 +48,7 @@ export const DEFAULT_SCAN_OPTIONS: ScanOptions = {
   startFinish: 'nonfoil',
   showTimings: true,
   aiArt: true,
+  sendPhotos: true,
 };
 
 // Turn whatever was saved (anything at all, even junk) into a proper set of options,
@@ -59,5 +63,6 @@ export function cleanScanOptions(raw: unknown): ScanOptions {
     startFinish: saved.startFinish === 'foil' ? 'foil' : 'nonfoil',
     showTimings: typeof saved.showTimings === 'boolean' ? saved.showTimings : DEFAULT_SCAN_OPTIONS.showTimings,
     aiArt: typeof saved.aiArt === 'boolean' ? saved.aiArt : DEFAULT_SCAN_OPTIONS.aiArt,
+    sendPhotos: typeof saved.sendPhotos === 'boolean' ? saved.sendPhotos : DEFAULT_SCAN_OPTIONS.sendPhotos,
   };
 }

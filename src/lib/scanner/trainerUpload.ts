@@ -12,6 +12,8 @@
    - A scan is sent again whenever its reason or its card changes, and the
      server keeps only the newest copy. If a "Wrong" tick is taken off a
      card the scanner was sure of, its photo is taken back off the server.
+   - The scanner options have a switch, "Send photos for training" (on by default, only shown to trainers); with it off
+     no photo is made or sent.
    - Nothing here ever stops or slows a scan: a photo that can't be sent is
      tried once more a little later, then left (the next change to the same
      card tries again), and no message is shown.
@@ -21,9 +23,14 @@
 
 import { apiRequest } from '@/lib/api';
 import { hasTrainerAccess } from '@/lib/session';
+import { getScanOptions } from './scanSettings';
 import { newScanId, type ScanItem } from './scanItems';
 import { trainingReason, type Said } from './core/training';
 import type { ScanReading, TrainingPhoto } from './core/scannerTypes';
+
+// Is this scanner sending photos? Only for an account with the trainer right, and only while "Send photos for training" in the
+// scanner options is on (the camera uses this too, so no photo is even made while it's off)
+export const trainingOn = (): boolean => hasTrainerAccess() && getScanOptions().sendPhotos;
 
 // What was last sent for each scan (its reason and card), so the same thing is never sent twice
 const sent = new Map<string, string>();
@@ -70,7 +77,7 @@ async function post(scanId: string, reason: string, photo: TrainingPhoto, extra:
 // Make sure the server has the right record for this card on the list (or none): called when the card
 // is added, changed or ticked "Wrong". It does nothing for an account without the trainer right.
 export async function syncTraining(item: ScanItem, retry = true): Promise<void> {
-  if (!hasTrainerAccess()) return;
+  if (!trainingOn()) return;
   const reason = trainingReason(item);
   const key = reason ? `${reason}|${item.printing.id}|${item.lang}` : '';
   const before = sent.get(item.id) ?? '';
@@ -100,7 +107,7 @@ export async function syncTraining(item: ScanItem, retry = true): Promise<void> 
 
 // A scan nothing could be read from: its photo is the most useful kind, so it is sent too (there's no card to go with it)
 export async function syncUnread(reading: ScanReading): Promise<void> {
-  if (!hasTrainerAccess()) return;
+  if (!trainingOn()) return;
   const photo = await reading.photo;
   if (!photo) return;
   const id = newScanId();
