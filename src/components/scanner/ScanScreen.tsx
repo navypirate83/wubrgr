@@ -96,7 +96,8 @@ export default function ScanScreen() {
   // the scanner opens, and saved again every time it changes, so refreshing the page or closing the app
   // doesn't lose it. If cards are waiting on it, the scanner opens in Stack mode, where the list's button is.
   const [items, setItems] = useState<ScanItem[]>(loadScanList);
-  const [mode, setMode] = useState<'one' | 'stack'>(() => (items.length > 0 ? 'stack' : 'one'));
+  // The scanner always opens in Stack mode (cards go onto the list); "One card" is a tap away
+  const [mode, setMode] = useState<'one' | 'stack'>('stack');
   useEffect(() => { saveScanList(items); }, [items]);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [picker, setPicker] = useState<PickerState | null>(null);

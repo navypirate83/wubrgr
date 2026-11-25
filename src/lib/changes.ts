@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.8.6',
+    date: '2026-11-25',
+    lines: ["The scanner now opens in Stack mode (one card after another onto the list) instead of One card. Tap One card to scan a single card at a time."],
+  },
+  {
     version: '1.8.5',
     date: '2026-11-24',
     lines: ["The sort on a set's cards in the Card Finder now has \"Card number\" (the order of the set, lowest first, or highest first when flipped) in place of \"Price change\"."],
