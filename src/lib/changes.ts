@@ -30,6 +30,11 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.8.4',
+    date: '2026-11-24',
+    lines: ["The sort on a set's cards in the Card Finder no longer offers \"Price change\" (Gainers/Losers), because price changes aren't tracked for every card in every set. A saved choice of it goes back to A to Z."],
+  },
+  {
     version: '1.8.3',
     date: '2026-11-24',
     lines: ["The magnifying glass (Card Finder) now takes you back to the last place you were in it, like the Shelf button does: the Cards tab, the list of sets, or the set you were looking in."],

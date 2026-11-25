@@ -3,8 +3,9 @@
    The view (a list or a grid) and the sort chosen on a set's page are
    remembered, like a binder's, so every set opens the way you left the
    last one, even after closing the app. One choice for all sets. The sorts
-   are the binder's without "Newest added" (these cards were never added)
-   and "Set" (they're all in the same set).
+   are the binder's without "Newest added" (these cards were never added),
+   "Set" (they're all in the same set) and "Price change" (not tracked for
+   every card in every set).
    They're kept on this device. (A binder's choices also travel with your
    account; these could be added to that later.)
    Plain TypeScript with no React in it.
@@ -15,8 +16,10 @@ import { listViewMode } from './binderView';
 import { BINDER_SORTS, canReverse, type BinderSort, type SortOption } from './binderSort';
 import type { BinderViewMode } from './binderViewTypes';
 
-// The sorts a set's page offers
-export const SET_SORTS: SortOption[] = BINDER_SORTS.filter((sort) => sort.value !== 'added' && sort.value !== 'set');
+// The sorts a set's page offers: the binder's, without "Newest added" (these cards were never added),
+// "Set" (they're all in the same set) and "Price change" (price changes aren't tracked for every card
+// in every set). A saved choice that's no longer offered falls back to A to Z (see setCardsSort).
+export const SET_SORTS: SortOption[] = BINDER_SORTS.filter((sort) => sort.value !== 'added' && sort.value !== 'set' && sort.value !== 'change');
 
 const VIEW_KEY = 'finderSetView';
 const SORT_KEY = 'finderSetSort';
