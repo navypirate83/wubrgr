@@ -5,7 +5,7 @@
    last one, even after closing the app. One choice for all sets. The sorts
    are the binder's without "Newest added" (these cards were never added),
    "Set" (they're all in the same set) and "Price change" (not tracked for
-   every card in every set).
+   every card in every set), plus "Card number" (their order in the set).
    They're kept on this device. (A binder's choices also travel with your
    account; these could be added to that later.)
    Plain TypeScript with no React in it.
@@ -13,13 +13,15 @@
 
 import { storageGet, storageSet } from './storage';
 import { listViewMode } from './binderView';
-import { BINDER_SORTS, canReverse, type BinderSort, type SortOption } from './binderSort';
+import { BINDER_SORTS, NUMBER_SORT, canReverse, type BinderSort, type SortOption } from './binderSort';
 import type { BinderViewMode } from './binderViewTypes';
 
 // The sorts a set's page offers: the binder's, without "Newest added" (these cards were never added),
 // "Set" (they're all in the same set) and "Price change" (price changes aren't tracked for every card
-// in every set). A saved choice that's no longer offered falls back to A to Z (see setCardsSort).
-export const SET_SORTS: SortOption[] = BINDER_SORTS.filter((sort) => sort.value !== 'added' && sort.value !== 'set' && sort.value !== 'change');
+// in every set), plus "Card number" (their place in the set), which sits after Price. A saved choice that's no longer offered falls back to A to Z (see setCardsSort).
+export const SET_SORTS: SortOption[] = BINDER_SORTS
+  .filter((sort) => sort.value !== 'added' && sort.value !== 'set' && sort.value !== 'change')
+  .flatMap((sort) => (sort.value === 'price' ? [sort, NUMBER_SORT] : [sort]));
 
 const VIEW_KEY = 'finderSetView';
 const SORT_KEY = 'finderSetSort';

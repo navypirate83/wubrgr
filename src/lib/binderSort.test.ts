@@ -27,3 +27,13 @@ test('the price change sort is in the menu, can be reversed, and PRISM does not 
   assert.ok(canReverse('change'));
   assert.ok(!PRISM_SORTS.some((s) => (s.value as string) === 'change'));
 });
+
+// The card number sort (only offered on a set's page): counts up like a person would (2 before 10, 12 before 12a)
+test('"Card number" sorts by collector number, can be reversed, and is not in the binder or PRISM menus', () => {
+  const numbered = ['10', '2', '12a', '12', '1'].map((number) => ({ key: number, card: { name: 'x', set: 'tst', number, face: 0, image: '' } }) as never);
+  assert.deepEqual(names(sortEntries(numbered, 'number')), ['1', '2', '10', '12', '12a']);
+  assert.deepEqual(names(sortEntries(numbered, 'number', true)), ['12a', '12', '10', '2', '1']);
+  assert.equal(canReverse('number'), true);
+  assert.ok(!BINDER_SORTS.some((s) => s.value === 'number'));
+  assert.ok(!PRISM_SORTS.some((s) => s.value === 'number'));
+});

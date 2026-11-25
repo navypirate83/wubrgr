@@ -44,7 +44,7 @@ import { colorsOf, manaValueOf, storedDetails, typeLineOf, type StoredDetails } 
 // A card in the list, and the pocket it's in
 export type SortEntry = { key: string; card: BinderCard };
 
-export type BinderSort = 'name' | 'added' | 'price' | 'change' | 'color' | 'set' | 'type' | 'rarity' | 'value';
+export type BinderSort = 'name' | 'added' | 'price' | 'change' | 'color' | 'set' | 'type' | 'rarity' | 'value' | 'number';
 
 // The sorts, in the order the menu lists them. Each has its name in the
 // menu and the short word on the Sort button, in its usual direction and
@@ -67,6 +67,9 @@ export const BINDER_SORTS: SortOption[] = [
   { value: 'rarity', name: 'Rarity (rarest first)', short: 'Rarest', reversedName: 'Rarity (most common first)', reversedShort: 'Common' },
   { value: 'value', name: 'Mana value (lowest first)', short: 'Low mana', reversedName: 'Mana value (highest first)', reversedShort: 'High mana' },
 ];
+// The collector-number sort. It's only offered on a set's page in the Card Finder (see setView.ts), so
+// it isn't in the binder menu above: in a binder the cards come from many sets, where it means little.
+export const NUMBER_SORT: SortOption = { value: 'number', name: 'Card number (lowest first)', short: 'Low #', reversedName: 'Card number (highest first)', reversedShort: 'High #' };
 export const DEFAULT_BINDER_SORT: BinderSort = 'name';
 
 // PRISM's Cards tab has its own sorts: the usual ones without Price (a card has
@@ -75,7 +78,7 @@ export const DEFAULT_BINDER_SORT: BinderSort = 'name';
 //  - "Most shared, then by deck" ("decks"): the cards in the most decks first, counting down, then the
 //    cards only one deck uses, deck by deck in slot order (see prismOrder.ts). It has header bars.
 // ("shared" has no reverse and no header bars; "decks" has no reverse.)
-export type PrismSort = 'shared' | 'decks' | Exclude<BinderSort, 'price' | 'change'>;
+export type PrismSort = 'shared' | 'decks' | Exclude<BinderSort, 'price' | 'change' | 'number'>;
 export type PrismSortOption = { value: PrismSort; name: string; short: string; reversedName?: string; reversedShort?: string };
 export const PRISM_SORTS: PrismSortOption[] = [
   { value: 'shared', name: 'Shared first', short: 'Shared' },
@@ -99,7 +102,7 @@ export function cleanBinderSort(value: unknown): BinderSort {
 
 // Can this sort be reversed?
 export function canReverse(sort: BinderSort): boolean {
-  return BINDER_SORTS.find((s) => s.value === sort)?.reversedName !== undefined;
+  return [...BINDER_SORTS, NUMBER_SORT].find((s) => s.value === sort)?.reversedName !== undefined;
 }
 
 // What the sorting can look at besides the cards themselves: each card's
@@ -224,6 +227,10 @@ export function sortEntries(entries: SortEntry[], sort: BinderSort, reversed = f
       // no added price, no price today, or different money: last
       by((item) => priceChangeOf(item.entry.card.extra, context.prices?.get(item.entry.key), context.currency ?? 'USD')?.percent ?? undefined, -1);
       break;
+    case 'number':
+      // By collector number, counting up (2 before 10; 12a after 12); ties by name
+      list.sort((a, b) => a.entry.card.number.localeCompare(b.entry.card.number, undefined, { numeric: true }) * direction || byName(a.entry, b.entry));
+      break;
     case 'color':
       by((item) => (item.details.colors ? colorGroup(item.details.colors, item.details.type) : undefined));
       break;
@@ -258,7 +265,7 @@ export function sortEntries(entries: SortEntry[], sort: BinderSort, reversed = f
    - type:  the name of the type (Creature, Instant, ...)
    - set:   the set's symbol, its code and its name
    - value: the mana value as a number symbol ({0}, {1}, ...)
-   - added, price, change and rarity: no headers
+   - added, price, change, number and rarity: no headers
    A card whose details haven't arrived yet goes under "Unknown".
    --------------------------------------------------------------------- */
 
