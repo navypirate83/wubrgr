@@ -4,7 +4,8 @@
    shown as a picture, not words: a list icon, a grid icon and the app's own
    open-binder drawing (the chosen one is filled in orange; screen readers
    still hear "List view", "Grid view" and "Binder view"). An opened card
-   list has no pockets, so it's given just List and Grid.
+   list has no pockets, so it's given just List and Grid. A set's page in the Card Finder adds a fourth, the
+   gray-out grid (a checklist icon): a grid with the cards you don't own grayed out.
    Between them and the Sort / Clean-up side can come a few small tool buttons
    the screen hands in ("extras": the binder's import and download
    buttons, the list's download button): see ToolButton below. They sit in
@@ -39,7 +40,7 @@ import { GRID_ZOOM_WIDTHS, binderGridZoom, chooseBinderSort, onGridZoomChange, s
 import { BINDER_SORTS, type BinderSort, type SortOption } from '@/lib/binderSort';
 import CleanUpMenu, { type CleanUpChoice } from './CleanUpMenu';
 import SortButton from './SortButton';
-import type { BinderViewMode } from '@/lib/binderViewTypes';
+import type { BinderViewMode, ViewMode } from '@/lib/binderViewTypes';
 import { RADIUS } from '@/theme/colors';
 
 // The binder drawing used for the Binder view's button (the same one as the
@@ -48,22 +49,24 @@ const BINDER_PICTURE = require('../../../assets/images/binder-outline.svg') as n
 
 // The three views, in the order they show: each one's name (for screen
 // readers) and its picture (an Ionicons icon, or null for the binder drawing)
-const VIEWS: { mode: BinderViewMode; label: string; icon: keyof typeof Ionicons.glyphMap | null }[] = [
+const VIEWS: { mode: ViewMode; label: string; icon: keyof typeof Ionicons.glyphMap | null }[] = [
   { mode: 'list', label: 'List', icon: 'list' },
   { mode: 'grid', label: 'Grid', icon: 'grid-outline' },
   { mode: 'binder', label: 'Binder', icon: null },
+  { mode: 'checklist', label: 'Grid with unowned cards grayed out', icon: 'checkbox-outline' },
 ];
 
 type Props = {
-  mode: BinderViewMode;
+  mode: ViewMode;
   sort: BinderSort;
   reversed: boolean;       // the sort is the other way round
   onSort?: (sort: BinderSort) => void;   // a sort was picked (binders by default; lists and decks give their own)
   // Which views to offer (a binder has all three; a card list just List and
   // Grid), and what to do when one is picked (a binder and a card list each
   // remember their own choice)
-  modes?: BinderViewMode[];
-  onView?: (mode: BinderViewMode) => void;
+  modes?: ViewMode[];
+  // (written as a method so a screen whose handler only knows the three binder views can still be given here)
+  onView?(mode: ViewMode): void;
   // Clean-up (Binder view): called when something is picked from its menu, whether there are gaps to
   // close, and whether the prices have arrived (the price sorts wait for them)
   onCleanUp?: (choice: CleanUpChoice) => void;
@@ -92,7 +95,7 @@ export function ToolButton({ icon, label, onPress }: { icon: keyof typeof Ionico
   );
 }
 
-export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinderSort, modes, onView = setBinderViewMode, onCleanUp, canCleanUp = false, pricesReady = false, extras, sorts = BINDER_SORTS }: Props) {
+export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinderSort, modes, onView = (picked) => { if (picked !== 'checklist') setBinderViewMode(picked); }, onCleanUp, canCleanUp = false, pricesReady = false, extras, sorts = BINDER_SORTS }: Props) {
   const colors = useColors();
   // How far the grid is zoomed (a step from 0, the smallest pictures)
   const zoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
@@ -104,14 +107,14 @@ export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinder
       <View style={styles.left}>
       {/* One small button per view: the chosen one is filled with the accent color */}
       <View style={styles.views} accessibilityRole="tablist">
-        {VIEWS.filter((view) => !modes || modes.includes(view.mode)).map((view) => {
+        {VIEWS.filter((view) => (modes ? modes.includes(view.mode) : view.mode !== 'checklist')).map((view) => {
           const on = view.mode === mode;
           return (
             <Pressable
               key={view.mode}
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
-              accessibilityLabel={`${view.label} view`}
+              accessibilityLabel={view.mode === 'checklist' ? view.label : `${view.label} view`}
               onPress={() => onView(view.mode)}
               style={({ pressed }) => [
                 styles.button,
@@ -137,7 +140,7 @@ export default function ViewSwitch({ mode, sort, reversed, onSort = chooseBinder
           with its menu dropping down */}
       {mode !== 'binder' && (
         <View style={styles.right}>
-          {mode === 'grid' && Platform.OS === 'web' && (
+          {(mode === 'grid' || mode === 'checklist') && Platform.OS === 'web' && (
             <View style={styles.zoom} accessibilityRole="toolbar" accessibilityLabel="Zoom the cards">
               <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" accessibilityState={{ disabled: zoom <= 0 }}
                          disabled={zoom <= 0} onPress={() => zoomBinderGrid(-1)}

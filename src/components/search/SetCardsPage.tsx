@@ -1,14 +1,18 @@
 /* =====================================================================
    ONE SET'S CARDS (the Card Finder's Sets tab, after tapping a set)
-   Every card in the set, as a list or a grid, with the same buttons as an
-   opened binder: the List / Grid switch (and the zoom, on the website) and
-   the Sort button. The sorts are the binder's, without "Newest added" (these
+   Every card in the set, as a list, a grid or the gray-out grid, with the same buttons as an
+   opened binder: the view switch (and the zoom, on the website) and
+   the Sort button. The grids stretch with the window, like a binder's. The sorts are the binder's, without "Newest added" (these
    cards were never added) and without "Set" (they're all in the same set).
    The cards are set up like binder cards (so the same List and Grid drawing
    is used), but they're not yours, so there are no copies bars. Tapping a
    card hands it to the screen, which opens it in the Card Finder.
    The view and the sort are remembered (on this device, like a binder's), so every
    set opens the way you left the last one (see lib/setView.ts).
+   WHAT YOU OWN (cards in your binders; see lib/setOwned.ts): the "Owned first" sort puts them first (flip it for the
+   missing ones first), with "Owned" / "Not owned" header bars, and a third view button, the gray-out grid (a
+   checklist), draws a grid with the cards you don't own grayed out and a small ×2 tag on the ones you have.
+   It's worked out again each time this page comes back on screen, so cards just added show.
    There's no "back" button here: the header's back arrow does that (the open set is in the page's address).
    Everything the sorts and prices need is in the downloaded cards already,
    so it's put where the price lookup looks first, instead of asking again.
@@ -31,8 +35,9 @@ import type { BinderCard } from '@/lib/binderStorage';
 import { PRICE_NOTE, CURRENCY_NOTE } from '@/lib/addedPrice';
 import { binderCardFrom } from '@/lib/cardDrop';
 import { loadSetCards, type ScryfallCard } from '@/lib/scryfall';
+import { ownedCopies, ownedKeyOf } from '@/lib/setOwned';
 import { plural } from '@/lib/cards';
-import { MAX_CONTENT_WIDTH, SPACE } from '@/theme/colors';
+import { SPACE } from '@/theme/colors';
 
 // A set's card, set up like a binder card for the List and Grid. Its "added" day and price are left
 // off, because the card was never added: no "price when added" line, no percent change.
@@ -47,12 +52,14 @@ function asBinderCard(card: ScryfallCard): BinderCard {
 type Props = {
   set: { code: string; name: string; count: number; icon: string | undefined };
   onPickCard: (card: ScryfallCard) => void;
+  visible?: boolean;       // is the Sets tab showing? (It stays drawn, hidden, while another tab shows, so what you own is looked at again when it comes back.)
 };
 
-export default function SetCardsPage({ set, onPickCard }: Props) {
+export default function SetCardsPage({ set, onPickCard, visible = true }: Props) {
   const colors = useColors();
   const queryClient = useQueryClient();
-  const contentWidth = Math.min(useContentWidth(), MAX_CONTENT_WIDTH + 2 * SPACE.l);
+  // The whole room beside the side menu, with no cap, so the grid stretches with the browser window like a binder's does
+  const contentWidth = useContentWidth();
   const gridZoom = useSyncExternalStore(onGridZoomChange, binderGridZoom, binderGridZoom);
   const headersOn = useSyncExternalStore(onBinderViewChange, sortHeadersOn, sortHeadersOn);
 
@@ -81,14 +88,18 @@ export default function SetCardsPage({ set, onPickCard }: Props) {
     [cards.data],
   );
   const prices = useBinderPrices(all);
+  // What's in your binders (read again whenever this page comes back on screen)
+  const owned = useMemo(() => (visible ? ownedCopies() : new Map<string, number>()), [visible, cards.data]);
   const entries = useMemo(
-    () => sortEntries(all, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency }),
-    [all, sort, reversed, prices.printings, prices.eachByKey, prices.currency],
+    () => sortEntries(all, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency, owned }),
+    [all, sort, reversed, prices.printings, prices.eachByKey, prices.currency, owned],
   );
   const headerOf = useMemo(
-    () => (headersOn ? (entry: CardEntry) => headerFor(entry, sort, { printings: prices.printings }) : undefined),
-    [headersOn, sort, prices.printings],
+    () => (headersOn ? (entry: CardEntry) => headerFor(entry, sort, { printings: prices.printings, owned }) : undefined),
+    [headersOn, sort, prices.printings, owned],
   );
+  // The gray-out grid: how many copies of a card you own
+  const ownedOf = useMemo(() => (mode === 'checklist' ? (card: BinderCard) => owned.get(ownedKeyOf(card)) ?? 0 : undefined), [mode, owned]);
 
   return (
     <View style={styles.fill}>
@@ -100,7 +111,7 @@ export default function SetCardsPage({ set, onPickCard }: Props) {
 
       {/* The same buttons as in a binder: List / Grid, zoom, Sort */}
       <View style={styles.tools}>
-        <ViewSwitch mode={mode} sort={sort} reversed={reversed} sorts={SET_SORTS} onSort={chooseSetSort} modes={['list', 'grid']} onView={chooseSetView} />
+        <ViewSwitch mode={mode} sort={sort} reversed={reversed} sorts={SET_SORTS} onSort={chooseSetSort} modes={['list', 'grid', 'checklist']} onView={chooseSetView} />
       </View>
 
       {cards.isError ? (
@@ -115,7 +126,8 @@ export default function SetCardsPage({ set, onPickCard }: Props) {
         <View style={styles.fill}>
           <CardList
             entries={entries}
-            mode={mode === 'grid' ? 'grid' : 'list'}
+            mode={mode === 'list' ? 'list' : 'grid'}
+            ownedOf={ownedOf}
             width={contentWidth}
             onPick={(key) => onPickCard(cards.data![Number(key)])}
             onCopies={() => { /* these cards aren't yours: no copies */ }}

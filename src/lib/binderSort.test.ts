@@ -5,7 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BINDER_SORTS, PRISM_SORTS, canReverse, sortEntries } from './binderSort.ts';
+import { BINDER_SORTS, PRISM_SORTS, canReverse, headerFor, sortEntries } from './binderSort.ts';
 
 // A card that was added at the given price (none: no price written), keyed by its name
 const card = (name: string, added?: string, currency?: string) => ({
@@ -36,4 +36,17 @@ test('"Card number" sorts by collector number, can be reversed, and is not in th
   assert.equal(canReverse('number'), true);
   assert.ok(!BINDER_SORTS.some((s) => s.value === 'number'));
   assert.ok(!PRISM_SORTS.some((s) => s.value === 'number'));
+});
+
+// The owned sort (only offered on a set's page): the cards in your binders first, each group in card-number order
+test('"Owned first" puts the cards you own first (flipped: the missing ones), each group by card number, with Owned / Not owned headers', () => {
+  const cards = ['5', '2', '10', '1', '7'].map((number) => ({ key: number, card: { name: 'x', set: 'trk', number, face: 0, image: '' } }) as never);
+  const owned = new Map([['trk/10', 2], ['trk/2', 1]]);
+  assert.deepEqual(names(sortEntries(cards, 'owned', false, { owned })), ['2', '10', '1', '5', '7']);
+  assert.deepEqual(names(sortEntries(cards, 'owned', true, { owned })), ['1', '5', '7', '2', '10']);
+  assert.equal(canReverse('owned'), true);
+  assert.ok(!BINDER_SORTS.some((s) => s.value === 'owned'));
+  assert.ok(!PRISM_SORTS.some((s) => s.value === 'owned'));
+  const group = (key: string) => headerFor(cards.find((c: { key: string }) => c.key === key) as never, 'owned', { owned });
+  assert.deepEqual([group('10'), group('1')].map((h) => (h as { text: string }).text), ['Owned', 'Not owned']);
 });

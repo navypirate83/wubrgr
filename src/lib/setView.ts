@@ -5,7 +5,9 @@
    last one, even after closing the app. One choice for all sets. The sorts
    are the binder's without "Newest added" (these cards were never added),
    "Set" (they're all in the same set) and "Price change" (not tracked for
-   every card in every set), plus "Card number" (their order in the set).
+   every card in every set), plus "Card number" (their order in the set) and
+   "Owned first" (the cards in your binders first). The view can also be the
+   gray-out grid ("checklist"): a grid with the cards you don't own grayed out.
    They're kept on this device. (A binder's choices also travel with your
    account; these could be added to that later.)
    Plain TypeScript with no React in it.
@@ -13,15 +15,15 @@
 
 import { storageGet, storageSet } from './storage';
 import { listViewMode } from './binderView';
-import { BINDER_SORTS, NUMBER_SORT, canReverse, type BinderSort, type SortOption } from './binderSort';
-import type { BinderViewMode } from './binderViewTypes';
+import { BINDER_SORTS, NUMBER_SORT, OWNED_SORT, canReverse, type BinderSort, type SortOption } from './binderSort';
+import type { ViewMode } from './binderViewTypes';
 
 // The sorts a set's page offers: the binder's, without "Newest added" (these cards were never added),
 // "Set" (they're all in the same set) and "Price change" (price changes aren't tracked for every card
-// in every set), plus "Card number" (their place in the set), which sits after Price. A saved choice that's no longer offered falls back to A to Z (see setCardsSort).
+// in every set), plus "Card number" (their place in the set) and "Owned first" (what's in your binders), which sit after Price. A saved choice that's no longer offered falls back to A to Z (see setCardsSort).
 export const SET_SORTS: SortOption[] = BINDER_SORTS
   .filter((sort) => sort.value !== 'added' && sort.value !== 'set' && sort.value !== 'change')
-  .flatMap((sort) => (sort.value === 'price' ? [sort, NUMBER_SORT] : [sort]));
+  .flatMap((sort) => (sort.value === 'price' ? [sort, NUMBER_SORT, OWNED_SORT] : [sort]));
 
 const VIEW_KEY = 'finderSetView';
 const SORT_KEY = 'finderSetSort';
@@ -38,12 +40,13 @@ function changed(): void {
 }
 
 // The view: what was chosen last; before any choice, the same as the card lists use
-export function setCardsView(): 'list' | 'grid' {
+export type SetView = 'list' | 'grid' | 'checklist';
+export function setCardsView(): SetView {
   const saved = storageGet(VIEW_KEY);
-  if (saved === 'list' || saved === 'grid') return saved;
+  if (saved === 'list' || saved === 'grid' || saved === 'checklist') return saved;
   return listViewMode() === 'grid' ? 'grid' : 'list';
 }
-export function chooseSetView(mode: BinderViewMode): void {
+export function chooseSetView(mode: ViewMode): void {
   if (mode === 'binder') return;   // no pockets here
   storageSet(VIEW_KEY, mode);
   changed();

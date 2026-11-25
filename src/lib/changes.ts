@@ -30,6 +30,15 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.9.1',
+    date: '2026-11-25',
+    lines: [
+      "A set's cards in the Card Finder can now be sorted \"Owned first\" (the cards in your binders first, then the ones you don't have; flip it for the missing ones first), with Owned and Not owned header bars.",
+      "A third view on a set's page, the checklist grid (the tick-box button): a grid that grays out the cards you don't own and puts a small \"×2\" tag on the ones you have. Foils count as owned; cards on lists and in decks don't.",
+      "A set's grid views now stretch with the browser window, like a binder's grid.",
+    ],
+  },
+  {
     version: '1.9.0',
     date: '2026-11-25',
     lines: [

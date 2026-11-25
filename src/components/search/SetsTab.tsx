@@ -130,6 +130,7 @@ export default function SetsTab({ visible, shownCode, onShow, onPickCard }: Prop
           key={shown.code}
           set={{ code: shown.code, name: shown.name, count: shown.count, icon: icons.data?.get(shown.code) ?? shown.icon }}
           onPickCard={onPickCard}
+          visible={visible}
         />
       )}
     </View>

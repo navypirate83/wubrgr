@@ -118,6 +118,9 @@ type Props = {
   gameChanger?: (card: BinderCard) => boolean;
   // Leave out the "- 3 +" copies bars (cards you don't own, like a whole set's cards in the Card Finder)
   noCopies?: boolean;
+  // The gray-out grid on a set's page: gives how many copies of a card you own. A card with none is drawn grayed out, and
+  // one you have gets a small "×2" tag on its corner. Leave it out for the usual grid.
+  ownedOf?: (card: BinderCard) => number;
 };
 
 // What the FlatList draws, one item per screen row: a header bar, or a
@@ -136,7 +139,7 @@ const NARROW_LIST = 520;
 // The thin line under each grid picture (set symbol, number, store symbol and price): how tall it is, with its gap
 const INFO_HEIGHT = 16;
 
-export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger, noCopies }: Props) {
+export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger, noCopies, ownedOf }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
@@ -337,7 +340,7 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         return (
           <View style={styles.gridRow}>
             {row.entries.map((item) => (
-              <GridTile key={item.key} entry={item} onPick={onPick} onCopies={onCopies} size={tile} price={prices.eachByKey.get(item.key)} currency={prices.currency} setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />
+              <GridTile key={item.key} entry={item} owned={ownedOf?.(item.card)} onPick={onPick} onCopies={onCopies} size={tile} price={prices.eachByKey.get(item.key)} currency={prices.currency} setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />
             ))}
           </View>
         );
@@ -525,8 +528,9 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
 /* ---------------------------------------------------------------------
    ONE PICTURE IN THE GRID
    --------------------------------------------------------------------- */
-const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, currency, setIcon, highlighted, selected, onLongPick, missing, banned, gold, noCopies }: {
+const GridTile = memo(function GridTile({ entry, owned, onPick, onCopies, size, price, currency, setIcon, highlighted, selected, onLongPick, missing, banned, gold, noCopies }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; size: number;
+  owned?: number;                      // the gray-out grid: how many copies you own (none: the tile is grayed out). Undefined: the usual grid.
   noCopies?: boolean;                  // no copies bar (cards you don't own)
   price: number | null | undefined;    // one copy's price. undefined: not loaded yet; null: the store has none
   currency: 'USD' | 'EUR';
@@ -542,7 +546,7 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, 
   const { card, key } = entry;
   const count = cardCount(card);
   return (
-    <View style={[{ width: size }, highlighted && { borderRadius: 8, boxShadow: `0px 0px 0px 3px ${colors.accent}` }]}>
+    <View style={[{ width: size }, owned === 0 && styles.notOwned, highlighted && { borderRadius: 8, boxShadow: `0px 0px 0px 3px ${colors.accent}` }]}>
       {/* The picture and its copies bar together (the bar sits over the bottom of the picture, not of the whole tile) */}
       <View>
       {/* The picture: tap it for the card's menu */}
@@ -562,6 +566,12 @@ const GridTile = memo(function GridTile({ entry, onPick, onCopies, size, price, 
         {missing && <MissingOutline radius={6} width={3} dashed={missing === 'printing'} inset={gold ? 3 : 0} />}
         {gold && <GameChangerBadge size={Math.max(8, Math.round(size * 0.1))} lift={26} />}
         {selected && <SelectedCheck size={Math.max(22, Math.round(size * 0.22))} />}
+        {/* The gray-out grid: how many copies you own, on the corner of a card you have */}
+        {owned !== undefined && owned > 0 && (
+          <View pointerEvents="none" style={[styles.ownedTag, { backgroundColor: colors.accent }]}>
+            <Text style={[styles.ownedTagText, { color: colors.accentText }]}>×{owned}</Text>
+          </View>
+        )}
       </Pressable>
 
       {/* The "− 3 +" bar along the bottom of the card: how many copies you
@@ -663,6 +673,10 @@ const styles = StyleSheet.create({
   price: { textAlign: 'right', fontSize: 13, lineHeight: 15, fontVariant: ['tabular-nums'] },
   summary: { fontSize: 13, paddingBottom: SPACE.s, paddingTop: 2 },
   pressed: { opacity: 0.6 },
+  // The gray-out grid: a card you don't own is faded and grayed (the grayscale filter where it's supported)
+  notOwned: { opacity: 0.35, filter: 'grayscale(1)' },
+  ownedTag: { position: 'absolute', top: 4, right: 4, minWidth: 22, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 999, alignItems: 'center' },
+  ownedTagText: { fontSize: 11, fontWeight: '800' },
   // The thin line under a grid picture: the set on the left, the price on the right
   tileInfo: { height: INFO_HEIGHT - 2, marginTop: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4, overflow: 'hidden' },
   tileInfoSet: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1, minWidth: 0 },

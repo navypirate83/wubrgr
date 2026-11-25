@@ -9,6 +9,8 @@
    ===================================================================== */
 
 export type BinderViewMode = 'list' | 'grid' | 'binder';
+// A set's page in the Card Finder has one more: "checklist", a grid with the cards you don't own grayed out (see setView.ts)
+export type ViewMode = BinderViewMode | 'checklist';
 export const DEFAULT_BINDER_VIEW: BinderViewMode = 'binder';
 
 // Keep only a real view name (anything else becomes the default)
