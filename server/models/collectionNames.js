@@ -27,4 +27,7 @@ export const COLLECTIONS = {
   // files too big for one document). GridFS makes two collections from this
   // name: "wubrgr_aifiles.files" and "wubrgr_aifiles.chunks".
   aiFilesBucket: 'wubrgr_aifiles',
+  // Scanner photos sent for training (see routes/training.js): GridFS again, so "wubrgr_training.files"
+  // (one document per photo, with what the scanner said and what the right card was) and "wubrgr_training.chunks"
+  trainingBucket: 'wubrgr_training',
 };

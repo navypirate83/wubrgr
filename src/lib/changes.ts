@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '1.9.0',
+    date: '2026-11-25',
+    lines: [
+      "New \"Trainer\" right (given on the Admin page; Admins have it). On the website, a trainer's scanner sends the photos it wasn't sure about, the ones where you changed the printing or language, and the ones it couldn't read to the server automatically, to train the scanner with later. Marking a card foil doesn't count.",
+      "In a trainer's scanned list every card has a small \"Wrong\" box: tap it on a card the scanner got wrong, and its photo is sent as well and the card comes off the list, like the cross does.",
+    ],
+  },
+  {
     version: '1.8.6',
     date: '2026-11-25',
     lines: ["The scanner now opens in Stack mode (one card after another onto the list) instead of One card. Tap One card to scan a single card at a time."],

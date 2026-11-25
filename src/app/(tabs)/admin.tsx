@@ -56,6 +56,7 @@ const FILTERS = [
   { id: 'admin', label: 'Admin' },
   { id: 'prism', label: 'PRISM' },
   { id: 'aiscan', label: 'AIScan' },
+  { id: 'trainer', label: 'Trainer' },
   { id: 'none', label: 'No extra rights' },
 ] as const;
 type FilterId = (typeof FILTERS)[number]['id'];

@@ -2,7 +2,7 @@
    WHO IS ASKING?
    requireAuth checks the login token on a request and says who it is.
    requireAdmin goes after it and lets only admins through; requirePrism and
-   requireAiScan let in accounts holding their own right (and admins, who have every right).
+   requireAiScan and requireTrainer let in accounts holding their own right (and admins, who have every right).
    ===================================================================== */
 
 import jwt from 'jsonwebtoken';
@@ -60,6 +60,12 @@ export function requirePrism(req, res, next) {
 // Only accounts with the AI scanner right (and admins, who have every right) may pass.
 export function requireAiScan(req, res, next) {
   if (!hasRight(req.user?.roles, 'aiscan')) return res.status(403).json({ error: 'AI scanner access required' });
+  return next();
+}
+
+// Only accounts with the trainer right (and admins, who have every right) may pass.
+export function requireTrainer(req, res, next) {
+  if (!hasRight(req.user?.roles, 'trainer')) return res.status(403).json({ error: 'Trainer access required' });
   return next();
 }
 

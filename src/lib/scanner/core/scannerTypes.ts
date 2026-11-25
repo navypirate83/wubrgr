@@ -21,7 +21,15 @@ export type ScanExtras = {
   artPreview?: string;                   // the art crop as a picture address, to show beside the candidates
 };
 
+// A small JPEG of the scan's photo, kept only for accounts with the "trainer" right (see lib/scanner/trainerUpload.ts):
+// the whole photo (at most about 1100 pixels on its longest side) and where the card was in it, as shares of its
+// width and height (0 to 1)
+export type TrainingPhoto = { jpeg: Blob; width: number; height: number; card: { x: number; y: number; w: number; h: number } };
+
 export type ScanReading = {
+  // Only the website's camera sets this, and only for a trainer: the photo this was read from, being made (it never fails: null
+  // when it couldn't be). Kept with the card on the scanned list (and not saved on the device) so it can be sent for training.
+  photo?: Promise<TrainingPhoto | null>;
   extras?: ScanExtras;
   infoText: string;        // the raw text of the bottom-left info line ("R 0123\nMOM • EN")
   nameText: string;        // the raw text of the title bar (the card's name)

@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
 import { accountVersion, onAccountChange } from '@/lib/accountEvents';
 import { isSignedIn, isUsingBinders } from '@/lib/googleDrive';
 import { isLocalMode } from '@/lib/binderStorage';
-import { getServerUser, hasAiScanAccess, hasPrismAccess, isAdminUser, isServerSignedIn } from '@/lib/session';
+import { getServerUser, hasAiScanAccess, hasPrismAccess, hasTrainerAccess, isAdminUser, isServerSignedIn } from '@/lib/session';
 
 export function useAccount() {
   // "useSyncExternalStore" is React's way to follow something kept
@@ -28,6 +28,8 @@ export function useAccount() {
     hasPrism: hasPrismAccess(),
     // May use the AI scanner files (accounts with the AI scanner right, and admins)
     hasAiScan: hasAiScanAccess(),
+    // The scanner sends its photos for training (accounts with the trainer right, and admins)
+    hasTrainer: hasTrainerAccess(),
     // May use the Admin page (only admins)
     isAdmin: isAdminUser(),
     localMode: isLocalMode(),

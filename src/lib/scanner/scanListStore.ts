@@ -6,12 +6,15 @@
    change to it is also saved on this device, and it is read back when
    the scanner opens.
    What is saved for each card: which printing it is, its language, finish
-   and number of copies, whether it still needs checking, and the other
-   printings it could be. Two things are left out to keep the saved list
+   and number of copies, whether it still needs checking, what the scanner
+   itself answered and whether "Wrong" was tapped (a trainer's), and the other
+   printings it could be. Three things are left out to keep the saved list
    small:
      - the photo clues (the grey pictures and the little art preview a scan
        carries). They are big, and only help while picking a printing right
        after the scan. A card restored later is picked without the preview.
+     - the small photo a trainer's scan carries (it is only kept while the page
+       is open, so a card restored later has none to send for training)
      - a very long list of "other printings" (a basic land has about a
        thousand). The picker then simply looks the card's printings up
        again by name.
@@ -41,6 +44,8 @@ function slim(item: ScanItem): ScanItem {
     flag: item.flag,
     candidates: keep ? item.candidates : [],
     matched: keep ? item.matched : undefined,
+    said: item.said,
+    wrong: item.wrong,
     // Only the words that were read, not the pictures or the "read more" helpers
     reading: item.reading
       ? { infoText: item.reading.infoText, nameText: item.reading.nameText, bottomText: item.reading.bottomText, takenAt: item.reading.takenAt }

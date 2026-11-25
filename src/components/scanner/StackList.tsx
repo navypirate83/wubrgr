@@ -9,6 +9,9 @@
    list, and "Clear all" at the top right empties the whole list in one go (the
    page that owns the list asks "are you sure?" first). At the bottom: "Keep
    scanning" and "Add N to binder".
+   A trainer's list (an account with the trainer right) also has a small "Wrong" box on each card that still has its
+   photo from this visit: tap it on a card the scanner got wrong, and the card's photo is sent to the server automatically
+   for training (lib/scanner/trainerUpload.ts) and the card comes off the list, like the cross does.
    ===================================================================== */
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -20,6 +23,8 @@ import type { ScanItem } from '@/lib/scanner/scanItems';
 
 type Props = {
   items: ScanItem[];
+  training?: boolean;                     // a trainer's list: show the "Wrong" box on cards that have their photo
+  onToggleWrong?: (item: ScanItem) => void;   // the "Wrong" box was tapped (the page sends the photo and takes the card off)
   onOpen: (item: ScanItem) => void;       // a row was tapped
   onRemove: (item: ScanItem) => void;
   onClear: () => void;                    // "Clear all" was tapped
@@ -27,7 +32,7 @@ type Props = {
   onClose: () => void;
 };
 
-export default function StackList({ items, onOpen, onRemove, onClear, onAdd, onClose }: Props) {
+export default function StackList({ items, training, onToggleWrong, onOpen, onRemove, onClear, onAdd, onClose }: Props) {
   const colors = useColors();
   const copies = items.reduce((sum, item) => sum + item.count, 0);
   const flagged = items.filter((item) => item.flag).length;
@@ -71,6 +76,17 @@ export default function StackList({ items, onOpen, onRemove, onClear, onAdd, onC
               {item.finish !== 'nonfoil' && <Text style={[styles.tag, { color: colors.muted, backgroundColor: colors.surfaceHover }]}>{item.finish === 'etched' ? 'ETCHED' : 'FOIL'}</Text>}
               {item.count > 1 && <Text style={[styles.tag, { color: colors.muted, backgroundColor: colors.surfaceHover }]}>×{item.count}</Text>}
             </Pressable>
+            {/* A trainer's "Wrong" box: tapping it sends the card's photo to the server to train the scanner with, and takes the card off the list */}
+            {training && item.reading?.photo && onToggleWrong && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${item.printing.name} is wrong. Sends its photo to train the scanner and takes it off the list.`}
+                hitSlop={6} onPress={() => onToggleWrong(item)} style={styles.wrong}
+              >
+                <Ionicons name="square-outline" size={20} color={colors.muted} />
+                <Text style={[styles.wrongText, { color: colors.muted }]}>Wrong</Text>
+              </Pressable>
+            )}
             <Pressable accessibilityRole="button" accessibilityLabel={`Take ${item.printing.name} off the list`} hitSlop={8} onPress={() => onRemove(item)} style={styles.remove}>
               <Ionicons name="close" size={20} color={colors.muted} />
             </Pressable>
@@ -107,6 +123,9 @@ const styles = StyleSheet.create({
   name: { fontSize: 14.5, fontWeight: '700' },
   line: { fontSize: 12.5 },
   tag: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
+  // The trainer's "Wrong" box: the box with the word under it
+  wrong: { alignItems: 'center', paddingHorizontal: 4 },
+  wrongText: { fontSize: 10, fontWeight: '700' },
   remove: { padding: 12 },
   footer: { flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: StyleSheet.hairlineWidth },
   grow: { flex: 1 },

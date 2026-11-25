@@ -110,7 +110,7 @@ export function getServerUser(): ServerUser | null {
 // Does this person hold the right? "admin" is the boss right and counts as every other one, so
 // an admin passes any check. A missing or damaged list (an old saved account, say) counts as
 // no rights at all. (The server checks every right again on each request.)
-export function hasRight(roles: unknown, right: 'admin' | 'prism' | 'aiscan'): boolean {
+export function hasRight(roles: unknown, right: 'admin' | 'prism' | 'aiscan' | 'trainer'): boolean {
   if (!Array.isArray(roles)) return false;
   return roles.includes('admin') || roles.includes(right);
 }
@@ -123,6 +123,11 @@ export function hasPrismAccess(who: ServerUser | null = user): boolean {
 // and so may admins. (The server checks it again on every download.)
 export function hasAiScanAccess(who: ServerUser | null = user): boolean {
   return hasRight(who?.roles, 'aiscan');
+}
+// Does this person's scanner send its unsure, corrected and "wrong" photos to the server for training? Accounts
+// with the "trainer" right do, and so do admins. (The server checks it again on every upload.)
+export function hasTrainerAccess(who: ServerUser | null = user): boolean {
+  return hasRight(who?.roles, 'trainer');
 }
 // Is this an admin? (Only admins see the Admin page; the server checks it again on every request.)
 export function isAdminUser(who: ServerUser | null = user): boolean {

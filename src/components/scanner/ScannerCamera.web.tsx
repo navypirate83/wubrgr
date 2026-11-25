@@ -57,7 +57,8 @@ import { aiCardPictures } from '@/lib/scanner/ai/aiPhoto.web';
 import { outlinePicturesInWorker } from '@/lib/scanner/ai/aiWorker.web';
 import { findOutlines, flatCard } from '@/lib/scanner/core/outlineFinder';
 import { getScanOptions } from '@/lib/scanner/scanSettings';
-import type { ScanReading } from '@/lib/scanner/core/scannerTypes';
+import type { ScanReading, TrainingPhoto } from '@/lib/scanner/core/scannerTypes';
+import { hasTrainerAccess } from '@/lib/session';
 import type { ScannerCameraProps } from './scannerCameraTypes';
 
 // The card shape on the screen (as a share of the camera area's height, and never wider than this share of its width)
@@ -171,6 +172,25 @@ function turnedCanvas(source: HTMLCanvasElement, degrees: 90 | 180 | 270): HTMLC
 }
 
 type Rect = { x: number; y: number; w: number; h: number };
+
+// A small JPEG of a scan's photo, for an account that sends photos for training (lib/scanner/trainerUpload.ts): the whole
+// picture shrunk to at most 1100 pixels on its longest side, and where the card is in it as shares of its width and height.
+// It is made while the next scan goes on, and never fails (null if it can't be made).
+function trainingPhoto(source: HTMLCanvasElement, card: Rect): Promise<TrainingPhoto | null> {
+  return new Promise((resolve) => {
+    try {
+      const scale = Math.min(1, 1100 / Math.max(source.width, source.height));
+      const small = document.createElement('canvas');
+      small.width = Math.max(1, Math.round(source.width * scale));
+      small.height = Math.max(1, Math.round(source.height * scale));
+      small.getContext('2d')!.drawImage(source, 0, 0, small.width, small.height);
+      const share = { x: card.x / source.width, y: card.y / source.height, w: card.w / source.width, h: card.h / source.height };
+      small.toBlob((jpeg) => resolve(jpeg ? { jpeg, width: small.width, height: small.height, card: share } : null), 'image/jpeg', 0.8);
+    } catch {
+      resolve(null);
+    }
+  });
+}
 // What the tracker currently sees: the card's corners (as fractions of the video picture), how far
 // through the hold-still wait it is (0 to 1), and whether it will scan when the wait is over
 type Found = { quad: Quad; hold: number; armed: boolean };
@@ -288,6 +308,8 @@ export default function ScannerCamera({ onReading, message, bar, paused, looksLi
       const dark = brightness(source, card) < 45;
       const reading = ready ?? await readCard(source, card, looksLikeName);
       if (frameMs !== undefined) reading.timings = { frame: frameMs, ...reading.timings };
+      // For an account that sends photos for training, keep a small JPEG of this photo with the reading
+      if (hasTrainerAccess()) reading.photo = trainingPhoto(source, card);
       // With "AI art matching" on, also leave a way to make the flat card pictures the AI looks at. It does its
       // slow work only if the scan turns out to need it, and the photo is let go with the reading afterwards.
       if (getScanOptions().aiArt) {

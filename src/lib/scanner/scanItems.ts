@@ -27,6 +27,7 @@ import { addCardsToDeck, type DeckCard } from '@/lib/deckStorage';
 import type { Finish } from '@/lib/cards';
 import type { Printing } from './core/catalogueTypes';
 import type { ScanReading } from './core/scannerTypes';
+import type { Said } from './core/training';
 
 export type ScanItem = {
   id: string;
@@ -38,6 +39,8 @@ export type ScanItem = {
   candidates: Printing[];               // the other printings it could be (for fixing it)
   matched?: number;                     // how many of the first candidates fit the clues (the rest are listed as "other printings")
   reading: ScanReading | null;
+  said?: Said;                          // what the scanner itself answered (to tell a later change from it: see core/training.ts)
+  wrong?: boolean;                      // marked "Wrong" in the list (a trainer's photo of it is sent for training)
 };
 
 let counter = 0;

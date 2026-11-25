@@ -15,7 +15,7 @@ import { rateLimit } from 'express-rate-limit';
 import { oneBigSaveAtATime } from './utils/bigSaves.js';
 import { loadConfig } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { requireAuth, requireAdmin, requirePrism, requireAiScan } from './middleware/auth.js';
+import { requireAuth, requireAdmin, requirePrism, requireAiScan, requireTrainer } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import bindersRouter from './routes/binders.js';
 import listsRouter from './routes/lists.js';
@@ -24,6 +24,7 @@ import settingsRouter from './routes/settings.js';
 import prismRouter from './routes/prism.js';
 import adminRouter from './routes/admin.js';
 import aiFilesRouter from './routes/aiFiles.js';
+import trainingRouter from './routes/training.js';
 import makeScryfallRouter from './routes/scryfall.js';
 import { createImportRouter } from './routes/importDeck.js';
 
@@ -120,6 +121,8 @@ app.put('/decks/:id/cards', requireAuth, oneBigSaveAtATime, express.json({ limit
 // A PRISM set with a lot painted can be large too (the route itself refuses a set over 2 MB)
 app.put('/prism/:clientId', requireAuth, requirePrism, express.json({ limit: '3mb' }));
 app.post('/binders/import', requireAuth, oneBigSaveAtATime, express.json({ limit: '10mb' }));
+// A scanner photo (a JPEG sent as text) for training: only trainers (and admins), checked BEFORE the photo is read
+app.post('/training', requireAuth, requireTrainer, express.json({ limit: '3mb' }));
 
 // Everything else: JSON bodies up to 100 KB
 app.use(express.json({ limit: '100kb' }));
@@ -148,6 +151,15 @@ app.use('/ai', rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests. Please wait a minute and try again.' },
 }), requireAuth, requireAiScan, aiFilesRouter);
+// Scanner photos for training (only accounts with the trainer right, and admins). Photos are small, but each
+// person gets their own limit of 60 a minute so a runaway loop can't fill the database.
+app.use('/training', rateLimit({
+  windowMs: 60 * 1000,
+  limit: Math.min(config.rateLimitMax, 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please wait a minute and try again.' },
+}), requireAuth, requireTrainer, trainingRouter);
 // Card information from Scryfall, for logged-in people only (each person
 // has their own limit per minute, so nobody can use up the shared allowance)
 app.use('/scryfall', requireAuth, makeScryfallRouter(config.scryfallRateLimitMax));

@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
     name: { type: String, trim: true, maxlength: 100 },
     // The special rights this account holds: any of "prism" (may see the PRISM
-    // section), "aiscan" (may download the AI scanner files) and "admin" (may manage
+    // section), "aiscan" (may download the AI scanner files), "trainer" (the scanner sends its unsure and corrected photos to be trained on) and "admin" (may manage
     // accounts, and counts as having every right). A normal account has none (an
     // empty list). Only an admin can change this, through the admin route; signing
     // up never sets it. The list can't hold repeats or unknown names.
@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator: (list) => list.every((item) => ALLOWED_ROLES.includes(item)) && new Set(list).size === list.length,
-        message: 'Rights must be prism, aiscan or admin, each at most once',
+        message: 'Rights must be prism, aiscan, trainer or admin, each at most once',
       },
     },
     // Google's own stable id for the person (only for Google sign-ins).

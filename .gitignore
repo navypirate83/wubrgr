@@ -63,3 +63,6 @@ scripts/scanner-lab/cache/
 # My own stripped-down copies of the code (kept on this computer only, never uploaded)
 code-only/
 server/code-only/
+
+# Scanner training photos downloaded by server/scripts/download-training.mjs (the photos and labels.json; never committed)
+scripts/catalogue/training/

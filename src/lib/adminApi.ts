@@ -14,9 +14,9 @@
 import { apiRequest } from './api';
 
 // The special rights an account can hold, in the order they are shown. An account can hold
-// any mix of them (or none). Admin includes PRISM and AIScan (and everything else).
-export type Right = 'prism' | 'aiscan' | 'admin';
-export const RIGHTS: Right[] = ['prism', 'aiscan', 'admin'];
+// any mix of them (or none). Admin includes PRISM, AIScan and Trainer (and everything else).
+export type Right = 'prism' | 'aiscan' | 'trainer' | 'admin';
+export const RIGHTS: Right[] = ['prism', 'aiscan', 'trainer', 'admin'];
 
 export type Person = {
   id: string;
@@ -32,11 +32,12 @@ export type Person = {
 type ServerPerson = { _id: string; email: string; username?: string; name?: string; roles?: unknown; createdAt?: string; lastAccessAt?: string };
 
 // The words for each right, shown on the page
-export const RIGHTS_LABEL: Record<Right, string> = { prism: 'PRISM', aiscan: 'AIScan', admin: 'Admin' };
+export const RIGHTS_LABEL: Record<Right, string> = { prism: 'PRISM', aiscan: 'AIScan', trainer: 'Trainer', admin: 'Admin' };
 export const RIGHTS_ABOUT: Record<Right, string> = {
   prism: 'The PRISM section.',
   aiscan: 'The AI art matching option in the scanner (it downloads the AI files).',
-  admin: 'Everything: PRISM and AIScan included, plus the Admin page.',
+  trainer: 'The website scanner sends its unsure, corrected and "wrong" photos to the server, to train the scanner with.',
+  admin: 'Everything: PRISM, AIScan and Trainer included, plus the Admin page.',
 };
 
 const PAGE = 100;       // the server sends at most 100 people at a time

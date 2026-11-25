@@ -1,13 +1,14 @@
 /* =====================================================================
    RIGHTS ("roles")
    An account can hold several special rights at once. They are kept in a
-   list on the account, for example ["prism", "aiscan"]. A plain account
+   list on the account, for example ["prism", "aiscan", "trainer"]. A plain account
    has an empty list. "admin" is the boss right: an admin counts as having
    EVERY right. This one file is the only place that rule is written down.
    ===================================================================== */
 
 // The rights an account may hold (the order is the order they are shown in)
-export const ALLOWED_ROLES = ['prism', 'aiscan', 'admin'];
+// ("trainer": may send scanner photos to be used for training; see routes/training.js)
+export const ALLOWED_ROLES = ['prism', 'aiscan', 'trainer', 'admin'];
 
 // Does this list of rights let the person use `right`?
 // Admin passes every check; every other right only passes for itself.

@@ -28,6 +28,9 @@
    on) the AI are got ready in the background (scanWarmUp.ts), so the first scan is no slower than the rest.
    CAMERA SAFE MODE: the camera code is only loaded when the camera is switched on (see ScannerCamera.native.tsx). If the app closed
    by itself while the camera was starting last time, the camera stays off with a "Start camera" button.
+   TRAINER PHOTOS: for an account with the "trainer" right, the photos of scans the scanner wasn't sure about, ones whose printing or
+   language was changed, ones marked "Wrong" in the list, and ones nothing could be read from, are sent to the server automatically to
+   train the scanner with (lib/scanner/trainerUpload.ts; the rules are in core/training.ts). Marking a card foil doesn't count.
    CRASH TRAIL: the screen keeps a small diary of the steps it reaches (lib/scanner/crashTrail.ts); if the app closed by
    itself last time, a message at the top shows the last steps with a "Copy details" button (CrashTrailNotice.tsx).
    ===================================================================== */
@@ -64,6 +67,7 @@ import { createOrderedResults } from '@/lib/scanner/core/resolveQueue';
 import { timingWords } from '@/lib/scanner/core/readPlan';
 import { changeScanOptions, getScanOptions } from '@/lib/scanner/scanSettings';
 import { newScanId, startingFinishFor, type ScanItem } from '@/lib/scanner/scanItems';
+import { syncTraining, syncUnread } from '@/lib/scanner/trainerUpload';
 import { allFrontNameIndex, allFrontNames, catalogueConfigured, downloadCatalogue, openCatalogue, printingsNamed, type DownloadStage } from '@/lib/scanner/catalogue/catalogue';
 import { looksLikeAnyName } from '@/lib/scanner/core/fuzzy';
 import { looksLikeAnyNameIndexed, type NameIndex } from '@/lib/scanner/core/nameIndex';
@@ -83,6 +87,18 @@ function itemFor(outcome: ScanOutcome, printing: Printing, flag: ScanItem['flag'
   return {
     id: newScanId(), printing, lang: outcome.lang ?? printing.lang ?? 'en', finish: startingFinishFor(printing, start), count: 1,
     flag, candidates: outcome.candidates, matched: outcome.matched, reading: outcome.reading,
+    said: scannerAnswer(outcome),
+  };
+}
+
+// What the scanner itself answered for this scan (its printing, or its best guess at one), kept with the card so a
+// later change by the person can be told from it (for the trainer photos)
+function scannerAnswer(outcome: ScanOutcome): ScanItem['said'] {
+  const printing = outcome.printing ?? outcome.candidates[0];
+  if (!printing || outcome.status === 'none') return undefined;
+  return {
+    printingId: printing.id, name: printing.name, set: printing.setCode, number: printing.collectorNumber,
+    lang: outcome.lang ?? printing.lang ?? 'en', finish: 'nonfoil', status: outcome.status,
   };
 }
 
@@ -184,7 +200,7 @@ export default function ScanScreen() {
   // shows a progress bar (AiDownloadWindow.tsx). No is remembered, so the question does not come back; the files can still be downloaded later
   // from the scanner options (the gear button). Nothing is asked when the files are already here, or on a device that
   // cannot run the AI or keep its files.
-  const { hasAiScan } = useAccount();
+  const { hasAiScan, hasTrainer } = useAccount();
   // Whether the download window (with its progress bar) is open
   const [aiDownloading, setAiDownloading] = useState(false);
   useEffect(() => {
@@ -228,7 +244,8 @@ export default function ScanScreen() {
       return same ? list.map((other) => (other === same ? { ...other, count: other.count + item.count } : other)) : [...list, item];
     });
   }
-  const changeInList = (item: ScanItem) => setItems((list) => list.map((other) => (other.id === item.id ? item : other)));
+  // A card on the list was changed (or marked "Wrong"): for a trainer, send its photo if that makes it worth keeping
+  const changeInList = (item: ScanItem) => { setItems((list) => list.map((other) => (other.id === item.id ? item : other))); void syncTraining(item); };
   // "Clear all": empty the whole list in one go. It can't be undone, so it asks first.
   async function clearList() {
     const copies = items.reduce((sum, item) => sum + item.count, 0);
@@ -277,6 +294,13 @@ export default function ScanScreen() {
     return { use: () => putOnScreen(reading, outcome, chosen, lookupStart, doneAt), read: outcome.status !== 'none' };
   }
 
+  // A new item for a scanned card; for a trainer, its photo is sent now if the scanner wasn't sure about it
+  function newItem(...args: Parameters<typeof itemFor>): ScanItem {
+    const item = itemFor(...args);
+    void syncTraining(item);
+    return item;
+  }
+
   // Put one worked-out card where it goes (runs in the order the cards were scanned)
   function putOnScreen(reading: ScanReading, outcome: ScanOutcome, chosen: ReturnType<typeof getScanOptions>, lookupStart: number, doneAt: number) {
     // How long each step took (the extra clues, if they were needed, are counted as their own step), if the options say to show it.
@@ -290,7 +314,7 @@ export default function ScanScreen() {
     if (waited >= 5) times.wait = waited;
     const timeText = chosen.showTimings ? timingWords(times) : '';
     const took = timeText ? ` · ${timeText}` : '';
-    if (outcome.status === 'none') { say(`Couldn't read that card. Try again, closer and with more light.${took}`); return; }
+    if (outcome.status === 'none') { say(`Couldn't read that card. Try again, closer and with more light.${took}`); void syncUnread(reading); return; }
     hapticTap();
     const art = reading.extras?.artPreview;
     // "Best guess": a card that could be several printings is taken as its most likely one, without asking
@@ -299,26 +323,26 @@ export default function ScanScreen() {
     if (mode === 'one') {
       if (outcome.status === 'sure' || outcome.status === 'likely' || (guess && outcome.candidates.length > 0)) {
         const printing = outcome.printing ?? outcome.candidates[0];
-        setSheet({ item: itemFor(outcome, printing, null, chosen.startFinish), likely: outcome.status !== 'sure', fromList: false });
+        setSheet({ item: newItem(outcome, printing, null, chosen.startFinish), likely: outcome.status !== 'sure', fromList: false });
         if (timeText) say(`Read in ${timeText}`);
       } else {
         setPicker({
           name: outcome.candidates[0]?.name ?? outcome.name ?? 'This card', candidates: outcome.candidates, matched: outcome.matched, chosen: null, artPreview: art, reason: outcome.reason,
           finish: chosen.startFinish,
-          apply: (printing: Printing, finish: Finish) => { setPicker(null); setSheet({ item: { ...itemFor(outcome, printing, null, chosen.startFinish), finish }, likely: false, fromList: false }); },
+          apply: (printing: Printing, finish: Finish) => { setPicker(null); setSheet({ item: { ...newItem(outcome, printing, null, chosen.startFinish), finish }, likely: false, fromList: false }); },
         });
       }
       return;
     }
     // Stack mode: straight onto the list (a card it wasn't sure of gets the orange "check it" border, unless "best guess" is on)
     if (outcome.status === 'sure') {
-      addToList(itemFor(outcome, outcome.printing!, null, chosen.startFinish));
+      addToList(newItem(outcome, outcome.printing!, null, chosen.startFinish));
       say(`Added ${outcome.printing!.name}${took}`);
     } else if (outcome.status === 'likely') {
-      addToList(itemFor(outcome, outcome.printing!, guess ? null : 'pick', chosen.startFinish));
+      addToList(newItem(outcome, outcome.printing!, guess ? null : 'pick', chosen.startFinish));
       say(guess ? `Added ${outcome.printing!.name} (best guess)${took}` : `${outcome.printing!.name}: please check the printing${took}`);
     } else {
-      addToList(itemFor(outcome, outcome.candidates[0], guess ? null : 'pick', chosen.startFinish));
+      addToList(newItem(outcome, outcome.candidates[0], guess ? null : 'pick', chosen.startFinish));
       say(guess ? `Added ${outcome.candidates[0].name} (best guess)${took}` : `${outcome.candidates[0].name}: pick the printing later${took}`);
     }
   }
@@ -406,6 +430,7 @@ export default function ScanScreen() {
           onChange={(item) => setSheet({ ...sheet, item })}
           onPrimary={() => {
             if (sheet.fromList) { changeInList(sheet.item); setSheet(null); return; }
+            void syncTraining(sheet.item);   // (a change made on the sheet counts, for a trainer's photo)
             addNow([sheet.item], () => setSheet(null));
           }}
           onWrongPrinting={() => chooseAnother(sheet.item, (item) => setSheet({ ...sheet, item, likely: false }))}
@@ -416,6 +441,9 @@ export default function ScanScreen() {
       {listOpen && (
         <StackList
           items={items}
+          training={hasTrainer}
+          // "Wrong": send the card's photo for training, and take the card off the list (the same as the cross does)
+          onToggleWrong={(item) => { void syncTraining({ ...item, wrong: true }); setItems((list) => list.filter((other) => other.id !== item.id)); }}
           onOpen={(item) => {
             if (item.flag) chooseAnother(item, changeInList);
             else setSheet({ item, likely: false, fromList: true });
