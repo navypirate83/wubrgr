@@ -94,7 +94,7 @@ export default function ScanScreen() {
   const [catalogue, setCatalogue] = useState<CatalogueInfo | null | undefined>(undefined);
   // THE SCANNED LIST is also kept on this device (see lib/scanner/scanListStore.ts): it is read back here when
   // the scanner opens, and saved again every time it changes, so refreshing the page or closing the app
-  // doesn't lose it. If cards are waiting on it, the scanner opens in Stack mode, where the list's button is.
+  // doesn't lose it.
   const [items, setItems] = useState<ScanItem[]>(loadScanList);
   // The scanner always opens in Stack mode (cards go onto the list); "One card" is a tap away
   const [mode, setMode] = useState<'one' | 'stack'>('stack');
