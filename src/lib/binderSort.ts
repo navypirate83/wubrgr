@@ -119,7 +119,7 @@ export type SortContext = {
   prices?: Map<string, number | null>;
   // The money those prices are in (for comparing with the price a card was added at)
   currency?: 'USD' | 'EUR';
-  // Which of the eight prices that is (see PRICE_SLOTS in prices.ts)
+  // Which of the saved prices that is (see PRICE_SLOTS in prices.ts)
   slot?: number;
 };
 

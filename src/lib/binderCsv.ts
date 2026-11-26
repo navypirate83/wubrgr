@@ -28,7 +28,7 @@
    "Purchase price" (with "Purchase price currency") holds the card's
    price on the day it was added: WUBRG'r writes it when a card is added
    (see addedPrice.ts), and a file's own value is kept as it came.
-   "Added prices" holds all eight prices from that day (see priceChange.ts).
+   "Added prices" holds all the prices from that day (see priceChange.ts).
    Columns WUBRG'r doesn't use itself (like Proxy) are kept with each
    card, so a ManaBox file can go in and come back out without losing
    anything.
@@ -56,7 +56,7 @@ export const CSV_COLUMNS = [
   'Purchase price currency', 'Added',
   'Page', 'Pocket', 'Side', 'Binder', 'Cover symbol', 'Cover color', 'Pages', 'Page layout',
   'Colors', 'Type', 'Mana value', 'Released', 'Mana cost',
-  // All eight prices on the day the card was added (see addedPrice.ts). At the end, so older files still line up.
+  // All the prices on the day the card was added (see addedPrice.ts). At the end, so older files still line up.
   'Added prices',
 ];
 

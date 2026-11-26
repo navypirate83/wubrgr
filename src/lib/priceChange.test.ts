@@ -45,7 +45,7 @@ test('no percent when there is no price today, the added price is zero, or the m
   assert.equal(euros?.percent, null);
 });
 
-test('with all eight prices saved, the one picked is compared with the same one', () => {
+test('with all the prices saved, the one picked is compared with the same one', () => {
   const notes = { 'Purchase price': '1.00', 'Added prices': writeAdded([1, 1.8, null, 2, 0.5, 1.25, 0.8, 1.3]) };
   assert.equal(priceChangeOf(notes, 1, 'USD', 4)?.percent, 100);
   assert.equal(priceChangeOf(notes, 2.5, 'EUR', 5)?.addedCurrency, 'EUR');
@@ -62,4 +62,12 @@ test('prices filled in later say since when, except the original one', () => {
 test('one older price only stands for TCGplayer Market (or Cardmarket Trend)', () => {
   assert.equal(priceChangeOf({ 'Purchase price': '1.00' }, 1.5, 'USD', 0)?.percent, 50);
   assert.equal(priceChangeOf({ 'Purchase price': '1.00' }, 1.5, 'USD', 4), null);
+});
+
+test('the ninth price (TCGplayer High) is in dollars, and a huge note is kept short enough', () => {
+  const notes = { 'Added prices': writeAdded([1, 2, 3, 4, 5, 6, 7, 8, 9]) };
+  assert.equal(priceChangeOf(notes, 18, 'USD', 8)?.percent, 100);
+  const huge = writeAdded(Array(9).fill(1234567.89), '2026-11-26', 0);
+  assert.ok(huge.length <= 100);
+  assert.ok(huge.endsWith(';2026-11-26;0'));
 });

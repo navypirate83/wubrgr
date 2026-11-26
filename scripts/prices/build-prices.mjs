@@ -1,6 +1,6 @@
 /* =====================================================================
    THE DAILY PRICE FILES
-   Makes the prices the app shows: one small file per set, holding eight
+   Makes the prices the app shows: one small file per set, holding nine
    prices for every printing in it. GitHub runs this once a day (see
    .github/workflows/deploy.yml) and publishes the files with the website,
    at /prices/set-<code>.json.
@@ -11,7 +11,7 @@
    Where each number comes from:
    - Scryfall's "default cards" file: every printing, with the ID numbers
      the stores use for it (and its own copy of two prices, as a backup)
-   - TCGCSV (a free copy of TCGplayer's prices): market, mid and low
+   - TCGCSV (a free copy of TCGplayer's prices): market, mid, low and high
    - Card Kingdom's price list: retail (they sell) and buy (they pay)
    - Cardmarket's price guide: trend, low and 30-day average (euros)
 
@@ -64,7 +64,7 @@ async function loadTcgplayer() {
     const { results } = await askJson(`https://tcgcsv.com/tcgplayer/1/${group.groupId}/prices`);
     for (const row of results) {
       const kept = prices.get(row.productId) ?? {};
-      kept[row.subTypeName] = [money(row.marketPrice), money(row.midPrice), money(row.lowPrice)];
+      kept[row.subTypeName] = [money(row.marketPrice), money(row.midPrice), money(row.lowPrice), money(row.highPrice)];
       prices.set(row.productId, kept);
     }
     await pause(100);
@@ -118,10 +118,10 @@ async function eachPrinting(use) {
 
 /* ----- Put them together -----
    Each printing's entry: "n" (not foil), "f" (foil) and "e" (etched), each
-   a list of eight prices in this order (must match PRICE_SLOTS in the
+   a list of nine prices in this order (must match PRICE_SLOTS in the
    app's lib/prices.ts):
      TCGplayer market, mid, low; Card Kingdom retail, buy;
-     Cardmarket trend, low, 30-day average
+     Cardmarket trend, low, 30-day average; TCGplayer high
    and "k": the end of its Card Kingdom web address. */
 export function entryFor(card, tcg, ck, cm) {
   const finishes = card.finishes ?? [];
@@ -131,13 +131,14 @@ export function entryFor(card, tcg, ck, cm) {
   const kingdom = ck.get(card.id) ?? {};
   const guide = cm.get(card.cardmarket_id) ?? {};
 
-  // The eight prices for one finish
-  const eight = (tcgRow, tcgBackup, ckRow, cmFoil, cmBackup) => {
+  // All the prices for one finish
+  const allPrices = (tcgRow, tcgBackup, ckRow, cmFoil, cmBackup) => {
     const suffix = cmFoil ? '-foil' : '';
     const values = [
       tcgRow?.[0] ?? money(tcgBackup), tcgRow?.[1] ?? null, tcgRow?.[2] ?? null,
       ckRow?.retail ?? null, ckRow?.buy ?? null,
       money(guide[`trend${suffix}`]) ?? money(cmBackup), money(guide[`low${suffix}`]), money(guide[`avg30${suffix}`]),
+      tcgRow?.[3] ?? null,
     ];
     return values.some((v) => v !== null) ? values : undefined;
   };
@@ -145,10 +146,10 @@ export function entryFor(card, tcg, ck, cm) {
   const entry = {};
   // Only the finishes the printing really comes in (Cardmarket's file has
   // stray foil numbers for cards that have no foil)
-  if (finishes.includes('nonfoil')) entry.n = eight(product.Normal, own.usd, kingdom.normal, false, own.eur);
-  if (finishes.includes('foil')) entry.f = eight(product.Foil, own.usd_foil, kingdom.foil, true, own.eur_foil);
+  if (finishes.includes('nonfoil')) entry.n = allPrices(product.Normal, own.usd, kingdom.normal, false, own.eur);
+  if (finishes.includes('foil')) entry.f = allPrices(product.Foil, own.usd_foil, kingdom.foil, true, own.eur_foil);
   if (finishes.includes('etched')) {
-    entry.e = eight(etchedProduct.Foil ?? etchedProduct.Normal, own.usd_etched,
+    entry.e = allPrices(etchedProduct.Foil ?? etchedProduct.Normal, own.usd_etched,
       kingdom.etched ?? (finishes.includes('foil') ? undefined : kingdom.foil), true, own.eur_etched);
   }
   const url = kingdom.normal?.url ?? kingdom.foil?.url ?? kingdom.etched?.url;

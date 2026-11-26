@@ -10,7 +10,7 @@
    Both are columns of the binder's and the list's .csv file (see
    binderCsv.ts and listCsv.ts), so the price travels with the card and can
    be compared with today's price later.
-   ALL EIGHT PRICES: as well as that one, a third note, "Added prices",
+   ALL THE PRICES: as well as that one, a third note, "Added prices",
    keeps every price the app shows (see lib/prices.ts and priceChange.ts).
    "Purchase price" itself is TCGplayer's Market price in dollars, or
    Cardmarket's Trend price in euros when Cardmarket is the price store.
@@ -28,8 +28,8 @@
 import { currentSettings } from './settings';
 import { loadPrintings, type ScryfallCard } from './scryfall';
 import { finishOf } from './cardDetails';
-import { loadPriceBook, priceValues, pricesSoFar, type PriceBook } from './prices';
-import { ADDED_NOTE, writeAdded } from './priceChange';
+import { PRICE_SLOTS, loadPriceBook, priceValues, pricesSoFar, type PriceBook } from './prices';
+import { ADDED_NOTE, readAdded, writeAdded } from './priceChange';
 import type { BinderCard, BinderCards } from './binderStorage';
 import type { Finish } from './cards';
 
@@ -38,7 +38,7 @@ export const PRICE_NOTE = 'Purchase price';
 export const CURRENCY_NOTE = 'Purchase price currency';
 export { ADDED_NOTE };
 
-// Which of the eight is the "Purchase price": Cardmarket Trend (5) or TCGplayer Market (0)
+// Which of the prices is the "Purchase price": Cardmarket Trend (5) or TCGplayer Market (0)
 const mainSlot = () => (currentSettings().priceStore === 'cardmarket' ? 5 : 0);
 
 // Today, like "2026-11-26" (by this device's clock)
@@ -54,7 +54,7 @@ function mainNotes(price: number | null, slot: number): Record<string, string> {
 }
 
 // The notes to add to a card being added now: this printing's prices today for this finish (regular, foil
-// or etched). Empty when there are no prices, so nothing wrong is ever written. All eight are written only
+// or etched). Empty when there are no prices, so nothing wrong is ever written. All of them are written only
 // when this set's price file has already arrived (otherwise they're filled in later: see above).
 export function addedPriceNotes(print: ScryfallCard, finish: Finish, book: PriceBook = pricesSoFar()): Record<string, string> {
   const values = priceValues(print, finish, book);
@@ -63,11 +63,23 @@ export function addedPriceNotes(print: ScryfallCard, finish: Finish, book: Price
   return { ...mainNotes(values[slot], slot), ...(all ? { [ADDED_NOTE]: writeAdded(values) } : {}) };
 }
 
+// A card whose note was saved before a price was added to the app (it has fewer than there are now) gets
+// the new ones put on the end, once the price file has them. What's already there is never changed.
+function withNewerPrices<T extends BinderCard>(card: T, print: ScryfallCard, book?: PriceBook): T {
+  const saved = readAdded(card.extra?.[ADDED_NOTE]);
+  if (!saved || saved.values.length >= PRICE_SLOTS.length || !book?.has(print.id)) return card;
+  const newer = priceValues(print, finishOf(card), book).slice(saved.values.length);
+  if (!newer.some((v) => v !== null)) return card;
+  const note = writeAdded([...saved.values, ...newer], saved.since, saved.original);
+  return { ...card, extra: { ...card.extra, [ADDED_NOTE]: note } };
+}
+
 // One card with the prices it is missing written on it. "fresh" = the card is being added right now (so
 // its prices are from the day it was added). Otherwise the day is written down with them. Gives back the
 // very same card when nothing changes (so the caller can tell).
 export function withAddedPrice<T extends BinderCard>(card: T, print: ScryfallCard | undefined, book?: PriceBook, fresh = false): T {
-  if (card.extra?.[ADDED_NOTE] || !print) return card;
+  if (!print) return card;
+  if (card.extra?.[ADDED_NOTE]) return withNewerPrices(card, print, book);
   const had = card.extra?.[PRICE_NOTE];
   const finish = finishOf(card);
   // No price file for it: only the one main price can be written (if there's none yet)
@@ -78,7 +90,7 @@ export function withAddedPrice<T extends BinderCard>(card: T, print: ScryfallCar
   }
   const values = priceValues(print, finish, book);
   if (had) {
-    // The price it already has takes its own place among the eight, unchanged
+    // The price it already has takes its own place among them, unchanged
     const original = card.extra?.[CURRENCY_NOTE] === 'EUR' ? 5 : 0;
     if (Number.isFinite(Number(had))) values[original] = Number(had);
     return { ...card, extra: { ...card.extra, [ADDED_NOTE]: writeAdded(values, today(), original) } };

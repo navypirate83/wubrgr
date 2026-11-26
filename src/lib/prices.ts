@@ -1,8 +1,8 @@
 /* =====================================================================
    CARD PRICES
-   Eight prices are kept for every printing and finish (regular, foil and
+   Nine prices are kept for every printing and finish (regular, foil and
    etched foil), from three stores:
-   - TCGplayer (US dollars): Market, Mid and Low
+   - TCGplayer (US dollars): Market, Mid, Low and High
    - Card Kingdom (US dollars): Retail (what they sell it for) and Buy
      (what they pay you for it)
    - Cardmarket (euros): Trend, Low and the 30-day average
@@ -44,6 +44,7 @@ export const PRICE_KINDS: Record<PriceStore, { id: string; label: string; hint: 
     { id: 'market', label: 'Market', hint: 'Based on recent sales' },
     { id: 'mid', label: 'Mid', hint: 'The middle listing' },
     { id: 'low', label: 'Low', hint: 'About the cheapest listing' },
+    { id: 'high', label: 'High', hint: 'The highest listing' },
   ],
   cardkingdom: [
     { id: 'retail', label: 'Retail', hint: 'What they sell it for' },
@@ -56,15 +57,15 @@ export const PRICE_KINDS: Record<PriceStore, { id: string; label: string; hint: 
   ],
 };
 
-// All eight prices, in the order they're written in the price files and saved with cards.
-// NEVER reorder these (saved cards depend on it); the same order is in build-prices.mjs.
+// All nine prices, in the order they're written in the price files and saved with cards.
+// NEVER reorder these (saved cards depend on it): a new one goes at the END. Same order as build-prices.mjs.
 export const PRICE_SLOTS = [
   'tcgplayer.market', 'tcgplayer.mid', 'tcgplayer.low', 'cardkingdom.retail', 'cardkingdom.buy',
-  'cardmarket.trend', 'cardmarket.low', 'cardmarket.avg30',
+  'cardmarket.trend', 'cardmarket.low', 'cardmarket.avg30', 'tcgplayer.high',
 ] as const;
 const slotNames: readonly string[] = PRICE_SLOTS;
 
-// Where one store's price is in that list of eight (its first price if the name isn't one of its own)
+// Where one store's price is in that list of nine (its first price if the name isn't one of its own)
 export function slotOf(store: PriceStore, kind: string): number {
   const found = slotNames.indexOf(`${store}.${kind}`);
   return found >= 0 ? found : slotNames.indexOf(`${store}.${PRICE_KINDS[store][0].id}`);
@@ -81,7 +82,7 @@ export const KIND_SETTING = {
 } as const;
 
 // Everything about the price picked in Settings: the store, which of its prices, where that
-// is in the list of eight, its money and its name
+// is in the list of nine, its money and its name
 export function pickedPrice(settings: { priceStore: PriceStore; tcgplayerPrice: string; cardkingdomPrice: string; cardmarketPrice: string }) {
   const store = settings.priceStore;
   const kind = cleanPriceKind(store, settings[KIND_SETTING[store]]);
@@ -101,7 +102,7 @@ export function formatPrice(price: number | null, currency: 'USD' | 'EUR'): stri
    THE DAILY PRICE FILES
    --------------------------------------------------------------------- */
 
-// One printing's entry: eight prices each for regular (n), foil (f) and etched (e),
+// One printing's entry: nine prices each for regular (n), foil (f) and etched (e),
 // and the end of its Card Kingdom address (k)
 export type PriceEntry = { n?: (number | null)[]; f?: (number | null)[]; e?: (number | null)[]; k?: string };
 // The entries for some sets, by Scryfall's ID for the printing
@@ -162,7 +163,7 @@ function priceNumber(text: string | null | undefined): number | null {
   return text && Number.isFinite(number) && number > 0 ? number : null;
 }
 
-// The eight prices for one copy of a printing, as the copy is (its finish). An etched
+// The nine prices for one copy of a printing, as the copy is (its finish). An etched
 // copy uses the etched prices, or the foil ones when there are none. Without a price
 // file entry, only Scryfall's two (TCGplayer Market, Cardmarket Trend) are filled in.
 export function priceValues(print: ScryfallCard, finish: Finish, book?: PriceBook): (number | null)[] {

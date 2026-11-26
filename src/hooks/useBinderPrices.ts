@@ -36,7 +36,7 @@ export type BinderPrices = {
   // Everything added up (null until the prices have loaded)
   total: number | null;
   currency: 'USD' | 'EUR';
-  // Which of the eight prices is showing, and the price files looked at
+  // Which of the saved prices is showing, and the price files looked at
   slot: number;
   book: PriceBook | undefined;
   // Still waiting for the prices?

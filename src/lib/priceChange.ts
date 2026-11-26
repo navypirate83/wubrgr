@@ -4,12 +4,12 @@
    price, the percent it has changed, and the price the card had on the
    day it was added (see addedPrice.ts for how that first price is saved,
    in the card's notes as "Purchase price").
-   Cards also keep all EIGHT prices from that day (see lib/prices.ts) in one
-   note, "Added prices", like "1.00|1.80|1.15|1.99|0.70|1.25|0.80|1.28".
+   Cards also keep all NINE prices from that day (see lib/prices.ts) in one
+   note, "Added prices", like "1.00|1.80|1.15|1.99|0.70|1.25|0.80|1.28|4.00".
    So whichever price is picked in Settings is compared with the same price
-   from back then. A card owned before all eight were saved has the others
+   from back then. A card owned before they were all saved has the others
    filled in later: then the note ends with that day, and with which of the
-   eight is the card's original one, like "...|1.28;2026-11-26;0".
+   nine is the card's original one, like "...|4.00;2026-11-26;0".
    This file only does the sums and the wording, so it has no screen code
    in it and can be tested on its own.
    ===================================================================== */
@@ -31,13 +31,20 @@ export function sinceText(day: string): string {
   return `since ${new Date(year, month - 1, date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
-// The name of the note holding all eight prices
+// The name of the note holding all the prices
 export const ADDED_NOTE = 'Added prices';
 
-// The eight prices (null = none) written as the note's text
+// The longest the note may be (the server turns away a longer one)
+const MAX_NOTE = 100;
+
+// The prices (null = none) written as the note's text. If silly-high prices would make it too long,
+// the biggest are left out until it fits.
 export function writeAdded(values: (number | null)[], since?: string, original?: number): string {
-  const text = values.map((v) => (v === null ? '' : v.toFixed(2))).join('|');
-  return since ? `${text};${since}${original === undefined ? '' : `;${original}`}` : text;
+  const kept = [...values];
+  const end = since ? `;${since}${original === undefined ? '' : `;${original}`}` : '';
+  const write = () => kept.map((v) => (v === null ? '' : v.toFixed(2))).join('|') + end;
+  while (write().length > MAX_NOTE) kept[kept.indexOf(Math.max(...kept.map((v) => v ?? 0)))] = null;
+  return write();
 }
 
 // The note's text read back (null if there's no note)
@@ -48,7 +55,7 @@ export function readAdded(text: string | undefined): { values: (number | null)[]
   return { values, since: since || undefined, original: original ? Number(original) : undefined };
 }
 
-// The added price written in a card's notes, with its money. "slot" says which of the eight prices is
+// The added price written in a card's notes, with its money. "slot" says which of the prices is
 // being looked at (see PRICE_SLOTS in prices.ts); without it, the card's one "Purchase price" is used.
 // Gives null when the card has no usable added price.
 export function priceChangeOf(
@@ -65,14 +72,14 @@ export function priceChangeOf(
     const value = all.values[slot];
     if (value === null || value === undefined) return null;
     added = value;
-    // The last three of the eight are Cardmarket's, in euros
-    addedCurrency = slot >= 5 ? 'EUR' : 'USD';
+    // Places 5, 6 and 7 are Cardmarket's, in euros
+    addedCurrency = slot >= 5 && slot <= 7 ? 'EUR' : 'USD';
     if (all.since && all.original !== slot) since = all.since;
   } else {
     const text = notes?.['Purchase price'];
     if (!text) return null;
     // The one saved price is TCGplayer's Market (dollars) or Cardmarket's Trend (euros):
-    // it can't stand in for any of the other six
+    // it can't stand in for any of the others
     if (slot !== undefined && slot !== (addedCurrency === 'EUR' ? 5 : 0)) return null;
     added = Number(text);
   }

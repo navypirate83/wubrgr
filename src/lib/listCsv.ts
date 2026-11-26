@@ -22,7 +22,7 @@ const LIST_COLUMNS = [
   'Scryfall ID', 'Language', 'Added', 'Side', 'Mana cost', 'Type', 'List',
   // The price on the day the card was added (see addedPrice.ts). At the end, so older files still line up.
   'Purchase price', 'Purchase price currency',
-  // All eight prices from that day
+  // All the prices from that day
   'Added prices',
 ];
 
@@ -109,7 +109,7 @@ export function listCardsFromCsv(text: string): ListCard[] {
     if (get('Set name')) extra['Set name'] = get('Set name');
     if (get('Rarity')) extra.Rarity = get('Rarity');
     // The price it was added at (USD is the usual currency, so only another one is kept)
-    // All eight prices from the day it was added
+    // All the prices from the day it was added
     if (get('Added prices')) extra['Added prices'] = get('Added prices');
     if (get('Purchase price')) {
       extra['Purchase price'] = get('Purchase price');

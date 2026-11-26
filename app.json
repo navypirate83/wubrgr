@@ -3,7 +3,7 @@
     "name": "WUBRG'r",
     "slug": "wubrgrexpo",
     "owner": "navypirate83",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "A Magic: The Gathering card binder: keep your cards in binders that look and work like real ones, and find any card with the MTG Card Finder.",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
