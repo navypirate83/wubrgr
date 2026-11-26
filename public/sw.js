@@ -95,6 +95,8 @@ self.addEventListener('fetch', (event) => {
   const path = url.pathname.slice(BASE.length);
   // The scanner's catalogue is large and is kept in the browser's own storage, so it's never saved here
   if (path.startsWith('catalogue/')) return;
+  // The price files change every day, so they're never saved here either (an old price is worse than none)
+  if (path.startsWith('prices/')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(pageOrSaved(request));

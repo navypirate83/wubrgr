@@ -66,3 +66,6 @@ server/code-only/
 
 # Scanner training photos downloaded by server/scripts/download-training.mjs (the photos and labels.json; never committed)
 scripts/catalogue/training/
+
+# The daily price files made on this computer for testing (GitHub makes the real ones: see scripts/prices)
+public/prices/

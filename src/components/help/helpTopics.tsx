@@ -522,18 +522,19 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <P>
               <Strong>The price when a card was added</Strong>: each time you add a card to a binder or a list,
-              its price that day is saved with it, in the file's <Strong>Purchase price</Strong> column (with{' '}
-              <Strong>Purchase price currency</Strong> beside it). The List view shows it for comparing with today's
-              price: three lines at the right of each card, today's price on top, the percent it has changed in the
-              middle (green with a + if it went up, red with a - if it went down, to two digits after the point), and
-              the price the card had when it was added at the bottom. A card with no added price shows only today's
-              price, and no percent is shown if the two prices are in different money (dollars and euros). The price comes from the store chosen in Settings: Cardmarket's in
-              euros, otherwise TCGplayer's in dollars (Card Kingdom also records TCGplayer's). A price that is
-              already there is never changed: a card from an uploaded file keeps the file's price, a moved card
-              keeps its own, and more copies of a printing you already have keep the first copy's. A card that
-              has no price yet (it was added before prices were saved, or with no internet) gets the price of
-              the day its binder or list is next opened, so its tracking starts then. A card the store has no
-              price for stays empty.
+              all the prices of that day are saved with it (TCGplayer Market, Mid and Low; Card Kingdom Retail
+              and Buy; Cardmarket Trend, Low and 30-day average). In the file, <Strong>Purchase price</Strong>{' '}
+              (with <Strong>Purchase price currency</Strong> beside it) holds the main one, TCGplayer's Market
+              price in dollars, or Cardmarket's Trend in euros when Cardmarket is your price store, and{' '}
+              <Strong>Added prices</Strong> holds them all. The List view shows three lines at the right of each
+              card: today's price, the percent it has changed (green with a + if it went up, red with a - if it
+              went down, to two digits after the point), and what that same price was when the card was added.
+              So switching your price in Settings compares like with like. A price that is already there is never
+              changed: a card from an uploaded file keeps the file's price, a moved card keeps its own, and more
+              copies of a printing you already have keep the first copy's. A card you owned before all the prices
+              were saved keeps the one it had; the others start from the day its binder or list is next opened,
+              and are marked <Strong>since</Strong> that day. A card with no price for the one you picked shows
+              only today's.
             </P>
             <P>
               Binders saved before were .JSON files. The first time you open The Shelf, each one
@@ -1224,23 +1225,22 @@ export const helpTopics: HelpTopic[] = [
         body: (
           <>
             <P>
-              The <Strong>Prices</Strong> box shows what the printing on show costs at three
-              stores: <Strong>TCGplayer</Strong>, <Strong>Card Kingdom</Strong> and <Strong>Cardmarket</Strong> (in
-              euros). Each has a regular and a foil price; the one that matches
-              the <Strong>Foil</Strong> button is highlighted (with Etched chosen, the foil column shows the
-              etched price, marked "etched"). The store you chose
-              under <Strong>Price store</Strong> in <HelpLink to="settings-prices">Settings</HelpLink> is listed first.
+              The <Strong>Prices</Strong> box, above <Strong>Notes and Rules</Strong>, has a tab for each of
+              three stores: <Strong>TCGplayer</Strong> (Market, Mid and Low), <Strong>Card Kingdom</Strong>{' '}
+              (Retail, what they sell it for, and Buy, what they pay you for it) and{' '}
+              <Strong>Cardmarket</Strong> (Trend, Low and 30-day average, in euros). The store you chose under{' '}
+              <Strong>Price store</Strong> in <HelpLink to="settings-prices">Settings</HelpLink> is the first tab
+              and is open to start; tap another tab to see its prices. An orange dot marks the price you picked.
+              The column matching the <Strong>Foil</Strong> button is highlighted (with Etched chosen it shows
+              the etched prices). <Strong>Not buying</Strong> means Card Kingdom isn't buying that card now.
             </P>
             <P>
-              Tap <Strong>TCGplayer</Strong> or <Strong>Card Kingdom</Strong> (the icon or the name) to
-              see the card there. <Strong>Cardmarket</Strong> shows prices only, with no link, because
-              its website blocks many visitors. On a wide screen the box is
-              beside the card, on the left, with just the stores' icons; on a narrow screen it's
-              under <Strong>Notes and Rules</Strong>, with the stores' names too.
+              <Strong>See this card on</Strong> under the TCGplayer and Card Kingdom prices opens the card there.
+              Cardmarket has no link, because its website blocks many visitors. In a wide window the card is on
+              the left and the Set and Version pickers, prices and boxes are on the right.
             </P>
             <P>
-              Prices change often (TCGplayer and Cardmarket's come from Scryfall, updated about
-              once a day), so check the store before buying.
+              The prices are brought up to date once a day, so check the store before buying.
             </P>
           </>
         ),
@@ -1408,17 +1408,16 @@ export const helpTopics: HelpTopic[] = [
             <P>
               Under <Strong>Collection</Strong>, <Strong>Price store</Strong> picks whose prices the app
               shows for your cards: <Strong>TCGplayer</Strong> or <Strong>Card Kingdom</Strong> (US
-              dollars) or <Strong>Cardmarket</Strong> (euros). Inside a binder, each card in the
-              list shows what one copy is worth there (the foil price for a foil copy; a dash when the store has
-              no price), and the line above the cards adds up all your copies (the price of one copy times how
-              many copies you have, for every card): how many
-              cards, how many different, how many different card names (distinct), and the total value. On the Card Finder, your store's prices are listed first.
+              dollars) or <Strong>Cardmarket</Strong> (euros). Under it,{' '}
+              <Strong>Price to show under cards</Strong> picks which of that store's prices: Market, Mid or Low
+              for TCGplayer; Retail or Buy for Card Kingdom; Trend, Low or 30-day average for Cardmarket. Each
+              store remembers its own pick.
             </P>
             <P>
-              The first time you pick <Strong>Card Kingdom</Strong>, the app downloads its price list
-              (a few megabytes), so its prices can take a moment to appear. The choice is saved with
-              your other settings, so it follows you to other phones and computers. Prices change often,
-              so check the store before buying.
+              That price is shown under your cards, added up in totals (the price of one copy times how many
+              copies you have), used for sorting by price and for how much a card has changed. A foil copy uses
+              the foil price; a dash means there is none. The choice is saved with your other settings. Prices
+              are brought up to date once a day, so check the store before buying.
             </P>
           </>
         ),

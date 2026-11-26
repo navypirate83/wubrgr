@@ -293,7 +293,7 @@ function BinderView({ binderId }: { binderId: string }) {
   // looked up on the internet for this, and the answers are kept for a while.
   const prices = useBinderPrices(baseEntries);
   const entries = useMemo<CardEntry[]>(
-    () => sortEntries(matchingEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency }),
+    () => sortEntries(matchingEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency, slot: prices.slot }),
     [matchingEntries, sort, reversed, prices.printings, prices.eachByKey],
   );
   // Which group each card falls under for the sort in use, so the List and
@@ -314,9 +314,9 @@ function BinderView({ binderId }: { binderId: string }) {
   useEffect(() => {
     if (!prices.printings) return;
     const detailed = fillDetails(cardsRef.current, prices.printings);
-    const filled = fillMissingPrices(detailed ?? cardsRef.current, prices.printings) ?? detailed;
+    const filled = fillMissingPrices(detailed ?? cardsRef.current, prices.printings, prices.book) ?? detailed;
     if (filled && commit(filled)) scheduleDriveSave();
-  }, [prices.printings, cards]);
+  }, [prices.printings, prices.book, cards]);
 
   /* ----- The binder's size (worked out from the space on the screen) ----- */
 
@@ -747,7 +747,7 @@ function BinderView({ binderId }: { binderId: string }) {
     const entriesNow = Object.entries(before).map(([key, card]) => ({ key, card }));
     const ordered = choice === 'gaps'
       ? entriesNow.sort((a, b) => pageOf(a.key) - pageOf(b.key) || slotOf(a.key) - slotOf(b.key))
-      : sortEntries(entriesNow, choice, false, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency });
+      : sortEntries(entriesNow, choice, false, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency, slot: prices.slot });
     const next: BinderCards = {};
     ordered.forEach(({ card }, index) => {
       next[pocketKey(Math.floor(index / perPage) + 1, (index % perPage) + 1)] = card;

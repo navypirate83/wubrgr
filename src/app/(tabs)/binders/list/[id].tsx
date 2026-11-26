@@ -245,7 +245,7 @@ export default function ListScreen() {
   // list, so typing in the search box doesn't start a new lookup each time.
   const prices = useBinderPrices(allEntries);
   const entries = useMemo<CardEntry[]>(
-    () => sortEntries(baseEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency }),
+    () => sortEntries(baseEntries, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency, slot: prices.slot }),
     [baseEntries, sort, reversed, prices.printings, prices.eachByKey],
   );
   // Which group each card falls under for the sort in use (A, B, C ...; a
@@ -260,8 +260,8 @@ export default function ListScreen() {
   // Once the lookup arrives, save the missing details with the cards (once:
   // after that they have them, so there's nothing left to fill in)
   useEffect(() => {
-    if (prices.printings && fillListDetails(id, prices.printings)) changed();
-  }, [prices.printings, list]);
+    if (prices.printings && fillListDetails(id, prices.printings, prices.book)) changed();
+  }, [prices.printings, prices.book, list]);
 
   /* ----- The card's window ----- */
 

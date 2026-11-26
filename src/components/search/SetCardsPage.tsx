@@ -32,7 +32,7 @@ import { headerFor, sortEntries } from '@/lib/binderSort';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, onBinderViewChange, onGridZoomChange, sortHeadersOn } from '@/lib/binderView';
 import { SET_SORTS, chooseSetSort, chooseSetView, onSetViewChange, setCardsSort, setCardsSortReversed, setCardsView } from '@/lib/setView';
 import type { BinderCard } from '@/lib/binderStorage';
-import { PRICE_NOTE, CURRENCY_NOTE } from '@/lib/addedPrice';
+import { PRICE_NOTE, CURRENCY_NOTE, ADDED_NOTE } from '@/lib/addedPrice';
 import { binderCardFrom } from '@/lib/cardDrop';
 import { loadSetCards, type ScryfallCard } from '@/lib/scryfall';
 import { ownedCopies, ownedKeyOf } from '@/lib/setOwned';
@@ -46,6 +46,7 @@ function asBinderCard(card: ScryfallCard): BinderCard {
   const extra = { ...made.extra };
   delete extra[PRICE_NOTE];
   delete extra[CURRENCY_NOTE];
+  delete extra[ADDED_NOTE];
   return { ...made, added: undefined, extra };
 }
 
@@ -91,7 +92,7 @@ export default function SetCardsPage({ set, onPickCard, visible = true }: Props)
   // What's in your binders (read again whenever this page comes back on screen)
   const owned = useMemo(() => (visible ? ownedCopies() : new Map<string, number>()), [visible, cards.data]);
   const entries = useMemo(
-    () => sortEntries(all, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency, owned }),
+    () => sortEntries(all, sort, reversed, { printings: prices.printings, prices: prices.eachByKey, currency: prices.currency, slot: prices.slot, owned }),
     [all, sort, reversed, prices.printings, prices.eachByKey, prices.currency, owned],
   );
   const headerOf = useMemo(

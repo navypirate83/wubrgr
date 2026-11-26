@@ -5,15 +5,19 @@
 # ("npm run build", which makes the "dist" folder) and publishes it at
 # https://wubrgr.navypirate83.com/ (its own address, set as the "custom domain" in the
 # repository's Settings → Pages; the old navypirate83.com/wubrgr/ forwards to it)
+# It also runs once a day on its own, so the card prices stay fresh.
 # (It can also be started by hand, from the repository's "Actions" tab.)
 # =====================================================================
 
 name: Publish to GitHub Pages
 
-# When to run: on every push to main, or when started by hand
+# When to run: on every push to main, once a day (the stores update their
+# prices overnight), or when started by hand
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '30 21 * * *'   # 21:30 UTC every day
   workflow_dispatch:
 
 # What these steps are allowed to do: read the code, and publish to Pages
@@ -60,6 +64,17 @@ jobs:
         run: |
           mkdir -p dist/catalogue
           gh release download catalogue --repo "${{ github.repository }}" --dir dist/catalogue --pattern 'catalogue.json' --pattern 'catalogue.db.gz' || echo "No catalogue release yet"
+      # THE CARD PRICES (see scripts/prices/build-prices.mjs). Yesterday's files are
+      # fetched back first, so if a store can't be reached today the old prices stay.
+      - uses: actions/cache@v5
+        with:
+          path: price-files
+          key: prices-${{ github.run_id }}
+          restore-keys: prices-
+      - name: Build today's card prices
+        run: |
+          node scripts/prices/build-prices.mjs price-new && rm -rf price-files && mv price-new price-files || echo "::warning::Today's prices couldn't be built; keeping the last ones"
+          if [ -d price-files ]; then cp -r price-files dist/prices; fi
       # Get GitHub Pages ready, then hand it the "dist" folder
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

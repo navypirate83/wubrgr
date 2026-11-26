@@ -72,8 +72,8 @@ function buildRule(inlineScripts) {
     'img-src': ["'self'", 'data:', 'blob:', 'https://cards.scryfall.io', 'https://svgs.scryfall.io', 'https://backs.scryfall.io', 'https://badge.uptimerobot.com'],
     'font-src': ["'self'", 'data:'],
     // Who the page may send requests to: this website, the WUBRG'r server, Scryfall (cards, and card pictures the
-    // scanner compares), Card Kingdom (prices), and Google (the Drive backup and its sign-in)
-    'connect-src': ["'self'", server, 'https://api.scryfall.com', 'https://cards.scryfall.io', 'https://svgs.scryfall.io', 'https://api.cardkingdom.com', 'https://www.googleapis.com', 'https://accounts.google.com/gsi/'],
+    // scanner compares), and Google (the Drive backup and its sign-in)
+    'connect-src': ["'self'", server, 'https://api.scryfall.com', 'https://cards.scryfall.io', 'https://svgs.scryfall.io', 'https://www.googleapis.com', 'https://accounts.google.com/gsi/'],
     // Background helpers (the scanner's): from this website, or made inside the page (blob:)
     'worker-src': ["'self'", 'blob:'],
     // The camera preview and anything played from inside the page

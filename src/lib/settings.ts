@@ -8,6 +8,8 @@
      shows up without anyone having to tick it.
    - priceStore: which store's prices to show in the binders (TCGplayer,
      Card Kingdom or Cardmarket; see prices.ts)
+   - tcgplayerPrice, cardkingdomPrice and cardmarketPrice: which of each
+     store's prices to show (each store remembers its own)
    - phoneListView and wideListView: how an opened card list is shown (list
      or grid) on a narrow window and on a wide one
    - phoneView and wideView: how an opened binder is shown (list, grid or
@@ -54,7 +56,7 @@ import { storageGet, storageRemove, storageSet } from './storage';
 import { isLocalMode, relayoutAllBinders } from './binderStorage';
 import { isSignedIn, readSettingsFile, writeSettingsFile } from './googleDrive';
 import { apiRequest } from './api';
-import { DEFAULT_PRICE_STORE, cleanPriceStore, type PriceStore } from './prices';
+import { DEFAULT_PRICE_STORE, cleanPriceKind, cleanPriceStore, type PriceStore } from './prices';
 import {
   DEFAULT_BINDER_VIEW, DEFAULT_LIST_VIEW, cleanBinderView, cleanListView, type BinderViewMode, type ListViewMode,
 } from './binderViewTypes';
@@ -72,6 +74,9 @@ export type Settings = {
   theme: ThemeChoice;
   hiddenFormats: string[];
   priceStore: PriceStore;
+  tcgplayerPrice: string;          // which of each store's prices to show
+  cardkingdomPrice: string;
+  cardmarketPrice: string;
   phoneView: BinderViewMode;
   wideView: BinderViewMode;
   phoneListView: ListViewMode;
@@ -99,6 +104,9 @@ const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   hiddenFormats: [],
   priceStore: DEFAULT_PRICE_STORE,
+  tcgplayerPrice: 'market',
+  cardkingdomPrice: 'retail',
+  cardmarketPrice: 'trend',
   phoneView: DEFAULT_BINDER_VIEW,
   wideView: DEFAULT_BINDER_VIEW,
   phoneListView: DEFAULT_LIST_VIEW,
@@ -133,6 +141,9 @@ const DIRTY_KEY = 'settingsDirty';
 const SERVER_DIRTY_KEY = SETTINGS_UNSENT_KEY;
 const HIDDEN_FORMATS_KEY = 'hiddenFormats';
 const PRICE_STORE_KEY = 'priceStore';
+const TCGPLAYER_PRICE_KEY = 'tcgplayerPrice';
+const CARDKINGDOM_PRICE_KEY = 'cardkingdomPrice';
+const CARDMARKET_PRICE_KEY = 'cardmarketPrice';
 const PHONE_VIEW_KEY = 'phoneBinderView';
 const WIDE_VIEW_KEY = 'wideBinderView';
 const PHONE_LIST_VIEW_KEY = 'phoneListView';
@@ -189,6 +200,9 @@ export function currentSettings(): Settings {
     theme: currentThemeChoice(),
     hiddenFormats: cleanCodes(hidden),
     priceStore: cleanPriceStore(storageGet(PRICE_STORE_KEY)),
+    tcgplayerPrice: cleanPriceKind('tcgplayer', storageGet(TCGPLAYER_PRICE_KEY)),
+    cardkingdomPrice: cleanPriceKind('cardkingdom', storageGet(CARDKINGDOM_PRICE_KEY)),
+    cardmarketPrice: cleanPriceKind('cardmarket', storageGet(CARDMARKET_PRICE_KEY)),
     phoneView: cleanBinderView(storageGet(PHONE_VIEW_KEY)),
     wideView: cleanBinderView(storageGet(WIDE_VIEW_KEY)),
     phoneListView: cleanListView(storageGet(PHONE_LIST_VIEW_KEY)),
@@ -271,6 +285,9 @@ function applySettings(settings: Settings): void {
   if (settings.theme !== currentThemeChoice()) setThemeChoice(settings.theme);
   storageSet(HIDDEN_FORMATS_KEY, JSON.stringify(settings.hiddenFormats));
   storageSet(PRICE_STORE_KEY, settings.priceStore);
+  storageSet(TCGPLAYER_PRICE_KEY, settings.tcgplayerPrice);
+  storageSet(CARDKINGDOM_PRICE_KEY, settings.cardkingdomPrice);
+  storageSet(CARDMARKET_PRICE_KEY, settings.cardmarketPrice);
   storageSet(PHONE_VIEW_KEY, settings.phoneView);
   storageSet(WIDE_VIEW_KEY, settings.wideView);
   storageSet(PHONE_LIST_VIEW_KEY, settings.phoneListView);
@@ -328,6 +345,9 @@ function fromFile(data: Record<string, unknown>, from: 'server' | 'drive'): Sett
   if (Array.isArray(data.hiddenFormats)) settings.hiddenFormats = cleanCodes(data.hiddenFormats);
   // An older save has no price store: keep the one chosen here
   if (data.priceStore !== undefined) settings.priceStore = cleanPriceStore(data.priceStore);
+  if (data.tcgplayerPrice !== undefined) settings.tcgplayerPrice = cleanPriceKind('tcgplayer', data.tcgplayerPrice);
+  if (data.cardkingdomPrice !== undefined) settings.cardkingdomPrice = cleanPriceKind('cardkingdom', data.cardkingdomPrice);
+  if (data.cardmarketPrice !== undefined) settings.cardmarketPrice = cleanPriceKind('cardmarket', data.cardmarketPrice);
   // Likewise the binder views and sort
   if (data.phoneView !== undefined) settings.phoneView = cleanBinderView(data.phoneView);
   if (data.wideView !== undefined) settings.wideView = cleanBinderView(data.wideView);
@@ -391,15 +411,15 @@ function saveToDrive(): Promise<void> {
 
 // What the server sends back: the saved settings (null if none yet)
 type ServerSettings = {
-  settings: { theme?: unknown; hiddenFormats?: unknown; priceStore?: unknown; phoneView?: unknown; wideView?: unknown; phoneListView?: unknown; wideListView?: unknown; binderSort?: unknown; binderSortReversed?: unknown; listSort?: unknown; listSortReversed?: unknown; deckSort?: unknown; deckSortReversed?: unknown; prismSort?: unknown; prismSortReversed?: unknown; shelfBinders?: unknown; shelfLists?: unknown; shelfDecks?: unknown; shelfPrisms?: unknown; sortHeaders?: unknown; pageLayout?: unknown; phoneLayout?: unknown; wideLayout?: unknown } | null;
+  settings: { theme?: unknown; hiddenFormats?: unknown; priceStore?: unknown; tcgplayerPrice?: unknown; cardkingdomPrice?: unknown; cardmarketPrice?: unknown; phoneView?: unknown; wideView?: unknown; phoneListView?: unknown; wideListView?: unknown; binderSort?: unknown; binderSortReversed?: unknown; listSort?: unknown; listSortReversed?: unknown; deckSort?: unknown; deckSortReversed?: unknown; prismSort?: unknown; prismSortReversed?: unknown; shelfBinders?: unknown; shelfLists?: unknown; shelfDecks?: unknown; shelfPrisms?: unknown; sortHeaders?: unknown; pageLayout?: unknown; phoneLayout?: unknown; wideLayout?: unknown } | null;
 };
 
 // Send the settings as they are now to the account on the server
 async function saveToServer(): Promise<void> {
-  const { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, shelfBinders, shelfLists, shelfDecks, shelfPrisms, sortHeaders, phoneLayout, wideLayout, accountLayout: stored } = currentSettings();
+  const { theme, hiddenFormats, priceStore, tcgplayerPrice, cardkingdomPrice, cardmarketPrice, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, shelfBinders, shelfLists, shelfDecks, shelfPrisms, sortHeaders, phoneLayout, wideLayout, accountLayout: stored } = currentSettings();
   await apiRequest('/settings', {
     method: 'PUT',
-    body: { theme, hiddenFormats, priceStore, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, shelfBinders, shelfLists, shelfDecks, shelfPrisms, sortHeaders, pageLayout: stored, phoneLayout, wideLayout },
+    body: { theme, hiddenFormats, priceStore, tcgplayerPrice, cardkingdomPrice, cardmarketPrice, phoneView, wideView, phoneListView, wideListView, binderSort, binderSortReversed, listSort, listSortReversed, deckSort, deckSortReversed, prismSort, prismSortReversed, shelfBinders, shelfLists, shelfDecks, shelfPrisms, sortHeaders, pageLayout: stored, phoneLayout, wideLayout },
   });
   storageRemove(SERVER_DIRTY_KEY);
 }

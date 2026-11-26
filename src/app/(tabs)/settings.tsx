@@ -32,6 +32,8 @@ import { SettingBlock, SettingsSection, SwitchRow } from '@/components/settings/
 import ThemeChoicePicker from '@/components/settings/ThemeChoicePicker';
 import LayoutPicker from '@/components/settings/LayoutPicker';
 import PriceStorePicker from '@/components/settings/PriceStorePicker';
+import PriceKindPicker from '@/components/settings/PriceKindPicker';
+import { KIND_SETTING, pickedPrice } from '@/lib/prices';
 import FormatSwitches from '@/components/settings/FormatSwitches';
 import AccountSection from '@/components/settings/AccountSection';
 import FullScreenSwitch from '@/components/settings/FullScreenSwitch';
@@ -134,6 +136,17 @@ export default function SettingsScreen() {
               description="Which store's prices to show for your cards in the binders (and first on the Card Finder). TCGplayer and Card Kingdom are in US dollars, Cardmarket in euros."
             >
               <PriceStorePicker value={settings.priceStore} onChange={(priceStore) => change({ priceStore })} />
+            </SettingBlock>
+            {/* Which of that store's prices to show (each store remembers its own) */}
+            <SettingBlock
+              name="Price to show under cards"
+              description="This price is shown under your cards, added up in totals, and used for sorting and for how much a card has changed."
+            >
+              <PriceKindPicker
+                store={settings.priceStore}
+                value={pickedPrice(settings).kind}
+                onChange={(kind) => change({ [KIND_SETTING[settings.priceStore]]: kind })}
+              />
             </SettingBlock>
             {/* The little bars between groups in the list and grid (A, B, C ...;
                 colors; types; sets; mana values) */}

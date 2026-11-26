@@ -52,7 +52,8 @@ import { pictureSource } from '@/lib/http';
 import { cardCount, sameNameCount, type BinderCard } from '@/lib/binderStorage';
 import { useQuery } from '@tanstack/react-query';
 import { formatPrice } from '@/lib/prices';
-import { directionOf, percentText, priceChangeOf } from '@/lib/priceChange';
+import { directionOf, percentText, priceChangeOf, sinceText } from '@/lib/priceChange';
+import { pickedPrice } from '@/lib/prices';
 import { costAndTypeOf, finishOf } from '@/lib/cardDetails';
 import { loadSetIcons } from '@/lib/scryfall';
 import ManaCost from '@/components/lists/ManaCost';
@@ -443,7 +444,8 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
   const { manaCost, typeLine } = costAndTypeOf(card);
   // How the price has moved since the card was added (null when it has no added price), and the color
   // for that: green for up, red for down, plain grey for no change
-  const change = priceChangeOf(card.extra, price, currency);
+  const { slot } = pickedPrice(useSettings());
+  const change = priceChangeOf(card.extra, price, currency, slot);
   const direction = change && change.percent !== null ? directionOf(change.percent) : 'same';
   const changeColor = direction === 'up' ? colors.success : direction === 'down' ? colors.error : colors.muted;
   // The picture and name: tap them for the card's menu
@@ -499,6 +501,8 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
         <Text style={[styles.price, { color: changeColor }]} numberOfLines={1} adjustsFontSizeToFit>{percentText(change.percent)}</Text>
       ) : null}
       {change ? <Text style={[styles.price, { color: colors.muted }]} numberOfLines={1}>{formatPrice(change.added, change.addedCurrency)}</Text> : null}
+      {/* Only when that price is from a later day than the card (see priceChange.ts) */}
+      {change?.since ? <Text style={[styles.since, { color: colors.muted }]} numberOfLines={1}>{sinceText(change.since)}</Text> : null}
     </View>
   );
   // On a wide screen everything is on one line. On a phone-sized screen the card's picture and text take the
@@ -636,6 +640,8 @@ export function TileInfo({ card, width, price, currency, setIcon }: {
 
 // The look: rows with a thin line under each, and grid tiles with a tag
 const styles = StyleSheet.create({
+  // The small "since Nov 26" under a saved price
+  since: { fontSize: 11 },
   // A card's name with its small gold "GC" tag after it (a Game Changer)
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   nameText: { flexShrink: 1 },

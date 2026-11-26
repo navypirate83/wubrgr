@@ -30,6 +30,17 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '2.0.0',
+    date: '2026-11-26',
+    lines: [
+      "Pick which price you see: under Settings, Price store, there's now Price to show under cards. TCGplayer has Market, Mid and Low; Card Kingdom has Retail and Buy; Cardmarket has Trend, Low and 30-day average.",
+      'The price you pick is shown under your cards and used for totals, price sorting and how much a card has changed.',
+      "Every card you add now saves all of those prices from that day. Cards you already had keep their price, and the others start from today, marked with the date.",
+      "The Card Finder's prices are above Notes and Rules, with a tab for each store. In a wide window the card is on the left and everything about it on the right.",
+      'Prices are refreshed once a day, and Card Kingdom prices load much faster.',
+    ],
+  },
+  {
     version: '1.9.1',
     date: '2026-11-25',
     lines: [

@@ -119,6 +119,8 @@ export type SortContext = {
   prices?: Map<string, number | null>;
   // The money those prices are in (for comparing with the price a card was added at)
   currency?: 'USD' | 'EUR';
+  // Which of the eight prices that is (see PRICE_SLOTS in prices.ts)
+  slot?: number;
 };
 
 /* ---------------------------------------------------------------------
@@ -230,7 +232,7 @@ export function sortEntries(entries: SortEntry[], sort: BinderSort, reversed = f
     case 'change':
       // Biggest gain first, by how many percent one copy's price has moved since the card was added;
       // no added price, no price today, or different money: last
-      by((item) => priceChangeOf(item.entry.card.extra, context.prices?.get(item.entry.key), context.currency ?? 'USD')?.percent ?? undefined, -1);
+      by((item) => priceChangeOf(item.entry.card.extra, context.prices?.get(item.entry.key), context.currency ?? 'USD', context.slot)?.percent ?? undefined, -1);
       break;
     case 'number':
       // By collector number, counting up (2 before 10; 12a after 12); ties by name

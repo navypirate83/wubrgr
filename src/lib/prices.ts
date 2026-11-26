@@ -1,19 +1,21 @@
 /* =====================================================================
    CARD PRICES
-   The prices shown beside the card on the Search page, for the exact
-   printing showing, regular and foil, at three stores:
-   - TCGplayer (US dollars) and Cardmarket (euros): from Scryfall, which
-     sends them with each card's details (updated about once a day).
-   - Card Kingdom (US dollars): from Card Kingdom's own price list. It
-     covers every card at once (about 8 MB to download), listed by
-     Scryfall's ID for each printing, so it's downloaded once, only when
-     prices are first needed, and just the prices are kept.
-   Which store's prices to show everywhere a single price appears (the
-   binders' lists and totals) is the "price store" in Settings.
+   Eight prices are kept for every printing and finish (regular, foil and
+   etched foil), from three stores:
+   - TCGplayer (US dollars): Market, Mid and Low
+   - Card Kingdom (US dollars): Retail (what they sell it for) and Buy
+     (what they pay you for it)
+   - Cardmarket (euros): Trend, Low and the 30-day average
+   They come from the daily price files published with the website, one
+   per set (made by scripts/prices/build-prices.mjs). If a set's file
+   can't be had, TCGplayer's Market price and Cardmarket's Trend price
+   still come from Scryfall's card details.
+   In Settings a person picks a "price store" and which of its prices to
+   see: that one is shown under their cards and added up in totals.
    Plain TypeScript with no React in it.
    ===================================================================== */
 
-import { fetchOrExplain, RequestError } from './http';
+import { SITE_URL } from './site';
 import type { ScryfallCard } from './scryfall';
 import type { Finish } from './cards';
 
@@ -36,22 +38,57 @@ export function currencyOf(store: PriceStore): 'USD' | 'EUR' {
   return PRICE_STORES.find((s) => s.value === store)?.currency ?? 'USD';
 }
 
-// One store's prices for a printing: regular, foil and etched foil (null =
-// none known), whether the "foil" price is really the etched one (a printing
-// made only in etched foil), and a link to the card there
-export type StorePrices = {
-  regular: number | null;
-  foil: number | null;
-  etchedFoil: number | null;
-  etched: boolean;
-  url: string;
+// The prices kept from each store. "id" is what's saved as the person's choice.
+export const PRICE_KINDS: Record<PriceStore, { id: string; label: string; hint: string }[]> = {
+  tcgplayer: [
+    { id: 'market', label: 'Market', hint: 'Based on recent sales' },
+    { id: 'mid', label: 'Mid', hint: 'The middle listing' },
+    { id: 'low', label: 'Low', hint: 'About the cheapest listing' },
+  ],
+  cardkingdom: [
+    { id: 'retail', label: 'Retail', hint: 'What they sell it for' },
+    { id: 'buy', label: 'Buy', hint: 'What they pay you for it' },
+  ],
+  cardmarket: [
+    { id: 'trend', label: 'Trend', hint: 'The going price' },
+    { id: 'low', label: 'Low', hint: 'The cheapest listing' },
+    { id: 'avg30', label: '30-day average', hint: 'Average over 30 days' },
+  ],
 };
 
-// A price as text from Scryfall or Card Kingdom ("0.31") as a number,
-// or null if there isn't one
-function priceNumber(text: string | null | undefined): number | null {
-  const number = Number(text);
-  return text && Number.isFinite(number) && number > 0 ? number : null;
+// All eight prices, in the order they're written in the price files and saved with cards.
+// NEVER reorder these (saved cards depend on it); the same order is in build-prices.mjs.
+export const PRICE_SLOTS = [
+  'tcgplayer.market', 'tcgplayer.mid', 'tcgplayer.low', 'cardkingdom.retail', 'cardkingdom.buy',
+  'cardmarket.trend', 'cardmarket.low', 'cardmarket.avg30',
+] as const;
+const slotNames: readonly string[] = PRICE_SLOTS;
+
+// Where one store's price is in that list of eight (its first price if the name isn't one of its own)
+export function slotOf(store: PriceStore, kind: string): number {
+  const found = slotNames.indexOf(`${store}.${kind}`);
+  return found >= 0 ? found : slotNames.indexOf(`${store}.${PRICE_KINDS[store][0].id}`);
+}
+
+// Keep only a real price name for a store (anything else becomes its first one)
+export function cleanPriceKind(store: PriceStore, value: unknown): string {
+  return PRICE_KINDS[store].some((k) => k.id === value) ? (value as string) : PRICE_KINDS[store][0].id;
+}
+
+// The setting that remembers each store's picked price
+export const KIND_SETTING = {
+  tcgplayer: 'tcgplayerPrice', cardkingdom: 'cardkingdomPrice', cardmarket: 'cardmarketPrice',
+} as const;
+
+// Everything about the price picked in Settings: the store, which of its prices, where that
+// is in the list of eight, its money and its name
+export function pickedPrice(settings: { priceStore: PriceStore; tcgplayerPrice: string; cardkingdomPrice: string; cardmarketPrice: string }) {
+  const store = settings.priceStore;
+  const kind = cleanPriceKind(store, settings[KIND_SETTING[store]]);
+  return {
+    store, kind, slot: slotOf(store, kind), currency: currencyOf(store),
+    label: PRICE_KINDS[store].find((k) => k.id === kind)!.label,
+  };
 }
 
 // Show a price with its currency, like "$0.31" or "€3.57" (or "—")
@@ -60,101 +97,97 @@ export function formatPrice(price: number | null, currency: 'USD' | 'EUR'): stri
   return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(price);
 }
 
-// A store's search page for a card's name, for when there's no direct link
-function searchLink(store: 'tcgplayer' | 'cardmarket' | 'cardkingdom', name: string): string {
-  const q = encodeURIComponent(name);
-  if (store === 'tcgplayer') return `https://www.tcgplayer.com/search/magic/product?q=${q}`;
-  if (store === 'cardmarket') return `https://www.cardmarket.com/en/Magic/Products/Search?searchString=${q}`;
-  return `https://www.cardkingdom.com/catalog/search?search=header&filter%5Bname%5D=${q}`;
+/* ---------------------------------------------------------------------
+   THE DAILY PRICE FILES
+   --------------------------------------------------------------------- */
+
+// One printing's entry: eight prices each for regular (n), foil (f) and etched (e),
+// and the end of its Card Kingdom address (k)
+export type PriceEntry = { n?: (number | null)[]; f?: (number | null)[]; e?: (number | null)[]; k?: string };
+// The entries for some sets, by Scryfall's ID for the printing
+export type PriceBook = Map<string, PriceEntry>;
+
+// Where the files are. While developing in a browser they're this computer's own
+// copy (public/prices); otherwise the ones on the website (the phone app too).
+const PRICE_FILES = typeof __DEV__ !== 'undefined' && __DEV__ && typeof document !== 'undefined'
+  ? '/prices/' : `${SITE_URL}prices/`;
+
+// A set's file is asked for again after this long (they change once a day)
+const KEEP_MS = 60 * 60 * 1000;
+// The sets already fetched (or being fetched), and when
+const files = new Map<string, { at: number; entries: Promise<Record<string, PriceEntry> | null> }>();
+// The entries that have arrived, for code that can't wait (adding a card: see addedPrice.ts)
+const arrived: PriceBook = new Map();
+
+// One set's file. null = it couldn't be had (it is then asked for again next time).
+function loadSetFile(set: string): Promise<Record<string, PriceEntry> | null> {
+  const known = files.get(set);
+  if (known && Date.now() - known.at < KEEP_MS) return known.entries;
+  const entries = fetch(`${PRICE_FILES}set-${encodeURIComponent(set)}.json`)
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Prices for ${set}: ${response.status}`);
+      const found: Record<string, PriceEntry> = await response.json();
+      for (const [id, entry] of Object.entries(found)) arrived.set(id, entry);
+      return found;
+    })
+    .catch(() => { files.delete(set); return null; });
+  files.set(set, { at: Date.now(), entries });
+  return entries;
 }
 
-// TCGplayer's prices for a printing (from Scryfall). A printing made only
-// in etched foil has its foil price under "usd_etched".
-export function tcgplayerPrices(print: ScryfallCard): StorePrices {
-  const p = print.prices ?? {};
-  const foil = priceNumber(p.usd_foil);
-  return {
-    regular: priceNumber(p.usd),
-    foil: foil ?? priceNumber(p.usd_etched),
-    etchedFoil: priceNumber(p.usd_etched),
-    etched: foil === null && priceNumber(p.usd_etched) !== null,
-    url: print.purchase_uris?.tcgplayer ?? searchLink('tcgplayer', print.name),
-  };
+// The prices for these sets, all in one book. Never fails: a set that can't be had is just left out.
+export async function loadPriceBook(sets: string[]): Promise<PriceBook> {
+  const wanted = [...new Set(sets.map((s) => s.toLowerCase()).filter(Boolean))];
+  const book: PriceBook = new Map();
+  // A few at a time, so a binder with many sets doesn't ask for them all at once
+  for (let at = 0; at < wanted.length; at += 8) {
+    const found = await Promise.all(wanted.slice(at, at + 8).map(loadSetFile));
+    for (const entries of found) for (const [id, entry] of Object.entries(entries ?? {})) book.set(id, entry);
+  }
+  return book;
 }
 
-// Cardmarket's prices for a printing (from Scryfall), in euros
-export function cardmarketPrices(print: ScryfallCard): StorePrices {
-  const p = print.prices ?? {};
-  const foil = priceNumber(p.eur_foil);
-  return {
-    regular: priceNumber(p.eur),
-    foil: foil ?? priceNumber(p.eur_etched),
-    etchedFoil: priceNumber(p.eur_etched),
-    etched: foil === null && priceNumber(p.eur_etched) !== null,
-    url: print.purchase_uris?.cardmarket ?? searchLink('cardmarket', print.name),
-  };
+// Whatever prices have already arrived (without fetching anything)
+export function pricesSoFar(): PriceBook {
+  return arrived;
 }
 
 /* ---------------------------------------------------------------------
-   CARD KINGDOM
+   ONE PRINTING'S PRICES
    --------------------------------------------------------------------- */
 
-// Card Kingdom's price list: every card it sells, regular and foil
-// listed separately
-const CARD_KINGDOM_LIST = 'https://api.cardkingdom.com/api/pricelist';
-
-// What's kept from each entry in the list
-type CardKingdomEntry = { scryfall_id?: string; is_foil?: string; price_retail?: string; url?: string };
-
-// The kept prices: for each Scryfall ID, the regular and foil price and
-// their links
-export type CardKingdomPrices = Map<string, { regular?: number; foil?: number; url?: string; foilUrl?: string }>;
-
-// Download Card Kingdom's price list and keep just the prices.
-export async function loadCardKingdomPrices(): Promise<CardKingdomPrices> {
-  const response = await fetchOrExplain(CARD_KINGDOM_LIST, {}, 'Card Kingdom');
-  if (!response.ok) {
-    throw new RequestError(`Card Kingdom's prices couldn't be loaded (error ${response.status}).`,
-      { retryable: response.status >= 500 });
-  }
-  const list: { meta?: { base_url?: string }; data?: CardKingdomEntry[] } = await response.json();
-  const base = list.meta?.base_url ?? 'https://www.cardkingdom.com/';
-  const prices: CardKingdomPrices = new Map();
-  for (const entry of list.data ?? []) {
-    if (!entry.scryfall_id) continue;
-    const price = priceNumber(entry.price_retail);
-    const url = entry.url ? base + entry.url : undefined;
-    const kept = prices.get(entry.scryfall_id) ?? {};
-    if (entry.is_foil === 'true') { kept.foil = price ?? undefined; kept.foilUrl = url; }
-    else { kept.regular = price ?? undefined; kept.url = url; }
-    prices.set(entry.scryfall_id, kept);
-  }
-  return prices;
+// A price as text from Scryfall ("0.31") as a number, or null if there isn't one
+function priceNumber(text: string | null | undefined): number | null {
+  const number = Number(text);
+  return text && Number.isFinite(number) && number > 0 ? number : null;
 }
 
-// Card Kingdom's prices for a printing, from the downloaded list. The
-// link goes to the regular card's page (or the foil one if that's all
-// they have), or else a search for its name.
-export function cardKingdomPrices(print: ScryfallCard, list: CardKingdomPrices): StorePrices {
-  const found = list.get(print.id);
-  return {
-    regular: found?.regular ?? null,
-    foil: found?.foil ?? null,
-    etchedFoil: null,
-    etched: false,
-    url: found?.url ?? found?.foilUrl ?? searchLink('cardkingdom', print.name),
-  };
+// The eight prices for one copy of a printing, as the copy is (its finish). An etched
+// copy uses the etched prices, or the foil ones when there are none. Without a price
+// file entry, only Scryfall's two (TCGplayer Market, Cardmarket Trend) are filled in.
+export function priceValues(print: ScryfallCard, finish: Finish, book?: PriceBook): (number | null)[] {
+  const entry = book?.get(print.id);
+  if (entry) {
+    const found = finish === 'etched' ? entry.e ?? entry.f : finish === 'foil' ? entry.f : entry.n;
+    return PRICE_SLOTS.map((_, i) => found?.[i] ?? null);
+  }
+  const p = print.prices ?? {};
+  const usd = finish === 'etched' ? p.usd_etched ?? p.usd_foil : finish === 'foil' ? p.usd_foil : p.usd;
+  const eur = finish === 'etched' ? p.eur_etched ?? p.eur_foil : finish === 'foil' ? p.eur_foil : p.eur;
+  return PRICE_SLOTS.map((slot) => (slot === 'tcgplayer.market' ? priceNumber(usd)
+    : slot === 'cardmarket.trend' ? priceNumber(eur) : null));
 }
 
-// The price of ONE copy of a printing at the chosen store, as the copy is
-// (its finish): the etched price for an etched copy (the foil price if the
-// store has no separate etched one), the foil price for a foil copy, the
-// regular price otherwise. null when the store has no price for it. "list"
-// is Card Kingdom's downloaded list (only needed for Card Kingdom).
-export function copyPrice(store: PriceStore, print: ScryfallCard, finish: Finish, list?: CardKingdomPrices): number | null {
-  const prices = store === 'tcgplayer' ? tcgplayerPrices(print)
-    : store === 'cardmarket' ? cardmarketPrices(print)
-      : list ? cardKingdomPrices(print, list) : null;
-  if (!prices) return null;
-  return finish === 'etched' ? prices.etchedFoil ?? prices.foil : finish === 'foil' ? prices.foil : prices.regular;
+// The price of ONE copy of a printing at the chosen store and price, or null if there is none
+export function copyPrice(store: PriceStore, kind: string, print: ScryfallCard, finish: Finish, book?: PriceBook): number | null {
+  return priceValues(print, finish, book)[slotOf(store, kind)];
+}
+
+// A link to the card at a store (its own page, or a search for its name)
+export function storeLink(store: PriceStore, print: ScryfallCard, book?: PriceBook): string {
+  const q = encodeURIComponent(print.name);
+  if (store === 'tcgplayer') return print.purchase_uris?.tcgplayer ?? `https://www.tcgplayer.com/search/magic/product?q=${q}`;
+  if (store === 'cardmarket') return print.purchase_uris?.cardmarket ?? `https://www.cardmarket.com/en/Magic/Products/Search?searchString=${q}`;
+  const page = book?.get(print.id)?.k;
+  return page ? `https://www.cardkingdom.com/${page}` : `https://www.cardkingdom.com/catalog/search?search=header&filter%5Bname%5D=${q}`;
 }

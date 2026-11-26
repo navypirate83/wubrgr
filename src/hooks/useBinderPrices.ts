@@ -1,11 +1,10 @@
 /* =====================================================================
    THE PRICES OF A BINDER'S CARDS
    Looks up what each card in a binder costs at the store chosen in
-   Settings (the "price store"), and adds them up.
+   Settings (the "price store" and which of its prices), and adds them up.
    - The cards' details come from Scryfall in big batches, one lookup per
      set of cards, and are kept for a while so reopening a binder is quick.
-   - Card Kingdom's prices come from its own price list (about 8 MB, so it's
-     only downloaded when Card Kingdom is the chosen store, and only once).
+   - The prices come from the daily price files, one per set (lib/prices.ts).
    - Each card has two prices: the price of ONE copy (the foil price for a
      foil copy), which the list shows and "Price" sorting uses, and that
      times how many copies you have, which is what the total adds up. A card
@@ -22,7 +21,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSettings } from '@/hooks/useSettings';
 import { cardCount } from '@/lib/binderStorage';
 import { finishOf } from '@/lib/cardDetails';
-import { copyPrice, currencyOf, loadCardKingdomPrices } from '@/lib/prices';
+import { copyPrice, loadPriceBook, pickedPrice, type PriceBook } from '@/lib/prices';
 import { loadPrintings } from '@/lib/scryfall';
 import type { ScryfallCard } from '@/lib/scryfall';
 import type { CardEntry } from '@/components/binder/CardList';
@@ -37,6 +36,9 @@ export type BinderPrices = {
   // Everything added up (null until the prices have loaded)
   total: number | null;
   currency: 'USD' | 'EUR';
+  // Which of the eight prices is showing, and the price files looked at
+  slot: number;
+  book: PriceBook | undefined;
   // Still waiting for the prices?
   loading: boolean;
   // Couldn't get the prices?
@@ -49,7 +51,8 @@ export type BinderPrices = {
 const KEEP_MS = 60 * 60 * 1000;
 
 export function useBinderPrices(entries: CardEntry[]): BinderPrices {
-  const { priceStore } = useSettings();
+  const settings = useSettings();
+  const { store, kind, slot, currency } = pickedPrice(settings);
 
   // The printings to look up: each set and number once, in a steady order
   // (so the same cards give the same lookup, and it's kept)
@@ -71,27 +74,27 @@ export function useBinderPrices(entries: CardEntry[]): BinderPrices {
     staleTime: KEEP_MS,
   });
 
-  // Card Kingdom's price list, only when it's the chosen store
-  const cardKingdom = useQuery({
-    queryKey: ['card-kingdom-prices'],
-    queryFn: loadCardKingdomPrices,
-    gcTime: Infinity,
-    enabled: priceStore === 'cardkingdom' && wanted.length > 0,
+  // The price files for the sets these cards are from
+  const sets = useMemo(() => [...new Set(wanted.map((w) => w.set))].sort(), [wanted]);
+  const files = useQuery({
+    queryKey: ['price-files', sets.join('|')],
+    queryFn: () => loadPriceBook(sets),
+    enabled: sets.length > 0,
+    staleTime: KEEP_MS,
   });
 
-  const currency = currencyOf(priceStore);
-  const loading = wanted.length > 0 && (printings.isLoading || (priceStore === 'cardkingdom' && cardKingdom.isLoading));
-  const failed = printings.isError || (priceStore === 'cardkingdom' && cardKingdom.isError);
+  const loading = wanted.length > 0 && (printings.isLoading || files.isLoading);
+  const failed = printings.isError;
 
   return useMemo(() => {
     const byKey = new Map<string, number | null>();
     const eachByKey = new Map<string, number | null>();
     let total = 0;
-    const ready = printings.data && (priceStore !== 'cardkingdom' || cardKingdom.data);
+    const ready = printings.data && files.data;
     if (ready) {
       for (const { key, card } of entries) {
         const print = printings.data!.get(`${card.set}/${card.number}`.toLowerCase());
-        const each = print ? copyPrice(priceStore, print, finishOf(card), cardKingdom.data) : null;
+        const each = print ? copyPrice(store, kind, print, finishOf(card), files.data) : null;
         const line = each === null ? null : Math.round(each * cardCount(card) * 100) / 100;
         byKey.set(key, line);
         // The price of a single copy, kept to the cent
@@ -99,6 +102,6 @@ export function useBinderPrices(entries: CardEntry[]): BinderPrices {
         if (line !== null) total += line;
       }
     }
-    return { byKey, eachByKey, total: ready ? Math.round(total * 100) / 100 : null, currency, loading, failed, printings: printings.data };
-  }, [entries, printings.data, cardKingdom.data, priceStore, currency, loading, failed]);
+    return { byKey, eachByKey, total: ready ? Math.round(total * 100) / 100 : null, currency, slot, book: files.data, loading, failed, printings: printings.data };
+  }, [entries, printings.data, files.data, store, kind, slot, currency, loading, failed]);
 }

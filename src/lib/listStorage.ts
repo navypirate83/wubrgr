@@ -23,6 +23,7 @@ import { storageGet, storageKeys, storageRemove, storageSet } from './storage';
 import { samePrinting, type BinderCard } from './binderStorage';
 import { needsDetails, withDetails } from './cardDetails';
 import { withAddedPrice } from './addedPrice';
+import type { PriceBook } from './prices';
 import { applyEdit, type CardEdit } from './cardEdit';
 import type { ScryfallCard } from './scryfall';
 import { movedBy } from './shelfSort';
@@ -203,7 +204,7 @@ export function updateListCard(id: string, index: number, edit: CardEdit): boole
 // yet, from their printings (by "set/number" in lowercase). A card with no
 // "price when added" (from before prices were recorded) gets today's price
 // at the same time (see addedPrice.ts). Returns true if anything was filled in.
-export function fillListDetails(id: string, printings: Map<string, ScryfallCard>): boolean {
+export function fillListDetails(id: string, printings: Map<string, ScryfallCard>, book?: PriceBook): boolean {
   const list = findList(id);
   if (!list) return false;
   let changed = false;
@@ -211,7 +212,7 @@ export function fillListDetails(id: string, printings: Map<string, ScryfallCard>
     const print = printings.get(`${card.set}/${card.number}`.toLowerCase());
     if (!print) return card;
     const detailed = needsDetails(card) ? (withDetails(card, print) as ListCard) : card;
-    const next = withAddedPrice(detailed, print);
+    const next = withAddedPrice(detailed, print, book);
     if (next !== card) changed = true;
     return next;
   });

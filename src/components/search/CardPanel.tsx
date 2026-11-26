@@ -12,7 +12,9 @@
    greyed-out pickers.
    On a phone the Share and "+" buttons float just inside the card's
    right edge; on a wider screen (a tablet or computer) they sit beside
-   the card, and the prices sit in a box to the card's left.
+   the card. The prices are above Notes and Rules. In a wide window there
+   are two columns: the card on the left, and the Set and Version pickers,
+   prices and boxes on the right.
    ===================================================================== */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -111,10 +113,12 @@ export default function CardPanel(props: Props) {
   // the room left over on each side of it
   const width = useContentWidth();
   const areaWidth = Math.min(width, MAX_CONTENT_WIDTH) - 32;
-  const cardWidth = Math.min(CARD_MAX_WIDTH, areaWidth);
-  const besideWidth = (areaWidth - cardWidth) / 2;
+  // Wide enough for two columns? Then the card's column takes a bit under half
+  const twoColumns = areaWidth >= 760;
+  const cardArea = twoColumns ? Math.round(areaWidth * 0.46) : areaWidth;
+  const cardWidth = twoColumns ? cardArea - 128 : Math.min(CARD_MAX_WIDTH, areaWidth);
+  const besideWidth = (cardArea - cardWidth) / 2;
   const buttonsBeside = besideWidth >= 64;    // room for a 48-point button and a gap
-  const pricesBeside = besideWidth >= 212;    // room for the narrow price box
 
   // The card's printings, grouped by set, newest set first. (useMemo
   // only redoes this when the printings or the set symbols change.)
@@ -436,7 +440,9 @@ export default function CardPanel(props: Props) {
   );
 
   return (
-    <View>
+    <View style={twoColumns ? styles.columns : null}>
+      {/* The card's side (the left column in a wide window) */}
+      <View style={twoColumns ? { width: cardArea } : null}>
       {/* LANGUAGE: the languages this printing was made in. Greyed out
           while the list loads, or when there's only one. */}
       <PickerButton
@@ -450,16 +456,11 @@ export default function CardPanel(props: Props) {
         <SheetRowText text={shown ? languageName(shown.lang) : EMPTY_PICKER_TEXT} />
       </PickerButton>
 
-      {/* THE CARD, with the prices to its left (wide screens) and the
-          round Share and "+" buttons beside it. The card stays centered
-          either way. */}
+      {/* THE CARD, with the round Share and "+" buttons beside it (wide
+          screens). The card stays centered either way. */}
       <View style={styles.stage}>
-        {/* PRICES beside the card (just the stores' icons) */}
-        {buttonsBeside && (
-          <View style={[styles.sideColumn, styles.leftColumn, { width: besideWidth }]}>
-            {print && pricesBeside && <PricePanel print={print} finish={finish} layout="side" />}
-          </View>
-        )}
+        {/* An empty space the same width as the buttons', so the card is centered */}
+        {buttonsBeside && <View style={{ width: besideWidth }} />}
 
         {/* The card itself, and on phones the round buttons on top of it */}
         <View style={{ width: cardWidth }}>
@@ -540,6 +541,10 @@ export default function CardPanel(props: Props) {
         </View>
       )}
 
+      </View>
+
+      {/* The details' side (the right column in a wide window) */}
+      <View style={twoColumns ? styles.details : null}>
       {/* SET and VERSION: side by side on wider screens */}
       <View style={[styles.section, styles.pickers]}>
         <SetPicker sets={sets} current={currentSet} onChoose={selectSet} />
@@ -556,13 +561,13 @@ export default function CardPanel(props: Props) {
         )}
       </View>
 
-      {/* NOTES AND RULES, the PRICES (under Notes and Rules when there's
-          no room beside the card, with the stores' names) and FORMAT
-          LEGALITY: only once a card is showing */}
+      {/* The PRICES, NOTES AND RULES and FORMAT LEGALITY: only once a card
+          is showing */}
       <View style={styles.section}>
+        {print && <PricePanel print={print} finish={finish} />}
         {result && <Rulings card={result.card} />}
-        {print && !pricesBeside && <PricePanel print={print} finish={finish} layout="below" />}
         {print && <Legality print={print} />}
+      </View>
       </View>
 
       {/* The Language list (drawn only while open) */}
@@ -588,9 +593,11 @@ export default function CardPanel(props: Props) {
 // is put there, then pulled back up by half the button's 48 points).
 const styles = StyleSheet.create({
   languagePicker: { width: '100%', alignSelf: 'center', marginTop: 10 },
+  // The two columns of a wide window, and the right one taking the room left
+  columns: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 24 },
+  details: { flex: 1, minWidth: 0 },
   stage: { flexDirection: 'row', justifyContent: 'center', marginTop: 14 },
   sideColumn: { position: 'relative' },
-  leftColumn: { alignItems: 'flex-end', justifyContent: 'center', paddingRight: 12 },
   spot: { position: 'absolute', marginTop: -24 },
   oneThird: { top: '33.333%' },
   twoThirds: { top: '66.667%' },

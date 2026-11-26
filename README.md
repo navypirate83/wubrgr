@@ -35,8 +35,9 @@ uses the same Drive folder.
   (phones). On a computer, card pictures can be dropped in from Scryfall
   or EDHREC.
 - **Card Finder** (a tab): search any card, pick its set, version and
-  language, see its rulings, format legality and prices (TCGplayer, Card
-  Kingdom, Cardmarket), share it, and add it to a binder.
+  language, see its rulings, format legality and prices (a tab each for
+  TCGplayer, Card Kingdom and Cardmarket, refreshed daily by
+  `scripts/prices`), share it, and add it to a binder.
 - **Settings** (a tab): theme (Dark, System or Light), the binder page
   layout (pockets across × down), which formats show in Format Legality,
   and your account (log in, log out, optional Google Drive backup).

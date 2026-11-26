@@ -291,7 +291,7 @@ export default function ShelfScreen() {
     const then: Record<string, number> = {};
     for (const { key, card } of priceEntries) {
       const price = shelfPrices.eachByKey.get(key);
-      const change = priceChangeOf(card.extra, price, shelfPrices.currency);
+      const change = priceChangeOf(card.extra, price, shelfPrices.currency, shelfPrices.slot);
       if (!change || change.percent === null || typeof price !== 'number') continue;
       const id = key.slice(0, key.indexOf('|'));
       now[id] = (now[id] ?? 0) + price * cardCount(card);
