@@ -1132,9 +1132,21 @@ export const helpTopics: HelpTopic[] = [
             <P>
               Tap a set to see every card in it, as a <Strong>List</Strong>, a <Strong>Grid</Strong> or a third view, the <Strong>checklist grid</Strong> (the tick-box button), which grays out the cards you don't own and puts a small <Strong>×2</Strong> tag on the ones you do, with how many copies you have. "Own" means the card is in one of your binders (cards on lists and in decks don't count), the very same printing, and a foil copy counts. The grids stretch with the browser window, like a binder's. The sort button is the same as an opened binder's
               <Strong> Sort</Strong> button (without Newest added, without Set, since every card is
-              from the same set, and without Price change, since prices aren't tracked for every card in every set; it has <Strong>Card number</Strong> instead, which puts the cards in the order of the set, lowest number first, and highest first when flipped; and <Strong>Owned first</Strong>, which puts the cards you have first, with Owned and Not owned header bars, and the missing ones first when flipped, where the button says <Strong>Missing</Strong>). Tapping the magnifying glass from another screen takes you back to the last place you were in the Card Finder: the Cards tab, the list of sets, or the set you were looking in. The List or Grid choice and the sort are remembered on this device, so every set opens the way you left the last one. Tap a card to open it in the Card Finder. The <Strong>back arrow</Strong> at the top left works as
+              from the same set, and without Price change, since prices aren't tracked for every card in every set; it has <Strong>Card number</Strong> instead, which puts the cards in the order of the set, lowest number first, and highest first when flipped; and <Strong>Owned first</Strong>, which puts the cards you have first, with Owned and Not owned header bars, and the missing ones first when flipped, where the button says <Strong>Missing</Strong>). Tapping the magnifying glass from another screen takes you back to the last place you were in the Card Finder: the Cards tab, the list of sets, or the set you were looking in. The List or Grid choice and the sort are remembered on this device, so every set opens the way you left the last one. The <Strong>back arrow</Strong> at the top left works as
               everywhere else: from a card it goes back to the set's cards, and from the set's cards back to the list of sets. Tapping the <Strong>Sets</Strong> tab while you're looking inside a set also goes to the list.
               Opening the Card Finder with the <Strong>+</Strong> in a binder, list or deck always starts on the Cards tab.
+            </P>
+            <P>
+              Tap a card for the same pop-up a binder's cards have: its picture, price and rules. For someone using
+              the binders it has icons to add the card to a <Strong>Binder</Strong>, a <Strong>List</Strong> or a{' '}
+              <Strong>Deck</Strong>. Adding puts in one copy of that printing, in English and not foil unless it only
+              comes in foil; change it afterwards where you put it. Tap the picture to open the card in the Card Finder.
+            </P>
+            <P>
+              The search box above a set's cards works like a binder's. With the switch on <Strong>This set</Strong>,
+              the cards narrow as you type and the closest names drop down; tap one to jump to it. Switch to{' '}
+              <Strong>All sets</Strong> to list printings from every paper set; tapping one opens its set with the card
+              highlighted.
             </P>
             <P>
               A set that came with extras (its tokens, Commander decks, Timeshifts, promos, art cards) has a small arrow at

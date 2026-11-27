@@ -550,7 +550,7 @@ const GridTile = memo(function GridTile({ entry, owned, onPick, onCopies, size, 
   const { card, key } = entry;
   const count = cardCount(card);
   return (
-    <View style={[{ width: size }, owned === 0 && styles.notOwned, highlighted && { borderRadius: 8, boxShadow: `0px 0px 0px 3px ${colors.accent}` }]}>
+    <View style={[{ width: size }, owned === 0 && !highlighted && styles.notOwned, highlighted &&{ borderRadius: 8, boxShadow: `0px 0px 0px 3px ${colors.accent}` }]}>
       {/* The picture and its copies bar together (the bar sits over the bottom of the picture, not of the whole tile) */}
       <View>
       {/* The picture: tap it for the card's menu */}

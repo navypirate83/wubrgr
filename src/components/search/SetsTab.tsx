@@ -49,10 +49,12 @@ type Props = {
   visible: boolean;                       // is this tab showing? (It stays drawn, hidden, while the Cards tab shows.)
   shownCode: string | null;               // the code of the set whose cards are open (from the page's address), if any
   onShow: (code: string | null) => void;  // a set was tapped (the screen puts it in the address)
-  onPickCard: (card: ScryfallCard) => void;   // a card in a set was tapped
+  onPickCard: (card: ScryfallCard) => void;   // "open in the Card Finder" for a card in a set
+  usingBinders: boolean;                  // can cards be added to binders, lists and decks?
+  announce: (text: string) => void;       // say something to screen readers
 };
 
-export default function SetsTab({ visible, shownCode, onShow, onPickCard }: Props) {
+export default function SetsTab({ visible, shownCode, onShow, onPickCard, usingBinders, announce }: Props) {
   const colors = useColors();
   // What's typed in the search box and which sets have their extras open
   const [typed, setTyped] = useState('');
@@ -68,6 +70,12 @@ export default function SetsTab({ visible, shownCode, onShow, onPickCard }: Prop
     [shownCode, sets.data],
   );
   const open = useCallback((set: SetInfo) => onShow(set.code), [onShow]);
+  // A card picked in a set page's search: its set and number, so that set's page highlights it
+  const [jump, setJump] = useState<{ set: string; number: string } | null>(null);
+  const jumpToCard = (set: string, number: string) => {
+    setJump({ set, number });
+    if (set !== shownCode) onShow(set);
+  };
 
   const toggle = useCallback((code: string) => {
     setOpened((now) => {
@@ -131,6 +139,11 @@ export default function SetsTab({ visible, shownCode, onShow, onPickCard }: Prop
           set={{ code: shown.code, name: shown.name, count: shown.count, icon: icons.data?.get(shown.code) ?? shown.icon }}
           onPickCard={onPickCard}
           visible={visible}
+          usingBinders={usingBinders}
+          announce={announce}
+          jumpTo={jump?.set === shown.code ? jump.number : null}
+          onJump={jumpToCard}
+          onJumped={() => setJump(null)}
         />
       )}
     </View>

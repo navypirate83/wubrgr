@@ -517,7 +517,8 @@ export default function CardFinderScreen() {
       </View>
 
       {/* THE SETS TAB */}
-      <SetsTab visible={tab === 'sets'} shownCode={showParam} onShow={showSet} onPickCard={openFromSet} />
+      <SetsTab visible={tab === 'sets'} shownCode={showParam} onShow={showSet} onPickCard={openFromSet}
+               usingBinders={usingBinders} announce={announce} />
 
       <ShortcutsDialog
         open={shortcutsOpen}

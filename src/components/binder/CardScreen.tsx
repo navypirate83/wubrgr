@@ -1,7 +1,8 @@
 /* =====================================================================
    THE CARD SCREEN (what opens when you tap a card)
    One screen for a card in a binder, a list or a deck, so all three look
-   and work the same.
+   and work the same. A set's page in the Card Finder uses it too, for
+   cards that aren't yours yet: it gives no "onChange", so there's no pencil.
    - On a phone it slides up from the bottom as a sheet.
    - On a wide window (a tablet or the website) it opens as a pop-up in the
      middle, with the page dimmed behind it, the card on the left and its
@@ -279,9 +280,10 @@ export default function CardScreen({ card, where, copies, onChange, onOpenFinder
   );
 
   // The row of icons, centered: Edit first, then the page's own, then the red trash can
-  const iconRowEl = (
+  // (No icons at all means no row)
+  const iconRowEl = !onChange && actions.length === 0 ? null : (
     <View style={[styles.iconRow, { borderTopColor: colors.border }]}>
-      <IconButton label="Edit this card" caption="Edit" icon="create-outline" size={iconSize} onPress={() => setEditing(true)} />
+      {onChange && <IconButton label="Edit this card" caption="Edit" icon="create-outline" size={iconSize} onPress={() => setEditing(true)} />}
       {normalActions.map((action) => (
         <IconButton key={action.label} label={action.label} caption={action.short} icon={action.icon} picture={action.picture} plus={action.plus} size={iconSize} onPress={action.onPress} />
       ))}

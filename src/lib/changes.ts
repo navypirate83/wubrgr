@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '2.1.0',
+    date: '2026-11-27',
+    lines: [
+      'In the Card Finder, tapping a card on a set\'s page now opens the same card pop-up as in a binder, with buttons to add it to a binder, a list or a deck. Tap the picture to open it in the Card Finder.',
+      'A set\'s page has a card search, for that set or for all sets.',
+    ],
+  },
+  {
     version: '2.0.3',
     date: '2026-11-27',
     lines: [

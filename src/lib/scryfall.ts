@@ -216,6 +216,21 @@ export async function searchCardsPage(query: string, page: number): Promise<Card
   }
 }
 
+// Every paper printing of these card names, newest first (the first page, up
+// to 175), for the set page's "All sets" search. Nothing found gives [].
+export async function searchAllPrints(names: string[]): Promise<ScryfallCard[]> {
+  if (names.length === 0) return [];
+  const which = names.map((name) => `!"${name.replace(/"/g, '')}"`).join(' or ');
+  try {
+    const reply = await scryfall<ListPage<ScryfallCard>>(
+      `/cards/search?unique=prints&order=released&include_extras=true&q=${encodeURIComponent(`(${which}) game:paper`)}`);
+    return reply.data;
+  } catch (err) {
+    if (err instanceof Error && /didn.t match any cards|No cards found/i.test(err.message)) return [];
+    throw err;
+  }
+}
+
 // Like searchCards, but every page of answers (for searches with hundreds of
 // results, like "all the cards banned in a format"). Nothing found gives [].
 export async function searchAllCards(query: string): Promise<ScryfallCard[]> {
