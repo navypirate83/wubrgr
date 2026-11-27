@@ -522,7 +522,7 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <P>
               <Strong>The price when a card was added</Strong>: each time you add a card to a binder or a list,
-              all the prices of that day are saved with it (TCGplayer Market, Mid, Low and High; Card Kingdom Retail
+              all the prices of that day are saved with it (TCGplayer Market, High, Mid and Low; Card Kingdom Retail
               and Buy; Cardmarket Trend, Low and 30-day average). In the file, <Strong>Purchase price</Strong>{' '}
               (with <Strong>Purchase price currency</Strong> beside it) holds the main one, TCGplayer's Market
               price in dollars, or Cardmarket's Trend in euros when Cardmarket is your price store, and{' '}
@@ -1226,7 +1226,7 @@ export const helpTopics: HelpTopic[] = [
           <>
             <P>
               The <Strong>Prices</Strong> box, above <Strong>Notes and Rules</Strong>, has a tab for each of
-              three stores: <Strong>TCGplayer</Strong> (Market, Mid, Low and High), <Strong>Card Kingdom</Strong>{' '}
+              three stores: <Strong>TCGplayer</Strong> (Market, High, Mid and Low), <Strong>Card Kingdom</Strong>{' '}
               (Retail, what they sell it for, and Buy, what they pay you for it) and{' '}
               <Strong>Cardmarket</Strong> (Trend, Low and 30-day average, in euros). The store you chose under{' '}
               <Strong>Price store</Strong> in <HelpLink to="settings-prices">Settings</HelpLink> is the first tab
@@ -1237,7 +1237,8 @@ export const helpTopics: HelpTopic[] = [
             <P>
               <Strong>See this card on</Strong> under the TCGplayer and Card Kingdom prices opens the card there.
               Cardmarket has no link, because its website blocks many visitors. In a wide window the card is on
-              the left and the Set and Version pickers, prices and boxes are on the right.
+              the left and the Set and Version pickers, prices and boxes are on the right; the card stays in
+              place while you scroll the right side.
             </P>
             <P>
               The prices are brought up to date once a day, so check the store before buying.
@@ -1409,7 +1410,7 @@ export const helpTopics: HelpTopic[] = [
               Under <Strong>Collection</Strong>, <Strong>Price store</Strong> picks whose prices the app
               shows for your cards: <Strong>TCGplayer</Strong> or <Strong>Card Kingdom</Strong> (US
               dollars) or <Strong>Cardmarket</Strong> (euros). Under it,{' '}
-              <Strong>Price to show under cards</Strong> picks which of that store's prices: Market, Mid, Low or High
+              <Strong>Price to show under cards</Strong> picks which of that store's prices: Market, High, Mid or Low
               for TCGplayer; Retail or Buy for Card Kingdom; Trend, Low or 30-day average for Cardmarket. Each
               store remembers its own pick.
             </P>

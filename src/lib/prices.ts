@@ -42,9 +42,9 @@ export function currencyOf(store: PriceStore): 'USD' | 'EUR' {
 export const PRICE_KINDS: Record<PriceStore, { id: string; label: string; hint: string }[]> = {
   tcgplayer: [
     { id: 'market', label: 'Market', hint: 'Based on recent sales' },
+    { id: 'high', label: 'High', hint: 'The highest listing' },
     { id: 'mid', label: 'Mid', hint: 'The middle listing' },
     { id: 'low', label: 'Low', hint: 'About the cheapest listing' },
-    { id: 'high', label: 'High', hint: 'The highest listing' },
   ],
   cardkingdom: [
     { id: 'retail', label: 'Retail', hint: 'What they sell it for' },

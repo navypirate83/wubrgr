@@ -59,7 +59,8 @@ import CardGrid from '@/components/search/CardGrid';
 import FinderTabs, { type FinderTab } from '@/components/search/FinderTabs';
 import { rememberFinderPlace } from '@/lib/finderMemory';
 import SetsTab from '@/components/search/SetsTab';
-import CardPanel from '@/components/search/CardPanel';
+import CardPanel, { cardLayout } from '@/components/search/CardPanel';
+import { useContentWidth } from '@/hooks/useMenuStyle';
 import { NoCardsFound, SearchError, Searching } from '@/components/search/SearchStates';
 import { addressValue, pocketFromAddress } from '@/components/search/AddToBinder';
 
@@ -217,6 +218,10 @@ export default function CardFinderScreen() {
 
   // The Keyboard shortcuts window, and reading messages out to screen readers
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // How tall the card area is, and how wide the page: a big enough window
+  // keeps the card in place and scrolls only the details beside it
+  const [viewHeight, setViewHeight] = useState(0);
+  const contentWidth = useContentWidth();
   const { announce } = useAnnouncer();
 
   /* ----- Downloads (TanStack Query runs these and remembers them) ----- */
@@ -402,6 +407,9 @@ export default function CardFinderScreen() {
     }
   });
 
+  // The card area as a whole doesn't scroll then (a message or spinner still can)
+  const fitted = !failed && !firstLoad && cardLayout(contentWidth, viewHeight).fitted;
+
   return (
     // The whole screen shrinks to the space above the keyboard while
     // it's up ("padding" adds room at the bottom the size of the part
@@ -461,7 +469,8 @@ export default function CardFinderScreen() {
           showsVerticalScrollIndicator={false}
           ref={scrollRef}
           style={styles.fill}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, fitted && styles.contentFitted]}
+          onLayout={(e) => setViewHeight(Math.round(e.nativeEvent.layout.height))}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
@@ -498,6 +507,7 @@ export default function CardFinderScreen() {
               pocket={pocket}
               toList={fromList}
               toDeck={toDeck}
+              viewHeight={viewHeight}
               onMessage={(message, isError = false) => setAddMessage(message === null ? null : { text: message, isError })}
             />
           )}
@@ -531,6 +541,8 @@ const styles = StyleSheet.create({
     width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center',
     paddingHorizontal: 16, paddingTop: 4, paddingBottom: 48,
   },
+  // Exactly the window's height, so the two columns inside do the scrolling
+  contentFitted: { flex: 1, paddingBottom: 0 },
   // The "Back to results" button above a card picked from the grid
   backRow: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 2,

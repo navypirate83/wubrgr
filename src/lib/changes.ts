@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '2.0.2',
+    date: '2026-11-27',
+    lines: [
+      'In a wide window, the Card Finder keeps the card in place and scrolls only the details beside it.',
+      "TCGplayer's High price is now listed above Mid.",
+    ],
+  },
+  {
     version: '2.0.1',
     date: '2026-11-26',
     lines: ['TCGplayer now has a High price too, on the Card Finder and as a choice under Price to show under cards.'],

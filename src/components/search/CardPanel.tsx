@@ -14,11 +14,12 @@
    right edge; on a wider screen (a tablet or computer) they sit beside
    the card. The prices are above Notes and Rules. In a wide window there
    are two columns: the card on the left, and the Set and Version pickers,
-   prices and boxes on the right.
+   prices and boxes on the right. When the window is also tall enough, the
+   card's column stays put and only the right one scrolls.
    ===================================================================== */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useContentWidth } from '@/hooks/useMenuStyle';
 import { router } from 'expo-router';
 import { useQueries, useQuery } from '@tanstack/react-query';
@@ -60,6 +61,37 @@ const PUBLIC_SEARCH_ADDRESS = `${SITE_URL}search`;
 
 // The card picture is never wider than this (in points)
 const CARD_MAX_WIDTH = 400;
+// A card's height compared with its width (the same shape CardPicture draws)
+const CARD_SHAPE = 680 / 488;
+// The shortest window area where the card's column stays put (shorter ones,
+// like a phone turned sideways, scroll as one page), and the narrowest the
+// card is shrunk to so that its column fits
+const FITTED_MIN_HEIGHT = 480;
+const FITTED_MIN_CARD = 200;
+
+// Which layout the room gives: "twoColumns" when it's wide enough, and
+// "fitted" when it's also tall enough for the card's side to stay put while
+// the details scroll. The search screen asks too, to stop its own scrolling.
+export function cardLayout(contentWidth: number, viewHeight: number) {
+  const areaWidth = Math.min(contentWidth, MAX_CONTENT_WIDTH) - 32;
+  const twoColumns = areaWidth >= 760;
+  return { areaWidth, twoColumns, fitted: twoColumns && viewHeight >= FITTED_MIN_HEIGHT };
+}
+
+// One of the two columns: its own scrolling area when "scrolls", otherwise
+// a plain box that is part of the page. "roomAtEnd" leaves a gap under the
+// last thing when scrolled to the bottom.
+function Column({ scrolls, style, roomAtEnd, children }: {
+  scrolls: boolean; style: StyleProp<ViewStyle>; roomAtEnd?: boolean; children: ReactNode;
+}) {
+  if (!scrolls) return <View style={style}>{children}</View>;
+  return (
+    <ScrollView style={style} contentContainerStyle={roomAtEnd && styles.columnEnd} showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled">
+      {children}
+    </ScrollView>
+  );
+}
 
 type Props = {
   // The card that was looked up and all its printings (missing before a
@@ -91,6 +123,8 @@ type Props = {
   // Show a message under the search box (red if it's a problem), or
   // clear it (null)
   onMessage: (text: string | null, isError?: boolean) => void;
+  // How tall the area the card sits in is (0 until it has been measured)
+  viewHeight: number;
 };
 
 // What a tap on the finish button changes it to, in words (for the hint
@@ -112,11 +146,16 @@ export default function CardPanel(props: Props) {
   // the width of the area the card sits in, the card's own width, and
   // the room left over on each side of it
   const width = useContentWidth();
-  const areaWidth = Math.min(width, MAX_CONTENT_WIDTH) - 32;
   // Wide enough for two columns? Then the card's column takes a bit under half
-  const twoColumns = areaWidth >= 760;
+  const { areaWidth, twoColumns, fitted } = cardLayout(width, props.viewHeight);
+  // How tall everything in the card's column is apart from the picture
+  // (the Language box, buttons and name), measured once it's drawn
+  const [aroundCard, setAroundCard] = useState(250);
   const cardArea = twoColumns ? Math.round(areaWidth * 0.46) : areaWidth;
-  const cardWidth = twoColumns ? cardArea - 128 : Math.min(CARD_MAX_WIDTH, areaWidth);
+  // When the column stays put, the picture is made small enough for all of it to fit
+  const widest = twoColumns ? cardArea - 128 : Math.min(CARD_MAX_WIDTH, areaWidth);
+  const tallest = Math.floor((props.viewHeight - aroundCard - 12) / CARD_SHAPE);
+  const cardWidth = fitted ? Math.max(FITTED_MIN_CARD, Math.min(widest, tallest)) : widest;
   const besideWidth = (cardArea - cardWidth) / 2;
   const buttonsBeside = besideWidth >= 64;    // room for a 48-point button and a gap
 
@@ -440,9 +479,15 @@ export default function CardPanel(props: Props) {
   );
 
   return (
-    <View style={twoColumns ? styles.columns : null}>
-      {/* The card's side (the left column in a wide window) */}
-      <View style={twoColumns ? { width: cardArea } : null}>
+    <View style={twoColumns ? [styles.columns, fitted && styles.columnsFitted] : null}>
+      {/* The card's side (the left column in a wide window). It only scrolls
+          if the window is too short even for the smallest picture. */}
+      <Column scrolls={fitted} style={twoColumns ? { width: cardArea, flexGrow: 0 } : null}>
+      {/* Measured, to know how much height is left for the picture */}
+      <View onLayout={(e) => {
+        const around = Math.round(e.nativeEvent.layout.height - cardWidth * CARD_SHAPE);
+        if (around > 0 && Math.abs(around - aroundCard) > 2) setAroundCard(around);
+      }}>
       {/* LANGUAGE: the languages this printing was made in. Greyed out
           while the list loads, or when there's only one. */}
       <PickerButton
@@ -542,9 +587,10 @@ export default function CardPanel(props: Props) {
       )}
 
       </View>
+      </Column>
 
       {/* The details' side (the right column in a wide window) */}
-      <View style={twoColumns ? styles.details : null}>
+      <Column scrolls={fitted} style={twoColumns ? styles.details : null} roomAtEnd>
       {/* SET and VERSION: side by side on wider screens */}
       <View style={[styles.section, styles.pickers]}>
         <SetPicker sets={sets} current={currentSet} onChoose={selectSet} />
@@ -568,7 +614,7 @@ export default function CardPanel(props: Props) {
         {result && <Rulings card={result.card} />}
         {print && <Legality print={print} />}
       </View>
-      </View>
+      </Column>
 
       {/* The Language list (drawn only while open) */}
       {openSheet === 'language' && (
@@ -596,6 +642,9 @@ const styles = StyleSheet.create({
   // The two columns of a wide window, and the right one taking the room left
   columns: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 24 },
   details: { flex: 1, minWidth: 0 },
+  // Fitted: the columns fill the window's height, and the right one ends with some room
+  columnsFitted: { flex: 1, alignItems: 'stretch' },
+  columnEnd: { paddingBottom: 24 },
   stage: { flexDirection: 'row', justifyContent: 'center', marginTop: 14 },
   sideColumn: { position: 'relative' },
   spot: { position: 'absolute', marginTop: -24 },
