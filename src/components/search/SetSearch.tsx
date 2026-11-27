@@ -14,9 +14,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import { useColors } from '@/hooks/useTheme';
 import { fuzzySearch, matchParts, prepareNames } from '@/lib/nameSearch';
 import { isExactName, isSearching } from '@/lib/nameFilter';
@@ -123,28 +122,18 @@ export default function SetSearch({ cards, onQuery, onPick }: Props) {
     <View style={styles.wrap} accessibilityRole="search">
       {/* The box, with the switch beside it */}
       <View style={styles.searchRow}>
-        <View style={[styles.field, styles.grow]}>
-          <TextField
-            accessibilityLabel="Search cards"
-            placeholder={onlyThis ? 'Search this set…' : 'Search all sets…'}
-            value={text}
-            onChangeText={handleChange}
-            onSubmitEditing={() => pick(results[0])}
-            onKeyPress={(event) => { if (event.nativeEvent.key === 'Escape') { if (open) setOpen(false); else handleChange(''); } }}
-            // Leaving the box closes the list (a moment later, so a tap on a result still counts)
-            onBlur={() => setTimeout(() => setOpen(false), 200)}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
-            spellCheck={false}
-            autoComplete="off"
-            style={styles.input}
-          />
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={() => pick(results[0])} hitSlop={6}
-                     style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}>
-            <Ionicons name="search" size={20} color={colors.muted} />
-          </Pressable>
-        </View>
+        <SearchField
+          accessibilityLabel="Search cards"
+          placeholder={onlyThis ? 'Search this set…' : 'Search all sets…'}
+          value={text}
+          onChangeText={handleChange}
+          magnifier
+          wrapStyle={styles.grow}
+          onSubmitEditing={() => pick(results[0])}
+          onKeyPress={(event) => { if (event.nativeEvent.key === 'Escape') { if (open) setOpen(false); else handleChange(''); } }}
+          // Leaving the box closes the list (a moment later, so a tap on a result still counts)
+          onBlur={() => setTimeout(() => setOpen(false), 200)}
+        />
 
         {/* Which cards to search: "This set" (on) or "All sets" (off) */}
         <View style={styles.scope}>
@@ -204,10 +193,6 @@ const styles = StyleSheet.create({
   wrap: { zIndex: 10, paddingHorizontal: SPACE.l, paddingBottom: 8 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   grow: { flex: 1 },
-  field: { justifyContent: 'center' },
-  input: { paddingRight: 44 },
-  searchButton: { position: 'absolute', right: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.5 },
   // The switch with its word under it
   scope: { alignItems: 'center', width: 56 },
   scopeWord: { fontSize: 12, marginTop: 2 },

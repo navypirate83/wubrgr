@@ -34,7 +34,7 @@ import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColors } from '@/hooks/useTheme';
 import { useAnnouncer } from '@/hooks/useAnnouncer';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import Button from '@/components/Button';
 import PopupWindow from '@/components/PopupWindow';
 import HelpButton from '@/components/HelpButton';
@@ -399,7 +399,7 @@ export default function ListScreen() {
       {/* The search box, and the List / Grid switch with the sort */}
       <View style={styles.top}>
         <View style={styles.searchArea}>
-        <TextField
+        <SearchField
           accessibilityLabel="Search this list"
           placeholder="Search this list…"
           value={filter}

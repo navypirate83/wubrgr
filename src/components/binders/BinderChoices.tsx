@@ -25,6 +25,7 @@ import { coverLook } from '@/lib/covers';
 import { loadSetIcons } from '@/lib/scryfall';
 import { SET_SYMBOLS, type SetSymbolEntry } from '@/data/setSymbols';
 import { useColors } from '@/hooks/useTheme';
+import SearchField from '@/components/SearchField';
 import TextField from '@/components/TextField';
 import { PickerButton, PickerSheet, SheetRowText } from '@/components/search/PickerSheet';
 import CoverSwatch from './CoverSwatch';
@@ -227,7 +228,8 @@ export function SymbolChoices({ legend, value, onChange }: {
           labelOf={(entry) => entry.name}
           header={(
             <View style={styles.searchBox}>
-              <TextField
+              <SearchField
+                keepCursor={false}
                 accessibilityLabel="Search set symbols"
                 placeholder="Search by set name or code"
                 value={search}
@@ -235,7 +237,6 @@ export function SymbolChoices({ legend, value, onChange }: {
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
-                clearButtonMode="while-editing"
               />
             </View>
           )}

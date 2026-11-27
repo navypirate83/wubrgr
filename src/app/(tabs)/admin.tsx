@@ -27,6 +27,7 @@ import { Redirect, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Button from '@/components/Button';
 import PopupWindow from '@/components/PopupWindow';
+import SearchField from '@/components/SearchField';
 import TextField from '@/components/TextField';
 import { useAccount } from '@/hooks/useAccount';
 import { useColors } from '@/hooks/useTheme';
@@ -174,14 +175,13 @@ export default function AdminScreen() {
         // At the top: the search box, the buttons, and a line for what just happened
         ListHeaderComponent={(
           <View style={styles.header}>
-            <TextField
+            <SearchField
               accessibilityLabel="Search people"
               placeholder="Search by name or email"
               value={query}
               onChangeText={setQuery}
               autoCapitalize="none"
               autoCorrect={false}
-              clearButtonMode="while-editing"
             />
             <View style={styles.chips}>
               {FILTERS.map((f) => {

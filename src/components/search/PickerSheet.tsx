@@ -23,10 +23,11 @@
 
 import { useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
-  FlatList, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions,
+  FlatList, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions,
   type StyleProp, type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import SearchField from '@/components/SearchField';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColors } from '@/hooks/useTheme';
 import { RADIUS } from '@/theme/colors';
@@ -166,15 +167,14 @@ function PickerDropdown<T>(props: SheetProps<T>) {
         {header}
         {/* The "Type to filter" box (Set picker) */}
         {filterable && (
-          <TextInput
+          <SearchField
             value={filter}
             onChangeText={setFilter}
             placeholder="Type to filter…"
-            placeholderTextColor={colors.muted}
             accessibilityLabel={`Filter ${title}`}
-            autoCorrect={false}
-            autoCapitalize="none"
-            style={[styles.filterBox, { color: colors.text, borderColor: colors.border, backgroundColor: colors.bg }]}
+            keepCursor={false}
+            wrapStyle={styles.filterWrap}
+            style={styles.filterBox}
           />
         )}
         {/* The rows, scrolling inside the box */}
@@ -341,7 +341,8 @@ const styles = StyleSheet.create({
   dropList: { flexGrow: 0 },
   dropRow: { height: DROP_ROW_HEIGHT, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   dropEmpty: { padding: 14, fontSize: 15 },
-  filterBox: { height: 40, marginHorizontal: 8, marginBottom: 4, paddingHorizontal: 12, borderWidth: 1, borderRadius: RADIUS - 2, fontSize: 15 },
+  filterWrap: { marginHorizontal: 8, marginBottom: 4 },
+  filterBox: { height: 40, minHeight: 40, paddingHorizontal: 12, borderWidth: 1, borderRadius: RADIUS - 2, fontSize: 15 },
   sheet: {
     width: '100%', maxWidth: 560, maxHeight: '75%', alignSelf: 'center',
     borderTopLeftRadius: RADIUS * 1.6, borderTopRightRadius: RADIUS * 1.6, borderWidth: 1, borderBottomWidth: 0,

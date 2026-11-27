@@ -34,7 +34,7 @@ import { loadCardNames } from '@/lib/scryfall';
 import { fuzzySearch, matchParts, prepareNames } from '@/lib/nameSearch';
 import { loadBinder, loadBinderList } from '@/lib/binderStorage';
 import { useColors } from '@/hooks/useTheme';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import { RADIUS } from '@/theme/colors';
 
 // Start searching at this many letters, and show at most this many lines
@@ -91,34 +91,19 @@ export default function DeckSearchBar({ mode, onMode, filter, onFilter, open, on
     <View style={styles.wrap} accessibilityRole="search">
       {/* The box, with the Search / Add switch to its right */}
       <View style={styles.topRow}>
-        <View style={styles.field}>
-          <TextField
-            accessibilityLabel={adding ? 'Search for a card to add to this deck' : 'Search the cards in this deck'}
-            placeholder={adding ? 'Search for a card to add…' : 'Search this deck…'}
-            value={adding ? text : filter}
-            onChangeText={(value) => {
-              if (adding) { setText(value); onOpenChange(true); } else onFilter(value);
-            }}
-            onFocus={() => { if (adding) onOpenChange(true); }}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          {/* At the far right: a little X that empties the box once something is typed,
-              otherwise the magnifying glass. */}
-          {(adding ? text : filter).length > 0 ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Clear the search box" hitSlop={6}
-                       onPress={() => { if (adding) { setText(''); onOpenChange(false); } else onFilter(''); }}
-                       style={styles.searchIcon}>
-              <Ionicons name="close-circle" size={22} color={colors.muted} />
-            </Pressable>
-          ) : (
-            <View style={styles.searchIcon} pointerEvents="none">
-              <Ionicons name="search" size={20} color={colors.muted} />
-            </View>
-          )}
-        </View>
+        <SearchField
+          accessibilityLabel={adding ? 'Search for a card to add to this deck' : 'Search the cards in this deck'}
+          placeholder={adding ? 'Search for a card to add…' : 'Search this deck…'}
+          value={adding ? text : filter}
+          onChangeText={(value) => {
+            if (adding) { setText(value); onOpenChange(true); } else onFilter(value);
+          }}
+          // The X: empty the box (and, while adding, close the matches)
+          onClear={() => { if (adding) { setText(''); onOpenChange(false); } else onFilter(''); }}
+          magnifier
+          wrapStyle={styles.field}
+          onFocus={() => { if (adding) onOpenChange(true); }}
+        />
         {/* The label above the switch says what the box is doing now */}
         <View style={styles.modeBox}>
           <Text style={[styles.modeLabel, { color: colors.text }]}>{adding ? 'Add' : 'Search'}</Text>
@@ -190,9 +175,7 @@ export default function DeckSearchBar({ mode, onMode, filter, onFilter, open, on
 const styles = StyleSheet.create({
   wrap: { zIndex: 10 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  field: { flex: 1, justifyContent: 'center' },
-  input: { paddingRight: 44 },
-  searchIcon: { position: 'absolute', right: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  field: { flex: 1 },
   modeBox: { alignItems: 'center', minWidth: 56 },
   // A switch that can't be used right now: faded, but still there
   grayedOut: { opacity: 0.4 },

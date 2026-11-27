@@ -95,6 +95,10 @@ export const helpTopics: HelpTopic[] = [
               instead of the sign-in buttons, and <Strong>The Shelf</Strong> (the row of books
               at the bottom of the screen) goes straight to your shelf.
             </P>
+            <P>
+              Every search box in the app shows a round <Strong>X</Strong> at its right end once you
+              type something. Tap it to empty the box.
+            </P>
           </>
         ),
       },
@@ -286,8 +290,7 @@ export const helpTopics: HelpTopic[] = [
             </Bullet>
             <Bullet>
               <Strong>Search</Strong>: the search bar on the Decks page looks through your decks' names <Strong>and</Strong> the
-              cards inside them (small typos are fine). Tap a match to open that deck. Once you have typed something, a
-              little <Strong>X</Strong> appears at the far right of the box (in a deck's search bar too); tap it to empty the box.
+              cards inside them (small typos are fine). Tap a match to open that deck.
             </Bullet>
             <P>
               Inside a deck, the search bar has a <Strong>switch</Strong> to its right, with a label above it that says what the
@@ -1178,7 +1181,7 @@ export const helpTopics: HelpTopic[] = [
               where you were. Or carry on in the search box: tapping it just lets you keep typing. Typing anything, even one
               letter, or pressing the keyboard's <Strong>Search</Strong> key (<Key>Enter</Key> on a computer) brings the pictures
               back for what's in the box. Tap anywhere else without typing and nothing changes. To start again, tap
-              the <Strong>×</Strong> at the right end of the search box. It empties the box, ready for a new name.
+              the <Strong>X</Strong> at the right end of the search box. It empties the box, ready for a new name.
             </P>
             <P>
               Looking for a card you already own? Use <Strong>Search your binders</Strong> on The

@@ -30,7 +30,7 @@ import { useFocusEffect } from 'expo-router';
 import { goBackInApp } from '@/lib/navHistory';
 import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useTheme';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import { SearchError } from '@/components/search/SearchStates';
 import SetCardsPage from '@/components/search/SetCardsPage';
 import { buildSetList, filterSets, type SetInfo, type SetKid, type SetResult } from '@/lib/setList';
@@ -97,7 +97,7 @@ export default function SetsTab({ visible, shownCode, onShow, onPickCard, usingB
       {/* The list of sets (hidden, not removed, while a set's cards show) */}
       <View style={[styles.fill, shown !== null && styles.hidden]}>
         <View style={styles.searchBox}>
-          <TextField
+          <SearchField
             accessibilityLabel="Search sets"
             placeholder="Search sets…"
             value={typed}
@@ -237,10 +237,11 @@ const styles = StyleSheet.create({
   note: { fontSize: 14, paddingHorizontal: SPACE.l, paddingTop: 12 },
   list: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center', paddingHorizontal: SPACE.l, paddingBottom: 90 },
   row: { flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: StyleSheet.hairlineWidth },
-  rowMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 2, minHeight: 62 },
+  // One set's row: kept slim so more sets fit on the screen, but still tall enough for a thumb
+  rowMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4, paddingHorizontal: 2, minHeight: 51 },
   // The symbol's box is as tall as the two lines of text beside it
-  symbolBox: { width: 44, height: 44, borderRadius: RADIUS - 2, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
-  symbol: { width: 30, height: 30 },
+  symbolBox: { width: 40, height: 40, borderRadius: RADIUS - 2, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  symbol: { width: 27, height: 27 },
   texts: { flex: 1, minWidth: 0, gap: 2 },
   name: { fontSize: 16, fontWeight: '600' },
   secondLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },

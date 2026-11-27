@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PopupWindow from '@/components/PopupWindow';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import { useColors } from '@/hooks/useTheme';
 import { matchParts } from '@/lib/nameSearch';
 import { searchCards, type ScryfallCard } from '@/lib/scryfall';
@@ -62,7 +62,8 @@ export default function SlotSearchDialog({ title, query, hint, onChoose, onCance
   return (
     <PopupWindow title={title} onClose={onCancel} buttons={[{ label: 'Cancel', onPress: onCancel, kind: 'secondary' }]}>
       <View style={styles.body}>
-        <TextField
+        <SearchField
+          keepCursor={false}
           accessibilityLabel="Search the cards allowed here"
           placeholder="Type a name…"
           value={text}

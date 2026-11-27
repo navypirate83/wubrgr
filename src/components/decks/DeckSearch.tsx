@@ -20,7 +20,7 @@ import { loadDecks, type Deck } from '@/lib/deckStorage';
 import { deckFormat } from '@/lib/deckFormats';
 import { fuzzySearch, matchParts, prepareNames } from '@/lib/nameSearch';
 import { useColors } from '@/hooks/useTheme';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import { RADIUS } from '@/theme/colors';
 
 // Start searching once this many letters are typed, and wait this long
@@ -96,36 +96,20 @@ export default function DeckSearch({ onPick }: { onPick: (id: string) => void })
 
   return (
     <View style={styles.wrap} accessibilityRole="search">
-      {/* The box, with a magnifying glass at its right end */}
-      <View style={styles.field}>
-        <TextField
-          accessibilityLabel="Search your decks and the cards in them"
-          placeholder="Search decks and their cards…"
-          value={text}
-          onChangeText={handleChange}
-          onSubmitEditing={pickBest}
-          // Leaving the box closes the drop-down (a moment later, so a
-          // tap on a result still counts)
-          onBlur={() => setTimeout(() => setResults(null), 200)}
-          returnKeyType="search"
-          autoCorrect={false}
-          autoCapitalize="none"
-          style={styles.input}
-        />
-        {/* At the far right: a little X that empties the box once something is typed,
-            otherwise the magnifying glass. */}
-        {text.length > 0 ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Clear the search box" hitSlop={6}
-                     onPress={() => { clearTimeout(typingTimer.current); setText(''); setResults(null); }}
-                     style={styles.searchIcon}>
-            <Ionicons name="close-circle" size={22} color={colors.muted} />
-          </Pressable>
-        ) : (
-          <View style={styles.searchIcon} pointerEvents="none">
-            <Ionicons name="search" size={20} color={colors.muted} />
-          </View>
-        )}
-      </View>
+      {/* The box: a magnifying glass at its right end, or the X once something is typed */}
+      <SearchField
+        accessibilityLabel="Search your decks and the cards in them"
+        placeholder="Search decks and their cards…"
+        value={text}
+        onChangeText={handleChange}
+        // The X: empty the box and close the drop-down
+        onClear={() => { clearTimeout(typingTimer.current); setText(''); setResults(null); }}
+        magnifier
+        onSubmitEditing={pickBest}
+        // Leaving the box closes the drop-down (a moment later, so a
+        // tap on a result still counts)
+        onBlur={() => setTimeout(() => setResults(null), 200)}
+      />
 
       {/* The matches, dropping down over whatever is below */}
       {results !== null && (
@@ -179,9 +163,6 @@ export default function DeckSearch({ onPick }: { onPick: (id: string) => void })
 // the drop-down on top of what's under the bar.
 const styles = StyleSheet.create({
   wrap: { zIndex: 10 },
-  field: { justifyContent: 'center' },
-  input: { paddingRight: 44 },
-  searchIcon: { position: 'absolute', right: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   results: { position: 'absolute', top: 48, left: 0, right: 0, maxHeight: 320, borderWidth: 1, borderRadius: RADIUS, overflow: 'hidden' },
   noResults: { padding: 14, fontSize: 15 },
   result: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 48 },

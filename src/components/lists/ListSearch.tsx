@@ -11,11 +11,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import SymbolText, { hasSymbols } from '@/components/SymbolText';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { loadLists, type CardList } from '@/lib/listStorage';
 import { fuzzySearch, matchParts, prepareNames } from '@/lib/nameSearch';
 import { useColors } from '@/hooks/useTheme';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import { RADIUS } from '@/theme/colors';
 
 // Start searching once this many letters are typed, and wait this long
@@ -69,26 +68,20 @@ export default function ListSearch({ onPick }: { onPick: (id: string) => void })
 
   return (
     <View style={styles.wrap} accessibilityRole="search">
-      {/* The box, with a magnifying glass at its right end */}
-      <View style={styles.field}>
-        <TextField
-          accessibilityLabel="Search your lists"
-          placeholder="Search your lists…"
-          value={text}
-          onChangeText={handleChange}
-          onSubmitEditing={pickBest}
-          // Leaving the box closes the drop-down (a moment later, so a
-          // tap on a result still counts)
-          onBlur={() => setTimeout(() => setResults(null), 200)}
-          returnKeyType="search"
-          autoCorrect={false}
-          autoCapitalize="none"
-          style={styles.input}
-        />
-        <View style={styles.searchIcon} pointerEvents="none">
-          <Ionicons name="search" size={20} color={colors.muted} />
-        </View>
-      </View>
+      {/* The box: a magnifying glass at its right end, or the X once something is typed */}
+      <SearchField
+        accessibilityLabel="Search your lists"
+        placeholder="Search your lists…"
+        value={text}
+        onChangeText={handleChange}
+        // The X: empty the box and close the drop-down
+        onClear={() => { clearTimeout(typingTimer.current); setText(''); setResults(null); }}
+        magnifier
+        onSubmitEditing={pickBest}
+        // Leaving the box closes the drop-down (a moment later, so a
+        // tap on a result still counts)
+        onBlur={() => setTimeout(() => setResults(null), 200)}
+      />
 
       {/* The matches, dropping down over whatever is below */}
       {results !== null && (
@@ -132,9 +125,6 @@ export default function ListSearch({ onPick }: { onPick: (id: string) => void })
 // drop-down on top of what's under the bar.
 const styles = StyleSheet.create({
   wrap: { zIndex: 10 },
-  field: { justifyContent: 'center' },
-  input: { paddingRight: 44 },
-  searchIcon: { position: 'absolute', right: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   results: { position: 'absolute', top: 48, left: 0, right: 0, maxHeight: 320, borderWidth: 1, borderRadius: RADIUS, overflow: 'hidden' },
   noResults: { padding: 14, fontSize: 15 },
   result: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 44, justifyContent: 'center' },

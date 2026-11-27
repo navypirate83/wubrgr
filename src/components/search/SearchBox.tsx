@@ -16,10 +16,9 @@ import {
   Pressable, StyleSheet, Text, View,
   type TextInput, type TextInputKeyPressEvent,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useShowKeyHints } from '@/hooks/useShortcutKeys';
 import { useColors } from '@/hooks/useTheme';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 
 // The widest the search box and the card details get (in points, not
 // counting the 16-point gaps at each side), so on a tablet or computer
@@ -65,18 +64,11 @@ export default function SearchBox(props: Props) {
     }
   }
 
-  // The "×" button: empty the search box and put the cursor back in it,
-  // ready to type a new name.
-  function clearSearch() {
-    onChange('');
-    inputRef.current?.focus();
-  }
-
   return (
     <View style={styles.fill}>
-      {/* The box and its "×" button, which sits inside the box's right end */}
+      {/* The box, with the X inside its right end once something is typed */}
       <View style={styles.searchField}>
-        <TextField
+        <SearchField
           ref={inputRef}
           accessibilityLabel="Card name"
           placeholder="Search for a card name…"
@@ -84,30 +76,12 @@ export default function SearchBox(props: Props) {
           onChangeText={onChange}
           onKeyPress={handleKeyPress}
           onSubmitEditing={handleSubmit}
-          // The keyboard's Enter key says "Search"; no spelling fixes or
-          // capital letters added (card names are typed exactly)
-          returnKeyType="search"
-          autoCorrect={false}
-          autoCapitalize="none"
-          spellCheck={false}
-          autoComplete="off"
           // Tapping the box selects its text when it holds a card's name,
           // so typing replaces it; otherwise the cursor just goes in, so
           // you can carry on typing the search
           selectTextOnFocus={selectOnFocus}
           style={[styles.input, { backgroundColor: colors.surface }]}
         />
-        {/* "×": only while there's something in the box to clear */}
-        {value ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Clear the search"
-            onPress={clearSearch}
-            style={({ pressed }) => [styles.clearButton, pressed && { backgroundColor: colors.surfaceHover }]}
-          >
-            <Ionicons name="close" size={20} color={colors.muted} />
-          </Pressable>
-        ) : null}
       </View>
 
       {/* Everything under the box: the status line, then the card area */}
@@ -139,16 +113,11 @@ export default function SearchBox(props: Props) {
   );
 }
 
-// The look: a tall search box with room on the right for the "×", and
-// the status line under it
+// The look: a tall search box, and the status line under it
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   searchField: { width: '100%', maxWidth: PAGE_WIDTH + 32, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 10 },
-  input: { minHeight: 50, paddingLeft: 16, paddingRight: 52, fontSize: 17 },
-  clearButton: {
-    position: 'absolute', right: 20, top: 13, width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  input: { minHeight: 50, paddingLeft: 16, fontSize: 17 },
   hintRow: {
     width: '100%', maxWidth: PAGE_WIDTH + 32, alignSelf: 'center', flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
     paddingHorizontal: 18, paddingTop: 6, paddingBottom: 2,

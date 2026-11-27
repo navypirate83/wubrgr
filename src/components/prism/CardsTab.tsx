@@ -29,7 +29,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import SymbolText from '@/components/SymbolText';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import SortButton from '@/components/binder/SortButton';
 import SortHeaderBar from '@/components/binder/SortHeaderBar';
 import { useBinderPrices } from '@/hooks/useBinderPrices';
@@ -156,7 +156,7 @@ export default function CardsTab({ set, plan, decks, owned, header, text, onText
   return (
     <View style={styles.wrap}>
       <Text style={[styles.header, { color: colors.muted }]}>{header}</Text>
-      <TextField
+      <SearchField
         accessibilityLabel="Search these cards"
         placeholder="Search these cards…"
         value={text}

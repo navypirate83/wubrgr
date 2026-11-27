@@ -29,7 +29,7 @@ import { cardCount, loadBinder, loadBinderList } from '@/lib/binderStorage';
 import { fuzzySearch, matchParts, prepareNames } from '@/lib/nameSearch';
 import { isExactName } from '@/lib/nameFilter';
 import { useColors } from '@/hooks/useTheme';
-import TextField from '@/components/TextField';
+import SearchField from '@/components/SearchField';
 import { RADIUS } from '@/theme/colors';
 
 // Start searching once this many letters are typed, and wait this long
@@ -170,28 +170,22 @@ export default function BinderSearch({ currentBinderId, onQuery, clearToken }: P
     <View style={styles.wrap} accessibilityRole="search">
       {/* The box (and, in a binder, the switch beside it) */}
       <View style={styles.searchRow}>
-        {/* The box, with a magnifying glass button at its right end */}
-        <View style={[styles.field, styles.grow]}>
-          <TextField
-            accessibilityLabel="Search your binders"
-            placeholder={currentBinderId && onlyThis ? 'Search this binder…' : 'Search your binders…'}
-            value={text}
-            onChangeText={handleChange}
-            onSubmitEditing={goToBest}
-            onKeyPress={(event) => handleKey(event.nativeEvent.key)}
-            // Leaving the box closes the list (a moment later, so a tap on
-            // a result still counts)
-            onBlur={() => setTimeout(closeList, 200)}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={goToBest} hitSlop={6}
-                     style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}>
-            <Ionicons name="search" size={20} color={colors.muted} />
-          </Pressable>
-        </View>
+        {/* The box: a magnifying glass at its right end, or the X once something is typed */}
+        <SearchField
+          accessibilityLabel="Search your binders"
+          placeholder={currentBinderId && onlyThis ? 'Search this binder…' : 'Search your binders…'}
+          value={text}
+          onChangeText={handleChange}
+          // The X: empty the box, close the list and show every card again
+          onClear={() => { closeList(); setText(''); onQuery?.(''); }}
+          magnifier
+          wrapStyle={styles.grow}
+          onSubmitEditing={goToBest}
+          onKeyPress={(event) => handleKey(event.nativeEvent.key)}
+          // Leaving the box closes the list (a moment later, so a tap on
+          // a result still counts)
+          onBlur={() => setTimeout(closeList, 200)}
+        />
 
         {/* In a binder: which binders to search, a switch with its word
             under it. "Current" (on): just this binder. "Shelf" (off): every
@@ -261,9 +255,6 @@ export default function BinderSearch({ currentBinderId, onQuery, clearToken }: P
 // what's under the bar (the shelf, or the binder's pages).
 const styles = StyleSheet.create({
   wrap: { zIndex: 10, gap: 6 },
-  field: { justifyContent: 'center' },
-  input: { paddingRight: 44 },
-  searchButton: { position: 'absolute', right: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.5 },
   results: { position: 'absolute', top: 48, left: 0, right: 0, maxHeight: 320, borderWidth: 1, borderRadius: RADIUS, overflow: 'hidden' },
   noResults: { padding: 14, fontSize: 15 },

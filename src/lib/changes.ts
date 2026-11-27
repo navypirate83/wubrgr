@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '2.1.1',
+    date: '2026-11-27',
+    lines: [
+      'Every search box now has an X at its right end to empty it with one tap.',
+      'In the Card Finder, the rows in the list of sets are slimmer, so more sets fit on the screen.',
+    ],
+  },
+  {
     version: '2.1.0',
     date: '2026-11-27',
     lines: [
