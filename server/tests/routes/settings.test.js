@@ -97,6 +97,11 @@ test('the price store is saved and read back, and an older app that sends none k
   expect(older.status).toBe(200);
   expect(older.body.settings.theme).toBe('light');
   expect(older.body.settings.priceStore).toBe('cardkingdom');
+  // Which of a store's prices to show is kept the same way
+  const kind = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, cardkingdomPrice: 'buy' });
+  expect(kind.body.settings.cardkingdomPrice).toBe('buy');
+  const bad = await request(app).put('/settings').set('Authorization', auth).send({ ...GOOD, tcgplayerPrice: 'buy' });
+  expect(bad.status).toBe(400);
 });
 
 test('the binder views and sort are saved and read back, and an older app that sends none keeps them', async () => {

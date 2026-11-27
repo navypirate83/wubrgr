@@ -241,7 +241,7 @@ describe('csv import and export', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/text\/csv/);
     const lines = res.text.trim().split('\n');
-    expect(lines[0]).toBe('Name,Set code,Set name,Collector number,Foil,Rarity,Quantity,Scryfall ID,Purchase price,Condition,Language,Proxy,Purchase price currency,Added,Page,Pocket,Side,Binder,Cover symbol,Cover color,Pages,Page layout,Colors,Type,Mana value,Released,Mana cost');
+    expect(lines[0]).toBe('Name,Set code,Set name,Collector number,Foil,Rarity,Quantity,Scryfall ID,Purchase price,Condition,Language,Proxy,Purchase price currency,Added,Page,Pocket,Side,Binder,Cover symbol,Cover color,Pages,Page layout,Colors,Type,Mana value,Released,Mana cost,Added prices');
     expect(lines).toHaveLength(3);
     expect(res.text).toContain("'=cmd");
   });

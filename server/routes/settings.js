@@ -56,6 +56,8 @@ const DEFAULT_SORT = 'name';
 // The settings an older app doesn't send: each with the values allowed.
 // A save that leaves one out keeps the one already saved.
 const OPTIONAL = {
+  // Which of each store's prices to show
+  tcgplayerPrice: ['market', 'mid', 'low', 'high'], cardkingdomPrice: ['retail', 'buy'], cardmarketPrice: ['trend', 'low', 'avg30'],
   priceStore: PRICE_STORES, phoneView: VIEWS, wideView: VIEWS, phoneListView: LIST_VIEWS, wideListView: LIST_VIEWS, binderSort: SORTS,
   // Card lists, decks and PRISM's Cards tab each have their own sort
   listSort: SORTS, deckSort: SORTS, prismSort: PRISM_SORTS,
@@ -125,6 +127,10 @@ function answer(user) {
       theme: saved.theme,
       hiddenFormats: saved.hiddenFormats ?? [],
       priceStore: saved.priceStore ?? DEFAULT_PRICE_STORE,
+      // (Left out when never saved, so the app keeps its own)
+      ...(saved.tcgplayerPrice !== undefined && { tcgplayerPrice: saved.tcgplayerPrice }),
+      ...(saved.cardkingdomPrice !== undefined && { cardkingdomPrice: saved.cardkingdomPrice }),
+      ...(saved.cardmarketPrice !== undefined && { cardmarketPrice: saved.cardmarketPrice }),
       phoneView: saved.phoneView ?? DEFAULT_VIEW,
       wideView: saved.wideView ?? DEFAULT_VIEW,
       phoneListView: saved.phoneListView ?? DEFAULT_LIST_VIEW,

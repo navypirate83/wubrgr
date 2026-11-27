@@ -105,12 +105,12 @@ export function validateBinder(body, { partial = false } = {}) {
 /* ---------- one card ---------- */
 
 // The most "extra" notes a card may carry (the app writes about 15), how long a note's name may be, and how
-// long its value may be: 100 characters, or 200 for the two that can really be long (a card's type line and
-// the other name printed on it). Kept tight because every note takes room in the database everybody shares.
+// long its value may be: 100 characters, or 200 for the three that can really be long (a card's type line,
+// the other name printed on it and its saved prices). Kept tight because every note takes room in the database everybody shares.
 const MAX_EXTRA_KEYS = 20;
 const MAX_EXTRA_NAME = 40;
 const MAX_EXTRA_VALUE = 100;
-const LONG_EXTRA = new Set(['Type', 'Printed name']);
+const LONG_EXTRA = new Set(['Type', 'Printed name', 'Added prices']);
 
 // Checks a card's "extra" notes: a plain object of short text values
 function checkExtra(extra) {

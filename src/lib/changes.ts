@@ -30,6 +30,14 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '2.0.3',
+    date: '2026-11-27',
+    lines: [
+      'When you are logged in, the price you pick under Price to show under cards now follows your account to your other devices.',
+      'Binder files downloaded from your account include the Added prices column.',
+    ],
+  },
+  {
     version: '2.0.2',
     date: '2026-11-27',
     lines: [

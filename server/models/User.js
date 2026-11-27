@@ -79,6 +79,10 @@ const userSchema = new mongoose.Schema(
       hiddenFormats: { type: [String], default: undefined },
       // Which store's prices the binders show
       priceStore: { type: String, enum: ['tcgplayer', 'cardkingdom', 'cardmarket'] },
+      // Which of each store's prices to show
+      tcgplayerPrice: { type: String, enum: ['market', 'mid', 'low', 'high'] },
+      cardkingdomPrice: { type: String, enum: ['retail', 'buy'] },
+      cardmarketPrice: { type: String, enum: ['trend', 'low', 'avg30'] },
       // How an opened binder is shown on a narrow and on a wide window, and
       // how its list and grid are sorted
       phoneView: { type: String, enum: ['list', 'grid', 'binder'] },

@@ -15,6 +15,8 @@ export const CSV_COLUMNS = [
   'Purchase price currency', 'Added',
   'Page', 'Pocket', 'Side', 'Binder', 'Cover symbol', 'Cover color', 'Pages', 'Page layout',
   'Colors', 'Type', 'Mana value', 'Released', 'Mana cost',
+  // All the prices on the day the card was added
+  'Added prices',
 ];
 
 // The ManaBox columns WUBRG'r doesn't use itself: kept in a card's "extra"
@@ -32,6 +34,7 @@ export const KEPT_COLUMNS = {
   'Mana value': '',
   'Released': '',
   'Mana cost': '',
+  'Added prices': '',
 };
 
 // Other names other apps (Moxfield, Archidekt...) use for the same columns,
