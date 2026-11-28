@@ -1,7 +1,7 @@
 /* =====================================================================
    PICKING SEVERAL CARDS (the app's one way of selecting many cards)
-   A long press on a card starts a selection with that card; while a
-   selection is going, a plain tap on a card picks it or un-picks it.
+   A long press on a card (with a mouse: Ctrl+click) starts a selection
+   with that card; while a selection is going, a plain tap on a card picks it or un-picks it.
    Un-picking the last card ends the selection. The keys are the ones the
    card list uses for its cards (see CardList.tsx).
    ===================================================================== */
@@ -21,7 +21,7 @@ export function useCardSelection() {
     });
   }, []);
 
-  // A long press: start with this card (or add it, if a selection is already going)
+  // A long press or Ctrl+click: start with this card (or add it, if a selection is already going)
   const press = useCallback((key: string) => {
     setKeys((now) => (now.has(key) ? now : new Set(now).add(key)));
   }, []);

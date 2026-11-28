@@ -34,6 +34,7 @@ import ShelfSelectionBar from '@/components/binders/ShelfSelectionBar';
 import TextField from '@/components/TextField';
 import Button from '@/components/Button';
 import NewDeckDialog from '@/components/decks/NewDeckDialog';
+import { isCtrlClick } from '@/lib/ctrlClick';
 import { addDeck, forgetDeck, loadDecks, moveDeck, nextDeckName, renameDeck, type Deck } from '@/lib/deckStorage';
 import { ShelfHeaderBar, ShelfSortBar, isOwnOrder, useShelfSort } from '@/components/ShelfSort';
 import { sortShelf, withShelfHeaders, parseShelfSort } from '@/lib/shelfSort';
@@ -82,7 +83,8 @@ export default function DecksScreen() {
   const [making, setMaking] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  // Decks picked together ("Select multiple" in a held deck's options): their ids. While any are picked, a tap
+  // Decks picked together (Ctrl+click on a computer, or "Select multiple" in a held deck's options): their ids.
+  // While any are picked, a tap
   // picks or un-picks a deck instead of opening it, and a floating bar at the top has Rename and Delete.
   const [selected, setSelected] = useState<string[]>([]);
   // How tall the search box and Add deck button are (measured), for the floating bar to cover
@@ -295,13 +297,13 @@ export default function DecksScreen() {
           }
           const item = row.item.deck;
           return (
-          // One deck: tap to open, hold for its options
+          // One deck: tap to open, hold for its options, Ctrl+click (Cmd on a Mac) to pick several
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${item.name}, ${deckFormat(item.format).name}${bracketOf(item) ? `, ${bracketText(bracketOf(item))}` : ''}, ${cardCountText(cardsIn(item))}${deckProblems(item, deckFormat(item.format), (name) => bannedIn(item.format, name)).length > 0 ? ', not legal' : ''}`}
             accessibilityHint="Opens the deck. Hold for Rename and Delete."
             accessibilityState={{ selected: selected.includes(item.id) }}
-            onPress={() => (selected.length > 0 ? toggleSelected(item.id) : openDeck(item.id))}
+            onPress={(event) => (selected.length > 0 || isCtrlClick(event) ? toggleSelected(item.id) : openDeck(item.id))}
             onLongPress={() => { hapticTap(); setMenuId(item.id); }}
             delayLongPress={500}
             style={({ pressed }) => [styles.row, { backgroundColor: selected.includes(item.id) ? `${colors.accent}2e` : pressed ? colors.surfaceHover : colors.surface, borderColor: selected.includes(item.id) ? colors.accent : colors.border }]}

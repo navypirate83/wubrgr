@@ -31,6 +31,7 @@ import { useAccount } from '@/hooks/useAccount';
 import ListSearch from '@/components/lists/ListSearch';
 import PopupWindow from '@/components/PopupWindow';
 import ShelfSelectionBar from '@/components/binders/ShelfSelectionBar';
+import { isCtrlClick } from '@/lib/ctrlClick';
 import { cardsOnLists, resetLists } from '@/lib/resetValue';
 import TextField from '@/components/TextField';
 import Button from '@/components/Button';
@@ -80,7 +81,8 @@ export default function ListsScreen() {
   // name being typed)
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  // Lists picked together ("Select multiple" in a held list's options): their ids. While any are picked, a tap
+  // Lists picked together (Ctrl+click on a computer, or "Select multiple" in a held list's options): their ids.
+  // While any are picked, a tap
   // picks or un-picks a list instead of opening it, and a floating bar at the top has Rename, Reset value and Delete.
   const [selected, setSelected] = useState<string[]>([]);
   // How tall the search box and the Add / Import buttons are (measured), for the floating bar to cover
@@ -290,13 +292,13 @@ export default function ListsScreen() {
           if (row.kind === 'header') return <ShelfHeaderBar text={row.text} />;
           const item = row.item.list;
           return (
-          // One list: tap to open, hold for its options
+          // One list: tap to open, hold for its options, Ctrl+click (Cmd on a Mac) to pick several
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${item.name}, ${cardCountText(item.cards.length)}`}
             accessibilityHint="Opens the list. Hold for Rename and Delete."
             accessibilityState={{ selected: selected.includes(item.id) }}
-            onPress={() => (selected.length > 0 ? toggleSelected(item.id) : openList(item.id))}
+            onPress={(event) => (selected.length > 0 || isCtrlClick(event) ? toggleSelected(item.id) : openList(item.id))}
             onLongPress={() => { hapticTap(); setMenuId(item.id); }}
             delayLongPress={500}
             style={({ pressed }) => [styles.row, { backgroundColor: selected.includes(item.id) ? `${colors.accent}2e` : pressed ? colors.surfaceHover : colors.surface, borderColor: selected.includes(item.id) ? colors.accent : colors.border }]}

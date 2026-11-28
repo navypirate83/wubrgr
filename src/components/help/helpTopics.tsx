@@ -179,8 +179,8 @@ export const helpTopics: HelpTopic[] = [
               (only when one is picked), <Strong>Copy</Strong>, <Strong>Reset value</Strong> and a red <Strong>Delete</Strong>, which
               work on every picked binder; the cross (or <Strong>Esc</Strong>) drops the picks. With only the
               keyboard: the <Key>arrow keys</Key> move an outline from binder to binder and{' '}
-              <Key>Space</Key> picks or un-picks the one it is on. Lists and Decks have the same bar: hold a list or deck, tap{' '}
-              <Strong>Select multiple</Strong>, then tap more (Reset value is for binders and lists only).
+              <Key>Space</Key> picks or un-picks the one it is on. Lists and Decks have the same bar: <Strong>Ctrl</Strong> or <Strong>Cmd</Strong> and click a list or deck (or hold it and tap{' '}
+              <Strong>Select multiple</Strong>), then tap more (Reset value is for binders and lists only).
             </Bullet>
             <Bullet>
               <Strong>Change the order</Strong>: drag a binder to a new spot. With a finger, rest it
@@ -436,7 +436,7 @@ export const helpTopics: HelpTopic[] = [
         body: (
           <>
             <P>
-              In a deck's Main deck, Sideboard or Maybe list, a binder's List or Grid view, or a list, press and hold a card to select it.
+              In a deck's Main deck, Sideboard or Maybe list, a binder's List or Grid view, or a list, you can select cards. With a finger, press and hold a card. With a mouse, hold <Strong>Ctrl</Strong> (<Strong>Cmd</Strong> on a Mac) and click it; Ctrl+click it again to un-pick it.
               While a selection is going, a plain tap picks or un-picks another card (it doesn't open the card). A picked card is
               highlighted and has an orange check on its picture (the check is there for people who can't tell the highlight). A bar
               floats over the search box and the buttons under it (so nothing moves), says how many are picked and has <Strong>Move to</Strong>, a red <Strong>Delete</Strong> and a cross to cancel.

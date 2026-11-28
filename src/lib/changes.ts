@@ -34,6 +34,7 @@ export const CHANGES: Change[] = [
     date: '2026-11-27',
     lines: [
       'The card scanner shows prices: beside the set and number on each card in the scanned list, and under the rarity in a scanned card\'s window, with the price store\'s icon.',
+      'On a computer, Ctrl+click (Cmd+click on a Mac) picks several cards inside a binder, list or deck, and several lists or decks on their shelves. With a mouse, holding a card no longer selects it.',
     ],
   },
   {

@@ -33,6 +33,8 @@
    screen rows (a header bar, or a row of cards), and the list draws those.
    Tapping a card calls "onPick" (the binder screen opens that card's
    menu: copies, open in the Card Finder, move, remove).
+   Where several cards can be picked: with a finger, press and hold a
+   card; with a mouse, Ctrl+click it (Cmd+click on a Mac).
    The cards come in already sorted. Rows are drawn only as they scroll
    into view, so a binder with thousands of cards stays quick.
    ===================================================================== */
@@ -47,6 +49,8 @@ import { useSettings } from '@/hooks/useSettings';
 import { STORE_ICONS } from '@/components/settings/PriceStorePicker';
 import { rarityColor } from '@/lib/rarity';
 import { usePinchZoom } from '@/hooks/usePinchZoom';
+import { usePointerKind } from '@/hooks/usePointerKind';
+import { isCtrlClick } from '@/lib/ctrlClick';
 import { GRID_ZOOM_WIDTHS, binderGridZoom, setBinderGridZoom, zoomStepForWidth } from '@/lib/binderView';
 import { pictureSource } from '@/lib/http';
 import { cardCount, sameNameCount, type BinderCard } from '@/lib/binderStorage';
@@ -86,8 +90,9 @@ type Props = {
   // A card just added (by dropping a picture on the list): its key, which is
   // scrolled to and highlighted for a moment, and a short note for the line above
   flashKey?: string | null;
-  // SELECTING SEVERAL CARDS: a long press on a card calls "onLongPick" (the screen starts a selection with it). The
-  // "selectedKeys" are drawn highlighted with an orange check on the picture (the check is for people who can't
+  // SELECTING SEVERAL CARDS: a long press (finger) or a Ctrl+click (mouse) on a card calls "onLongPick" (the screen
+  // starts a selection with it, or adds it). Ctrl+click on a card already picked calls "onPick", which un-picks it
+  // while a selection is going. The "selectedKeys" are drawn highlighted with an orange check on the picture (the check is for people who can't
   // tell the highlight; it's also spoken as "selected"). Leave both out for a list that can't select.
   selectedKeys?: Set<string>;
   onLongPick?: (key: string) => void;
@@ -143,6 +148,8 @@ const INFO_HEIGHT = 16;
 export default function CardList({ entries, mode, width, onPick, onCopies, minTile, prices, empty, searchOf, hint, flashKey, selectedKeys, onLongPick, note, warn, header, alsoCounted, headerOf, missing, banned, gameChanger, noCopies, ownedOf }: Props) {
   const colors = useColors();
   const listRef = useRef<FlatList<Row>>(null);
+  // Mouse or finger? Holding only selects with a finger; a mouse uses Ctrl+click instead
+  const holdSelects = usePointerKind() === 'touch';
   // Each set's symbol picture (downloaded once, shared with the Card Finder),
   // for the List view and for set header bars
   const setIcons = useQuery({ queryKey: ['set-icons'], queryFn: loadSetIcons, enabled: mode === 'list' || mode === 'grid' || !!headerOf });
@@ -335,13 +342,13 @@ export default function CardList({ entries, mode, width, onPick, onCopies, minTi
         if (mode === 'list') {
           const item = row.entries[0];
           return <ListRow entry={item} onPick={onPick} onCopies={onCopies} border={colors.border} price={prices.eachByKey.get(item.key)} currency={prices.currency} narrow={width < NARROW_LIST}
-                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />;
+                          setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} holdSelects={holdSelects} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />;
         }
         // The Grid view: a row of pictures side by side
         return (
           <View style={styles.gridRow}>
             {row.entries.map((item) => (
-              <GridTile key={item.key} entry={item} owned={ownedOf?.(item.card)} onPick={onPick} onCopies={onCopies} size={tile} price={prices.eachByKey.get(item.key)} currency={prices.currency} setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />
+              <GridTile key={item.key} entry={item} owned={ownedOf?.(item.card)} onPick={onPick} onCopies={onCopies} size={tile} price={prices.eachByKey.get(item.key)} currency={prices.currency} setIcon={setIcons.data?.get(item.card.set.toLowerCase())} highlighted={item.key === flashKey || (selectedKeys?.has(item.key) ?? false)} selected={selectedKeys?.has(item.key) ?? false} onLongPick={onLongPick} holdSelects={holdSelects} missing={missing?.(item.card) ?? false} banned={banned?.(item.card) ?? false} gold={gameChanger?.(item.card) ?? false} noCopies={noCopies} />
             ))}
           </View>
         );
@@ -420,13 +427,14 @@ function SelectedCheck({ size }: { size: number }) {
 /* ---------------------------------------------------------------------
    ONE LINE OF THE LIST. "memo" redraws it only when its card changes.
    --------------------------------------------------------------------- */
-const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, narrow, setIcon, highlighted, selected, onLongPick, missing, banned, gold, noCopies }: {
+const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, currency, narrow, setIcon, highlighted, selected, onLongPick, holdSelects, missing, banned, gold, noCopies }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; border: string;
   noCopies?: boolean;                  // no copies bar (cards you don't own)
   setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
   highlighted: boolean;                // just added or selected: tinted
   selected: boolean;                   // picked in a selection: an orange check on the picture
-  onLongPick?: (key: string) => void;  // a long press starts a selection
+  onLongPick?: (key: string) => void;  // starts a selection (or adds to it)
+  holdSelects: boolean;                // a finger: press and hold selects (a mouse uses Ctrl+click)
   missing: false | 'card' | 'printing';   // a deck: not in your binders (solid red border) or not that printing (dashed)
   banned: boolean;                     // banned in the deck's format: black "BANNED" slash
   gold: boolean;                       // a Game Changer: yellow border
@@ -453,8 +461,9 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${card.name}${finish === 'etched' ? ', etched foil' : finish === 'foil' ? ', foil' : ''}${typeLine ? `, ${typeLine}` : ''}, ${card.set.toUpperCase()} number ${card.number}, ${count} ${count === 1 ? 'copy' : 'copies'}${typeof price === 'number' ? `, worth ${formatPrice(price, currency)} each` : ''}${gold ? ', Game Changer' : ''}. Opens its menu.`}
-      onPress={() => onPick(key)}
-      onLongPress={onLongPick ? () => onLongPick(key) : undefined}
+      // Ctrl+click picks a card; any other click or tap does the usual thing
+      onPress={(event) => (onLongPick && !selected && isCtrlClick(event) ? onLongPick(key) : onPick(key))}
+      onLongPress={onLongPick && holdSelects ? () => onLongPick(key) : undefined}
       accessibilityState={{ selected }}
       style={({ pressed }) => [styles.rowMain, pressed && { backgroundColor: colors.surfaceHover }]}
     >
@@ -532,7 +541,7 @@ const ListRow = memo(function ListRow({ entry, onPick, onCopies, border, price, 
 /* ---------------------------------------------------------------------
    ONE PICTURE IN THE GRID
    --------------------------------------------------------------------- */
-const GridTile = memo(function GridTile({ entry, owned, onPick, onCopies, size, price, currency, setIcon, highlighted, selected, onLongPick, missing, banned, gold, noCopies }: {
+const GridTile = memo(function GridTile({ entry, owned, onPick, onCopies, size, price, currency, setIcon, highlighted, selected, onLongPick, holdSelects, missing, banned, gold, noCopies }: {
   entry: CardEntry; onPick: (key: string) => void; onCopies: (key: string, step: number) => void; size: number;
   owned?: number;                      // the gray-out grid: how many copies you own (none: the tile is grayed out). Undefined: the usual grid.
   noCopies?: boolean;                  // no copies bar (cards you don't own)
@@ -541,7 +550,8 @@ const GridTile = memo(function GridTile({ entry, owned, onPick, onCopies, size, 
   setIcon: string | undefined;         // the set's symbol picture, once it has downloaded
   highlighted: boolean;                // just added or selected: outlined
   selected: boolean;                   // picked in a selection: an orange check on the picture
-  onLongPick?: (key: string) => void;  // a long press starts a selection
+  onLongPick?: (key: string) => void;  // starts a selection (or adds to it)
+  holdSelects: boolean;                // a finger: press and hold selects (a mouse uses Ctrl+click)
   missing: false | 'card' | 'printing';   // a deck: not in your binders (solid red border) or not that printing (dashed)
   banned: boolean;                     // banned in the deck's format: black "BANNED" slash
   gold: boolean;                       // a Game Changer: yellow border
@@ -557,8 +567,9 @@ const GridTile = memo(function GridTile({ entry, owned, onPick, onCopies, size, 
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${card.name}${card.foil ? ', foil' : ''}${gold ? ', Game Changer' : ''}, ${count} ${count === 1 ? 'copy' : 'copies'}. Opens its menu.`}
-        onPress={() => onPick(key)}
-        onLongPress={onLongPick ? () => onLongPick(key) : undefined}
+        // Ctrl+click picks a card; any other click or tap does the usual thing
+        onPress={(event) => (onLongPick && !selected && isCtrlClick(event) ? onLongPick(key) : onPick(key))}
+        onLongPress={onLongPick && holdSelects ? () => onLongPick(key) : undefined}
         accessibilityState={{ selected }}
         style={({ pressed }) => pressed && styles.pressed}
       >
