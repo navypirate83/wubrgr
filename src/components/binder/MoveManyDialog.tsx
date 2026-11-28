@@ -1,9 +1,10 @@
 /* =====================================================================
-   "MOVE TO…" FOR SEVERAL SELECTED CARDS: WHICH BINDER?
-   The usual pop-up list of binders (cover colour, name, card count), lists or
-   decks ("kind"), without the one the cards are already in. Tap one and all the
-   cards go into it (see moveMany.ts; a deck gets them on its maybe board);
-   "onDone" then tells the screen, which takes them out of where they were.
+   "MOVE TO…" FOR SEVERAL SELECTED CARDS: WHICH BINDER OR LIST?
+   The usual pop-up list of binders (cover colour, name, card count) or lists
+   ("kind"), without the one the cards are already in. Tap one and all the
+   cards go into it (see moveMany.ts); "onDone" then tells the screen, which
+   takes them out of where they were.
+   (A deck is different: it gets a copy and the cards stay, see AddToDeckDialog.)
    ===================================================================== */
 
 import { useState } from 'react';
@@ -14,13 +15,12 @@ import SymbolText from '@/components/SymbolText';
 import { useColors } from '@/hooks/useTheme';
 import { coverLook } from '@/lib/covers';
 import { cardCountText, loadBinder, loadBinderList, type BinderCard } from '@/lib/binderStorage';
-import { moveCardsToBinder, moveCardsToDeck, moveCardsToList } from '@/lib/moveMany';
+import { moveCardsToBinder, moveCardsToList } from '@/lib/moveMany';
 import { loadLists } from '@/lib/listStorage';
-import { loadDecks } from '@/lib/deckStorage';
 
 type Props = {
   cards: BinderCard[];
-  kind: 'binder' | 'list' | 'deck';     // what to choose from
+  kind: 'binder' | 'list';              // what to choose from
   exceptId?: string;                    // the binder or list they are in now (not offered)
   onDone: (note: string) => void;       // they are in the other binder
   onCancel: () => void;
@@ -30,13 +30,11 @@ export default function MoveManyDialog({ cards, kind, exceptId, onDone, onCancel
   const colors = useColors();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean }>({ text: '' });
-  // What can be chosen: binders (with their cover), lists or decks, each with how many cards it has
+  // What can be chosen: binders (with their cover) or lists, each with how many cards it has
   type Choice = { id: string; name: string; count: number; cover?: string };
   const binders: Choice[] = kind === 'binder'
     ? loadBinderList().filter((b) => b.id !== exceptId).map((b) => ({ id: b.id, name: b.name, count: Object.keys(loadBinder(b.id)).length, cover: b.cover }))
-    : kind === 'list'
-      ? loadLists().filter((l) => l.id !== exceptId).map((l) => ({ id: l.id, name: l.name, count: l.cards.length }))
-      : loadDecks().map((d) => ({ id: d.id, name: d.name, count: d.cards.length }));
+    : loadLists().filter((l) => l.id !== exceptId).map((l) => ({ id: l.id, name: l.name, count: l.cards.length }));
   const copies = cards.reduce((sum, c) => sum + (c.count ?? 1), 0);
 
   async function move(id: string, name: string) {
@@ -44,9 +42,8 @@ export default function MoveManyDialog({ cards, kind, exceptId, onDone, onCancel
     setMessage({ text: 'Moving…' });
     try {
       if (kind === 'binder') await moveCardsToBinder(id, cards);
-      else if (kind === 'list') await moveCardsToList(id, cards);
-      else await moveCardsToDeck(id, cards);
-      onDone(`Moved ${cards.length} ${cards.length === 1 ? 'card' : 'cards'} (${copies} ${copies === 1 ? 'copy' : 'copies'}) to ${kind === 'deck' ? 'the maybe board of ' : kind === 'list' ? 'the list ' : ''}${name}.`);
+      else await moveCardsToList(id, cards);
+      onDone(`Moved ${cards.length} ${cards.length === 1 ? 'card' : 'cards'} (${copies} ${copies === 1 ? 'copy' : 'copies'}) to ${kind === 'list' ? 'the list ' : ''}${name}.`);
     } catch (err) {
       setBusy(false);
       setMessage({ text: (err as Error).message, error: true });
@@ -71,7 +68,7 @@ export default function MoveManyDialog({ cards, kind, exceptId, onDone, onCancel
       onClose={onCancel}
       header={message.text || binders.length === 0 ? (
         <Text style={[styles.message, { color: message.error ? colors.error : colors.muted }]}>
-          {message.text || `You have no ${kind === 'deck' ? 'decks' : kind === 'list' ? 'other lists' : 'other binders'} to move them to.`}
+          {message.text || `You have no ${kind === 'list' ? 'other lists' : 'other binders'} to move them to.`}
         </Text>
       ) : undefined}
     />

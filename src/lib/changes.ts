@@ -30,6 +30,17 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '2.3.0',
+    date: '2026-11-27',
+    lines: [
+      'Cards are added to a deck, not moved: with cards selected in a binder or a list, the button is now "Move / Add", and "Add to a deck" puts one copy of each card in the deck while the cards stay where they are.',
+      'Adding several cards to a deck lets you pick the board (Main deck, Sideboard or Maybe) and asks one question about any that are banned, already in the deck as often as allowed, or would make the deck too big: Cancel, Skip those or Add all.',
+      'Adding one card to a deck can now go to the Maybe board too, and asks first if the main deck would get too big.',
+      'In a binder, a card\'s list button now moves it to a list (it leaves the binder; with several copies it asks how many).',
+      'On the website, the browser\'s Back button does the same as the back arrow.',
+    ],
+  },
+  {
     version: '2.2.1',
     date: '2026-11-27',
     lines: [

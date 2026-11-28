@@ -1,7 +1,8 @@
 /* =====================================================================
    THE BAR AT THE TOP WHILE CARDS ARE SELECTED
    It says how many cards are picked and has three buttons: "Move to"
-   (opens a floating list of places: "options"), a red "Delete" and
+   (or "Move / Add" in a binder or a list, where a deck gets a copy; it
+   opens a floating list of places: "options"), a red "Delete" and
    "Cancel" (ends the selection without changing anything). The screen
    decides what moving and deleting do; this only draws the bar and
    asks "Delete 3 cards?" before deleting.
@@ -24,19 +25,21 @@ export function SelectionCover({ children }: { children: ReactNode }) {
   return <View style={[styles.cover, { backgroundColor: colors.bg }]}>{children}</View>;
 }
 
-export type MoveOption = { id: string; label: string };
+// A place in the floating list. "hint" is a small line under it ("They leave this binder").
+export type MoveOption = { id: string; label: string; hint?: string };
 
 type Props = {
   count: number;                         // how many cards are picked
   noun?: string;                         // "card" (the default)
   options: MoveOption[];                 // the places "Move to" offers (none: no Move to button)
+  moveLabel?: string;                    // what the button says ("Move to", the default, or "Move / Add")
   onMove: (id: string) => void;
   onDelete: () => void;                  // called once it's been confirmed
   onCancel: () => void;
   deleteWords?: string;                  // "Delete 3 cards?" is followed by this ("Take them out of this deck.")
 };
 
-export default function SelectionBar({ count, noun = 'card', options, onMove, onDelete, onCancel, deleteWords }: Props) {
+export default function SelectionBar({ count, noun = 'card', options, moveLabel = 'Move to', onMove, onDelete, onCancel, deleteWords }: Props) {
   const colors = useColors();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const what = `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -50,8 +53,8 @@ export default function SelectionBar({ count, noun = 'card', options, onMove, on
     <View style={[styles.bar, { borderColor: colors.border, backgroundColor: colors.surface }]} accessibilityRole="toolbar">
       <Text style={[styles.count, { color: colors.text }]} accessibilityLiveRegion="polite">{count} selected</Text>
       {options.length > 0 && (
-        <PickerButton accessibilityLabel={`Move ${what} to…`} onPress={setAnchor} style={styles.move}>
-          <Text style={{ color: colors.text, fontWeight: '600' }}>Move to</Text>
+        <PickerButton accessibilityLabel={`${moveLabel}: ${what}`} onPress={setAnchor} style={styles.move}>
+          <Text style={{ color: colors.text, fontWeight: '600' }}>{moveLabel}</Text>
         </PickerButton>
       )}
       <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${what}`} onPress={askDelete}
@@ -64,11 +67,17 @@ export default function SelectionBar({ count, noun = 'card', options, onMove, on
       </Pressable>
       {anchor && (
         <PickerSheet
-          title="Move to…"
+          title={`${moveLabel}…`}
           items={options}
           keyOf={(o) => o.id}
-          labelOf={(o) => o.label}
-          renderRow={(o) => <Text style={{ color: colors.text, fontSize: 16, fontWeight: '600', flex: 1 }}>{o.label}</Text>}
+          labelOf={(o) => (o.hint ? `${o.label}. ${o.hint}` : o.label)}
+          // The place, and under it (when given) whether the cards leave or stay
+          renderRow={(o) => (
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: '600' }}>{o.label}</Text>
+              {o.hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{o.hint}</Text> : null}
+            </View>
+          )}
           anchor={anchor}
           onPick={(o) => { setAnchor(null); onMove(o.id); }}
           onClose={() => setAnchor(null)}

@@ -231,7 +231,7 @@ export default function SetCardsPage({ set, onPickCard, visible = true, usingBin
         <MoveCardDialog binderId="" card={adding.card} mode="add" onCancel={() => setAdding(null)} onMoved={added} />
       )}
       {adding?.kind === 'list' && <AddToListDialog card={adding.card} onCancel={() => setAdding(null)} onDone={added} />}
-      {adding?.kind === 'deck' && <AddToDeckDialog card={adding.card} onCancel={() => setAdding(null)} onDone={added} />}
+      {adding?.kind === 'deck' && <AddToDeckDialog cards={[adding.card]} onCancel={() => setAdding(null)} onDone={added} />}
     </View>
   );
 }

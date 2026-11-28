@@ -26,6 +26,7 @@ import { loadStorage } from '@/lib/storage';
 import { loadSession } from '@/lib/session';
 import { followScreenSize } from '@/lib/settings';
 import { hrefFor, recordVisit } from '@/lib/navHistory';
+import { armBackSwipe, installBackSwipe } from '@/lib/webBack';
 import { loadPictureCache } from '@/lib/pictureCache';
 import { disablePageZoom } from '@/lib/noPageZoom';
 import { useAutoSync } from '@/hooks/useAutoSync';
@@ -103,6 +104,9 @@ export default function RootLayout() {
   const href = hrefFor(pathname, params);
   useEffect(() => {
     recordVisit(href);
+    // On the website, the browser's Back button (and a phone's back swipe) does what the back arrow does (see lib/webBack.ts)
+    installBackSwipe();
+    setTimeout(armBackSwipe, 0);
   }, [href]);
 
   // Until then, draw nothing (the splash screen is still covering it)

@@ -208,8 +208,13 @@ function searchLinkFor(binderId: string, key: string, card?: BinderCard): string
 // starts again from scratch): "key" makes React draw a new one. The same
 // happens when the page layout changes in Settings: the cards have been
 // moved to the new layout, so the screen starts again with them.
-// The places "Move to" offers for several selected cards: a binder, a list or a deck (each opens its own list to choose from)
-const MOVE_MANY = [{ id: 'binder', label: 'Binder' }, { id: 'list', label: 'List' }, { id: 'deck', label: 'Deck' }];
+// What "Move / Add" offers for several selected cards (each opens its own list to choose from). A binder or a
+// list takes the cards away from here; a deck only gets a copy, because a deck isn't part of your collection.
+const MOVE_MANY = [
+  { id: 'binder', label: 'Move to a binder', hint: 'They leave this binder' },
+  { id: 'list', label: 'Move to a list', hint: 'They leave this binder' },
+  { id: 'deck', label: 'Add to a deck', hint: 'They stay in this binder' },
+];
 
 export default function BinderScreen() {
   const { id = '' } = useLocalSearchParams<{ id: string }>();
@@ -787,7 +792,9 @@ function BinderView({ binderId }: { binderId: string }) {
   const [movingKey, setMovingKey] = useState<string | null>(null);
   // Picking several cards (a long press, in the List and Grid views only) and the pop-up for moving them all to another binder
   const selection = useCardSelection();
-  const [movingMany, setMovingMany] = useState<'binder' | 'list' | 'deck' | null>(null);
+  const [movingMany, setMovingMany] = useState<'binder' | 'list' | null>(null);
+  // "Add to a deck" for the selected cards: is its window open?
+  const [addingManyToDeck, setAddingManyToDeck] = useState(false);
   // Switching to the Binder view ends any selection
   useEffect(() => { if (mode === 'binder') selection.clear(); }, [mode, selection.clear]);
   // The import window (the upload button) and the download window (the download button)
@@ -851,8 +858,8 @@ function BinderView({ binderId }: { binderId: string }) {
     else delete next[key];
     const saved = commit(next);
     setMovingKey(null);
-    // This binder wouldn't save: the card is in the other binder AND still here, so say so plainly
-    if (!saved) { showMessage("Couldn't finish the move", "The card was added to the other binder, but saving isn't working on this device, so it could not be taken out of this one. It is in both binders now."); return; }
+    // This binder wouldn't save: the card is in the other binder (or on the list) AND still here, so say so plainly
+    if (!saved) { showMessage("Couldn't finish the move", "The card was added to the other place, but saving isn't working on this device, so it could not be taken out of this binder. It is in both places now."); return; }
     savedNote.current = note;   // read out once saved
     scheduleDriveSave();
   }
@@ -1367,7 +1374,8 @@ function BinderView({ binderId }: { binderId: string }) {
               <SelectionBar
                 count={selection.keys.size}
                 options={MOVE_MANY}
-                onMove={(where) => setMovingMany(where as 'binder' | 'list' | 'deck')}
+                moveLabel="Move / Add"
+                onMove={(where) => (where === 'deck' ? setAddingManyToDeck(true) : setMovingMany(where as 'binder' | 'list'))}
                 onDelete={deletePicked}
                 onCancel={selection.clear}
                 deleteWords="They will be taken out of this binder."
@@ -1545,7 +1553,7 @@ function BinderView({ binderId }: { binderId: string }) {
           onClose={() => setMenuKey(null)}
           actions={[
             { label: 'Move to another binder', short: 'Move', picture: BINDER_ICON, plus: true, onPress: () => { setMovingKey(menuKey); setMenuKey(null); } },
-            { label: 'Add to a list', short: 'Add', picture: LIST_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'list', key: menuKey }); setMenuKey(null); } },
+            { label: 'Move to a list', short: 'Move', picture: LIST_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'list', key: menuKey }); setMenuKey(null); } },
             { label: 'Add to a deck', short: 'Add', picture: DECK_ICON, plus: true, onPress: () => { setAddingTo({ kind: 'deck', key: menuKey }); setMenuKey(null); } },
             { label: 'Remove from this binder', short: 'Delete', icon: 'trash-outline', kind: 'danger', onPress: () => { setRemovingKey(menuKey); setMenuKey(null); } },
           ]}
@@ -1566,14 +1574,20 @@ function BinderView({ binderId }: { binderId: string }) {
         </PopupWindow>
       )}
 
-      {/* "Add to a list" and "Add to a deck": a copy goes there, the card stays here */}
+      {/* "Move to a list": a list is for cards leaving your collection, so the copies moved are taken out of this binder */}
       {addingTo?.kind === 'list' && addingCard && (
-        <AddToListDialog card={addingCard} onCancel={() => setAddingTo(null)}
+        <AddToListDialog card={addingCard} move onCancel={() => setAddingTo(null)}
+                         onDone={(note, amount) => { const key = addingTo.key; setAddingTo(null); takeMovedCardOut(key, note, amount); showMessage(note); }} />
+      )}
+      {/* "Add to a deck": a copy goes there, the card stays here */}
+      {addingTo?.kind === 'deck' && addingCard && (
+        <AddToDeckDialog cards={[addingCard]} onCancel={() => setAddingTo(null)}
                          onDone={(note) => { setAddingTo(null); announce(note); showMessage(note); }} />
       )}
-      {addingTo?.kind === 'deck' && addingCard && (
-        <AddToDeckDialog card={addingCard} onCancel={() => setAddingTo(null)}
-                         onDone={(note) => { setAddingTo(null); announce(note); showMessage(note); }} />
+      {/* "Add to a deck" for the selected cards: one copy of each goes there, and they all stay here */}
+      {addingManyToDeck && (
+        <AddToDeckDialog cards={[...selection.keys].map((key) => cards[key]).filter(Boolean)} onCancel={() => setAddingManyToDeck(false)}
+                         onDone={(note) => { setAddingManyToDeck(false); selection.clear(); announce(note); showMessage(note); }} />
       )}
 
       {movingMany && (

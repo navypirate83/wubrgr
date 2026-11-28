@@ -1,6 +1,8 @@
 /* =====================================================================
-   MOVING SEVERAL CARDS INTO A BINDER AT ONCE
-   Used by "Move to" when cards are selected in a binder or a list. The
+   MOVING SEVERAL CARDS INTO A BINDER OR ONTO A LIST AT ONCE
+   Used by "Move to a binder" and "Move to a list" when cards are selected
+   in a binder or a list. (Adding them to a deck is a copy, not a move: see
+   components/binder/AddToDeckDialog.tsx.) The
    cards go in the way the app always adds to a binder: a printing the
    binder already has gets more copies, the rest fill its first empty
    pockets, and pages are added when it is full. The cards keep their own
@@ -11,7 +13,6 @@
 import { binderPages, isLocalMode, loadBinderList, saveBinder, saveBinderList, type BinderCard } from '@/lib/binderStorage';
 import { placeInBinder } from '@/lib/collectionImport';
 import { isSignedIn, signInWithGoogle, syncBinder, syncList } from '@/lib/googleDrive';
-import { addCardsToDeck, type DeckCard } from '@/lib/deckStorage';
 import { addCardsToList } from '@/lib/collectionImport';
 import { costAndTypeOf } from '@/lib/cardDetails';
 import type { ListCard } from '@/lib/listStorage';
@@ -30,7 +31,7 @@ export async function moveCardsToBinder(binderId: string, cards: BinderCard[]): 
   return { pagesAdded: placed.pages - pagesBefore };
 }
 
-// The cards as a list or a deck keeps them (with their mana cost and type line)
+// The cards as a list keeps them (with their mana cost and type line)
 const asListCards = (cards: BinderCard[]): ListCard[] => cards.map((card) => ({ ...card, ...costAndTypeOf(card) }));
 
 // Put these cards on a list (a printing already on it gets more copies)
@@ -39,8 +40,3 @@ export async function moveCardsToList(listId: string, cards: BinderCard[]): Prom
   if (!isLocalMode() && isSignedIn()) syncList(listId).catch(() => { /* kept on the device; saved next time the list opens */ });
 }
 
-// Put these cards on a deck's maybe board (they don't count towards the deck until moved into the main deck)
-export async function moveCardsToDeck(deckId: string, cards: BinderCard[]): Promise<void> {
-  const onMaybe = asListCards(cards).map((card) => ({ ...card, zone: 'maybe' as const }) as DeckCard);
-  if (!addCardsToDeck(deckId, onMaybe)) throw new Error('That deck could not be saved on this device.');
-}

@@ -42,6 +42,7 @@ import MoveCardDialog from '@/components/binder/MoveCardDialog';
 import CardList2, { type CardEntry } from '@/components/binder/CardList';
 import SelectionBar, { SelectionCover } from '@/components/binder/SelectionBar';
 import MoveManyDialog from '@/components/binder/MoveManyDialog';
+import AddToDeckDialog from '@/components/binder/AddToDeckDialog';
 import { useCardSelection } from '@/hooks/useCardSelection';
 import ViewSwitch, { ToolButton } from '@/components/binder/ViewSwitch';
 import AddCardsButton from '@/components/binder/AddCardsButton';
@@ -92,8 +93,13 @@ function finderLinkFor(listId: string, card?: ListCard): string {
   return `/search?${params}`;
 }
 
-// The places "Move to" offers for several selected cards: a binder, a list or a deck (each opens its own list to choose from)
-const MOVE_MANY = [{ id: 'binder', label: 'Binder' }, { id: 'list', label: 'List' }, { id: 'deck', label: 'Deck' }];
+// What "Move / Add" offers for several selected cards (each opens its own list to choose from). A binder or
+// another list takes the cards off this list; a deck only gets a copy.
+const MOVE_MANY = [
+  { id: 'binder', label: 'Move to a binder', hint: 'They leave this list' },
+  { id: 'list', label: 'Move to a list', hint: 'They leave this list' },
+  { id: 'deck', label: 'Add to a deck', hint: 'They stay on this list' },
+];
 
 export default function ListScreen() {
   const colors = useColors();
@@ -109,7 +115,9 @@ export default function ListScreen() {
   const [movingIndex, setMovingIndex] = useState<number | null>(null);
   // Picking several cards (a long press), and the pop-up for moving them all to a binder
   const selection = useCardSelection();
-  const [movingMany, setMovingMany] = useState<'binder' | 'list' | 'deck' | null>(null);
+  const [movingMany, setMovingMany] = useState<'binder' | 'list' | null>(null);
+  // "Add to a deck" for the selected cards: is its window open?
+  const [addingManyToDeck, setAddingManyToDeck] = useState(false);
   // The import window (the upload button) and the download window (the download button)
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -428,7 +436,8 @@ export default function ListScreen() {
               <SelectionBar
                 count={selection.keys.size}
               options={MOVE_MANY}
-              onMove={(where) => setMovingMany(where as 'binder' | 'list' | 'deck')}
+              moveLabel="Move / Add"
+              onMove={(where) => (where === 'deck' ? setAddingManyToDeck(true) : setMovingMany(where as 'binder' | 'list'))}
               onDelete={deletePicked}
               onCancel={selection.clear}
               deleteWords={`They will be taken out of ${list.name}.`}
@@ -507,7 +516,13 @@ export default function ListScreen() {
         />
       )}
 
-      {/* "Move to" with several cards selected: the pop-up list of binders */}
+      {/* "Add to a deck" with several cards selected: one copy of each goes to the deck, and they all stay on this list */}
+      {addingManyToDeck && list && (
+        <AddToDeckDialog cards={pickedSpots.map((i) => list.cards[i])} onCancel={() => setAddingManyToDeck(false)}
+                         onDone={(note) => { setAddingManyToDeck(false); selection.clear(); announce(note); showMessage(note); }} />
+      )}
+
+      {/* "Move to a binder" or "Move to a list" with several cards selected: the pop-up list of binders or lists */}
       {movingMany && list && (
         <MoveManyDialog
           kind={movingMany}

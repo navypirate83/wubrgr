@@ -18,9 +18,11 @@
      and dropped anywhere over the cards is added too, like in a list.
    Tapping a card opens its window, the same one the binders' and lists'
    cards have: a big picture (tap it to open the card in the Card Finder),
-   what it does, how many copies (− and +), Move to a binder (the card
-   leaves the deck and goes into the binder's first empty pocket) and
-   Delete from deck (it asks first). The "− 3 +" bar on a card works as
+   what it does, how many copies (− and +), Move to the main deck, the
+   sideboard or the maybe board (whichever it isn't on), and Delete from
+   deck (it asks first). A deck isn't part of your collection, so nothing
+   moves a card from a deck into a binder; a card you don't own has "Add to
+   a binder/list" instead, and stays in the deck. The "− 3 +" bar on a card works as
    in a list: − on the last copy asks about deleting the card.
    Too many copies: adding a card the deck already has as many of as its
    format allows (1 in Commander-style formats, 4 in the others) shows a

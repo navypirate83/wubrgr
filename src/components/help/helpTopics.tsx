@@ -439,14 +439,14 @@ export const helpTopics: HelpTopic[] = [
               In a deck's Main deck, Sideboard or Maybe list, a binder's List or Grid view, or a list, you can select cards. With a finger, press and hold a card. With a mouse, hold <Strong>Ctrl</Strong> (<Strong>Cmd</Strong> on a Mac) and click it; Ctrl+click it again to un-pick it.
               While a selection is going, a plain tap picks or un-picks another card (it doesn't open the card). A picked card is
               highlighted and has an orange check on its picture (the check is there for people who can't tell the highlight). A bar
-              floats over the search box and the buttons under it (so nothing moves), says how many are picked and has <Strong>Move to</Strong>, a red <Strong>Delete</Strong> and a cross to cancel.
+              floats over the search box and the buttons under it (so nothing moves), says how many are picked and has <Strong>Move / Add</Strong> (<Strong>Move to</Strong> in a deck), a red <Strong>Delete</Strong> and a cross to cancel.
               Un-picking the last card also ends the selection.
             </P>
             <P>
               In a deck, <Strong>Move to</Strong> offers the other places (main deck, sideboard, maybe board); moving into a full main deck
-              asks first. In a binder or a list it offers <Strong>Binder</Strong>, <Strong>List</Strong> and <Strong>Deck</Strong>: pick one, then which binder, list or deck (a deck gets them on its Maybe board), and the cards leave where they were. <Strong>Delete</Strong> asks once ("Delete 3 cards?") and
+              asks first. In a binder or a list, <Strong>Move / Add</Strong> offers <Strong>Move to a binder</Strong> and <Strong>Move to a list</Strong> (pick which one, and the cards leave where they were) and <Strong>Add to a deck</Strong>: pick the board (<Strong>Main deck</Strong>, <Strong>Sideboard</Strong> or <Strong>Maybe</Strong>) and the deck, and one copy of each card is added while the cards stay where they are. If some of them are banned in that deck's format, are already in the deck as often as the format allows, or would make the main deck too big, one window lists them with <Strong>Cancel</Strong>, <Strong>Skip those</Strong> and <Strong>Add all</Strong> (the Maybe board never asks). <Strong>Delete</Strong> asks once ("Delete 3 cards?") and
               then takes them all out, so it is also a quick way to clear many cards. A card with several copies counts as one picked
-              card, and all its copies move or go together. The Binder view (the page of pockets) has no selecting.
+              card, and all its copies move or go together (a deck still gets just one copy of it). The Binder view (the page of pockets) has no selecting.
             </P>
           </>
         ),
@@ -678,7 +678,7 @@ export const helpTopics: HelpTopic[] = [
               go back further, one page at a time, all the way to the page you first opened the app
               on. It goes back through every kind of move: the tabs, the side menu, the Binders,
               Lists and Decks buttons, an open binder, Help and signing in. On that first page there
-              is nowhere to go back to, so the arrow is grayed out and does nothing. On Android, the
+              is nowhere to go back to, so the arrow is grayed out and does nothing. On the website, your browser's own Back button (and a phone's back swipe) does the same as the arrow. On Android, the
               phone's own Back button or gesture also goes back; on an iPhone, you can also swipe
               in from the left edge of the screen.
             </P>
@@ -997,11 +997,11 @@ export const helpTopics: HelpTopic[] = [
               card screen: slide up from the <Strong>Slide up for rules</Strong> strip (or tap it), and slide it down, or tap outside it, to put it away.
             </P>
             <P>
-              Two more icons put a <Strong>copy</Strong> of the card somewhere else, and the card stays where it is: the
-              <Strong> list with a +</Strong> (Add to a list: pick a list) and the <Strong>deck with a +</Strong> (Add to a deck: pick
-              the board, <Strong>Main deck</Strong> or <Strong>Sideboard</Strong> for a format that has one, then the deck; each deck shows how many copies it
-              already has). If the card is banned in that deck's format, or the deck already has as many copies as its format allows, it asks
-              first, and <Strong>Add anyway</Strong> goes ahead. The binder with a + <Strong>moves</Strong> the card to another binder.
+              The <Strong>deck with a +</Strong> puts a <Strong>copy</Strong> of the card in a deck, and the card stays where it is: pick
+              the board (<Strong>Main deck</Strong>, <Strong>Sideboard</Strong> for a format that has one, or <Strong>Maybe</Strong>), then the deck; each deck shows how many copies it
+              already has. If the card is banned in that deck's format, the deck already has as many copies as its format allows, or the main deck would get too big, it asks
+              first, and <Strong>Add anyway</Strong> goes ahead. The binder with a + <Strong>moves</Strong> the card to another binder, and the
+              <Strong> list with a +</Strong> <Strong>moves</Strong> it to a list (a list is for cards leaving your collection, so the card leaves the binder; with several copies it asks how many to move).
             </P>
           </>
         ),
