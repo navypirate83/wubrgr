@@ -363,8 +363,10 @@ export default function ListScreen() {
 
   // The card is safely in the binder: take it out of the list
   function movedToBinder(note: string) {
-    if (movingIndex !== null) removeCardFromList(id, movingIndex);
+    const saved = movingIndex === null || removeCardFromList(id, movingIndex);
     setMovingIndex(null);
+    // The list wouldn't save: the card is in the binder AND still on the list, so say so plainly
+    if (!saved) { showMessage("Couldn't finish the move", "The card was added to the binder, but saving isn't working on this device, so it could not be taken off this list. It is in both places now."); return; }
     announce(note.replace('✓ ', ''));
     changed();
   }
@@ -382,11 +384,14 @@ export default function ListScreen() {
 
   // The selected cards are safely in a binder: take them off the list
   function movedManyToBinder(note: string) {
-    for (const spot of [...pickedSpots].sort((a, b) => b - a)) removeCardFromList(id, spot);
+    let saved = true;
+    for (const spot of [...pickedSpots].sort((a, b) => b - a)) saved = removeCardFromList(id, spot) && saved;
     setMovingMany(null);
     selection.clear();
-    announce(note);
     changed();
+    // The list wouldn't save: the cards are in the other place AND still on the list, so say so plainly
+    if (!saved) { showMessage("Couldn't finish the move", "The cards were added to the other place, but saving isn't working on this device, so they could not all be taken off this list. Some are in both places now."); return; }
+    announce(note);
   }
 
   // A list that doesn't exist (deleted, or a broken link): back to the lists

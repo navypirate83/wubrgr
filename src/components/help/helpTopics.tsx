@@ -1658,8 +1658,8 @@ export const helpTopics: HelpTopic[] = [
             </P>
             <Bullet><Strong>Website</Strong>: {WEBSITE}</Bullet>
             <Bullet>
-              <Strong>Server</Strong>: wubrgr-server.onrender.com (hosted on Render). Open{' '}
-              <Strong>wubrgr-server.onrender.com/api/health</Strong> in a browser: it answers{' '}
+              <Strong>Server</Strong>: api.navypirate83.com (hosted on Render). Open{' '}
+              <Strong>api.navypirate83.com/api/health</Strong> in a browser: it answers{' '}
               <Strong>{'{"ok":true}'}</Strong> when the server is running. After it has been idle, the first
               request can take a little while to wake it up.
             </Bullet>

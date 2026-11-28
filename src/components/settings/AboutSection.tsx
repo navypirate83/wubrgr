@@ -87,7 +87,7 @@ function ServerStatusRow() {
     <View style={styles.statusRow}>
       <View style={styles.statusText}>
         <Text style={[styles.name, { color: colors.text }]}>Server status</Text>
-        <Text style={[styles.description, { color: colors.muted }]}>wubrgr-server.onrender.com</Text>
+        <Text style={[styles.description, { color: colors.muted }]}>api.navypirate83.com</Text>
       </View>
       {createElement('a', {
         href: STATUS_PAGE_URL,
@@ -97,7 +97,7 @@ function ServerStatusRow() {
         style: { display: 'block', lineHeight: 0, flexShrink: 0 },
       }, createElement('img', {
         src: STATUS_BADGE_IMAGE_URL,
-        alt: 'Server status: wubrgr-server.onrender.com',
+        alt: 'Server status: api.navypirate83.com',
         height: STATUS_BADGE_HEIGHT,
         style: { display: 'block', height: STATUS_BADGE_HEIGHT },
       }))}
@@ -166,7 +166,7 @@ export default function AboutSection() {
           the status page on the phone */}
       {Platform.OS === 'web'
         ? <ServerStatusRow />
-        : <LinkRow name="Server status" description="wubrgr-server.onrender.com" url={STATUS_PAGE_URL} />}
+        : <LinkRow name="Server status" description="api.navypirate83.com" url={STATUS_PAGE_URL} />}
 
       {/* After an unexpected close: the report to copy (Android only; nothing shows when there is none) */}
       {crash && <CrashReportRow report={crash} onGone={() => setCrash(null)} />}

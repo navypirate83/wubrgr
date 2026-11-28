@@ -413,6 +413,10 @@ function flatCard(photo, candidate, outWidth = 630, outHeight = 880)            
 // cut up later, once the printings to choose between are known, because each frame era (1993, 1997, 2003,
 // 2015) has its art and symbol in a slightly different place (see core/clueMatch.ts).
 
+// A small JPEG of the scan's photo, kept only for accounts with the "trainer" right (see lib/scanner/trainerUpload.ts):
+// the whole photo (at most about 1100 pixels on its longest side) and where the card was in it, as shares of its
+// width and height (0 to 1)
+
                                                                                        
 
 // Where the parts of a card are, as shares of the card's width and height (0 to 1):

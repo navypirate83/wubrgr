@@ -220,6 +220,7 @@ export function fillListDetails(id: string, printings: Map<string, ScryfallCard>
 }
 
 // Take the card at this spot (0 is the first) out of a list
-export function removeCardFromList(id: string, index: number) {
-  changeList(id, (l) => ({ ...l, cards: l.cards.filter((_, i) => i !== index) }));
+// (Gives back false if the list could not be saved, so the caller can say so.)
+export function removeCardFromList(id: string, index: number): boolean {
+  return changeList(id, (l) => ({ ...l, cards: l.cards.filter((_, i) => i !== index) }));
 }

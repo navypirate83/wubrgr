@@ -30,6 +30,15 @@ export type Change = {
 // Every version, NEWEST FIRST. Add new ones at the top.
 export const CHANGES: Change[] = [
   {
+    version: '2.2.1',
+    date: '2026-11-27',
+    lines: [
+      'Moving cards now tells you if the place they came from could not be saved (the cards are then in both places), instead of saying it worked.',
+      'About and Help show the server\'s own address, api.navypirate83.com.',
+      'The scanner\'s background helper file is rebuilt every time the website is published, so it can no longer fall behind.',
+    ],
+  },
+  {
     version: '2.2.0',
     date: '2026-11-27',
     lines: [

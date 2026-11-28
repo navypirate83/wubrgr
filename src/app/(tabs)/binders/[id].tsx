@@ -832,9 +832,11 @@ function BinderView({ binderId }: { binderId: string }) {
   function movedManyOut(note: string) {
     const next = { ...cardsRef.current };
     for (const key of selection.keys) delete next[key];
-    commit(next);
+    const saved = commit(next);
     setMovingMany(null);
     selection.clear();
+    // This binder wouldn't save: the cards are in the other place AND still here, so say so plainly
+    if (!saved) { showMessage("Couldn't finish the move", "The cards were added to the other place, but saving isn't working on this device, so they could not be taken out of this binder. They are in both places now."); return; }
     savedNote.current = note;   // read out once saved
     scheduleDriveSave();
   }
@@ -847,8 +849,10 @@ function BinderView({ binderId }: { binderId: string }) {
     const left = cardCount(next[key]) - amount;
     if (left > 0) next[key] = withCount(next[key], left);
     else delete next[key];
-    commit(next);
+    const saved = commit(next);
     setMovingKey(null);
+    // This binder wouldn't save: the card is in the other binder AND still here, so say so plainly
+    if (!saved) { showMessage("Couldn't finish the move", "The card was added to the other binder, but saving isn't working on this device, so it could not be taken out of this one. It is in both binders now."); return; }
     savedNote.current = note;   // read out once saved
     scheduleDriveSave();
   }

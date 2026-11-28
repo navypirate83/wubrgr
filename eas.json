@@ -14,7 +14,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://wubrgr-server.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://api.navypirate83.com"
       },
       "android": {
         "buildType": "apk"
@@ -22,7 +22,7 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://wubrgr-server.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://api.navypirate83.com"
       }
     }
   }
