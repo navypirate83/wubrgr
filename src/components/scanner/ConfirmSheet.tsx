@@ -2,7 +2,8 @@
    THE CONFIRM SHEET
    Slides up from the bottom after a card is scanned (in one-card mode), or
    when a card in the stack's list is tapped to change it. It shows the card's
-   picture, its name, its set and collector number, then one row to adjust it:
+   picture, its name, its set and collector number, its rarity and type, and
+   the price of one copy (with the price store's icon), then one row to adjust it:
    how many (a "− 1 +" box), the finish button (not foil / foil / etched, like
    the Card Finder's) and the language box (just its letters; the list has the
    full names). Under that: the main button (which says where it goes, or "Done"
@@ -19,6 +20,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Button from '@/components/Button';
 import FinishButton from './FinishButton';
 import LanguageBox from './LanguageBox';
+import ScanPrice from './ScanPrice';
+import { useScanPrices } from '@/hooks/useScanPrices';
 import { useColors } from '@/hooks/useTheme';
 import { MAX_COPIES } from '@/lib/binderStorage';
 import { RADIUS } from '@/theme/colors';
@@ -38,6 +41,8 @@ type Props = {
 export default function ConfirmSheet({ item, likely, primaryLabel, onChange, onPrimary, onWrongPrinting, onClose, behind }: Props) {
   const colors = useColors();
   const p = item.printing;
+  // The price of one copy, in the finish picked (nothing until it's known)
+  const price = useScanPrices([item]).get(item.id);
   return (
     <View style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: colors.shadow, zIndex: behind ? 10 : SHEET_LAYER }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} onPress={onClose} style={styles.close}>
@@ -50,6 +55,8 @@ export default function ConfirmSheet({ item, likely, primaryLabel, onChange, onP
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>{p.name}</Text>
           <Text style={[styles.line, { color: colors.muted }]} numberOfLines={2}>{p.setName} ({p.setCode.toUpperCase()}) #{p.collectorNumber}</Text>
           <Text style={[styles.line, { color: colors.muted }]} numberOfLines={1}>{p.rarity ? `${p.rarity[0].toUpperCase()}${p.rarity.slice(1)} · ` : ''}{p.typeLine.split('//')[0].trim()}</Text>
+          {/* Directly under the rarity: the store's icon and the price */}
+          {price && <ScanPrice text={price} size={14} />}
           {likely && <Text style={[styles.likely, { color: colors.accent, backgroundColor: `${colors.accent}33` }]}>LIKELY</Text>}
         </View>
       </View>

@@ -1,7 +1,8 @@
 /* =====================================================================
    THE STACK LIST
    The running list of cards scanned in stack mode. Each row has the card's
-   picture, name, set and number, and small tags: the language when it isn't
+   picture, name, set and number (and beside them the price store's icon and
+   the price of one copy), and small tags: the language when it isn't
    English, FOIL or ETCHED, and ×N for several copies. A card the scanner wasn't
    sure of has an orange dashed border and a PICK tag (a printing to choose) or a
    FIX tag (one that couldn't be read); tapping it opens the picker. Tapping any
@@ -18,6 +19,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Button from '@/components/Button';
+import ScanPrice from './ScanPrice';
+import { useScanPrices } from '@/hooks/useScanPrices';
 import { useColors } from '@/hooks/useTheme';
 import type { ScanItem } from '@/lib/scanner/scanItems';
 
@@ -34,6 +37,8 @@ type Props = {
 
 export default function StackList({ items, training, onToggleWrong, onOpen, onRemove, onClear, onAdd, onClose }: Props) {
   const colors = useColors();
+  // Each card's price (one copy, in its finish)
+  const prices = useScanPrices(items);
   const copies = items.reduce((sum, item) => sum + item.count, 0);
   const flagged = items.filter((item) => item.flag).length;
   return (
@@ -67,9 +72,18 @@ export default function StackList({ items, training, onToggleWrong, onOpen, onRe
               </View>
               <View style={styles.text}>
                 <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{item.printing.name}</Text>
-                <Text style={[styles.line, { color: colors.muted }]} numberOfLines={1}>
-                  {item.flag === 'fix' ? 'Couldn\'t read it' : item.flag === 'pick' ? 'Not sure which printing' : `${item.printing.setCode.toUpperCase()} #${item.printing.collectorNumber}`}
-                </Text>
+                {/* The set and number, then the price (only once the printing is known) */}
+                <View style={styles.numberLine}>
+                  <Text style={[styles.line, styles.shrink, { color: colors.muted }]} numberOfLines={1}>
+                    {item.flag === 'fix' ? 'Couldn\'t read it' : item.flag === 'pick' ? 'Not sure which printing' : `${item.printing.setCode.toUpperCase()} #${item.printing.collectorNumber}`}
+                  </Text>
+                  {!item.flag && prices.has(item.id) && (
+                    <>
+                      <Text style={[styles.line, { color: colors.muted }]}>·</Text>
+                      <ScanPrice text={prices.get(item.id)!} size={12.5} />
+                    </>
+                  )}
+                </View>
               </View>
               {item.flag && <Text style={[styles.tag, { color: colors.accent, backgroundColor: `${colors.accent}33` }]}>{item.flag === 'fix' ? 'FIX' : 'PICK'}</Text>}
               {item.lang !== 'en' && <Text style={[styles.tag, { color: colors.muted, backgroundColor: colors.surfaceHover }]}>{item.lang.toUpperCase()}</Text>}
@@ -122,6 +136,9 @@ const styles = StyleSheet.create({
   text: { flex: 1, minWidth: 0, gap: 1 },
   name: { fontSize: 14.5, fontWeight: '700' },
   line: { fontSize: 12.5 },
+  // The set and number with the price beside them; a narrow row shortens the first, never the price
+  numberLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  shrink: { flexShrink: 1 },
   tag: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
   // The trainer's "Wrong" box: the box with the word under it
   wrong: { alignItems: 'center', paddingHorizontal: 4 },
